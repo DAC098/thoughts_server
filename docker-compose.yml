@@ -1,0 +1,9 @@
+version: "3.8"
+services:
+  db:
+    image: "postgres:13"
+    network_mode: "host"
+    environment:
+      POSTGRES_PASSWORD: "password"
+    volumes:
+      - "./db:/docker-entrypoint-initdb.d"
