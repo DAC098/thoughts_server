@@ -1,9 +1,4 @@
-pub mod entries;
-pub mod entries2tags;
-pub mod mood_entries;
 pub mod mood_fields;
-pub mod tags;
-pub mod text_entries;
 pub mod users;
 pub mod user_sessions;
 

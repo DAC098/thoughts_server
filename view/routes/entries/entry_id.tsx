@@ -1,132 +1,319 @@
 import { DatePicker, DefaultButton, IconButton, Label, SpinButton, Stack, TextField } from "@fluentui/react";
-import React, { useEffect, useState } from "react"
+import React, { createContext, Dispatch, useContext, useEffect, useReducer } from "react"
 import { useHistory, useLocation, useParams } from "react-router";
-import { EntryJson, getEntry, getMoodFields, MoodEntryJson, MoodFieldJson, TextEntryJson } from "../../json";
+import { cloneEntryJson, EntryJson, getEntry, getMoodFields, makeEntryJson, makeMoodEntryJson, makeTextEntry, MoodEntryJson, MoodFieldJson, TextEntryJson } from "../../json";
 import { json } from "../../request";
-import { compareDates, getCreatedDateToString, getCreatedStringToDate } from "../../time";
+import { getCreatedDateToString, getCreatedStringToDate } from "../../time";
 
-interface NewTextEntryProps {
-    entry_id: number
-
-    onCreated?: () => void
+interface TextEntryUI extends TextEntryJson {
+    key?: string
 }
 
-const NewTextEntry = ({entry_id, onCreated}: NewTextEntryProps) => {
-    let [text, setText] = useState("");
-    let [sending, setSending] = useState(false);
-
-    const sendTextEntry = () => {
-        if (sending)
-            return;
-        
-        setSending(true);
-
-        json.post(`/entries/${entry_id}/text_entries`, [{thought: text}])
-            .then(body => {
-                onCreated?.();
-                setText("");
-            })
-            .catch(err => {
-                console.error(err);
-            })
-            .then(() => {
-                setSending(false)
-            })
-    }
-
-    return <Stack tokens={{childrenGap: 8}}>
-        <TextField multiline autoAdjustHeight value={text} onChange={(e,v) => {
-            setText(v);
-        }}/>
-        <DefaultButton text="Save Text" primary disabled={sending || text.length === 0} onClick={() => {
-            sendTextEntry();
-        }}/>
-    </Stack>
+interface EntryUIState extends EntryJson {
+    text_entries: TextEntryUI[]
 }
 
-interface CurrentTextEntryProps {
-    entry_id: number
-    text_entry: TextEntryJson
-
-    onUpdated?: () => void
+interface EntryState {
+    original?: EntryUIState
+    current?: EntryUIState
+    loading: boolean
+    sending: boolean
+    fields: {[id: string]: MoodFieldJson}
+    existing_fields: {[id: string]: number}
+    loading_fields: boolean
+    changes_made: boolean
 }
 
-const CurrentTextEntry = ({entry_id, text_entry, onUpdated}: CurrentTextEntryProps) => {
-    let [current, setCurrent] = useState(text_entry.thought);
-    let [text, setText] = useState(text_entry.thought);
-    let [sending, setSending] = useState(false);
+interface CreateMoodEntryAction {
+    type: "create-mood-entry-action",
+    field: string
+}
 
-    const sendUpdate = () => {
-        if (sending) {
-            return;
+interface UpdateMoodEntryAction {
+    type: "update-mood-entry"
+    index: number
+    low: number
+    high?: number
+    comment?: string
+}
+
+interface DeleteMoodEntryAction {
+    type: "delete-mood-entry"
+    index: number
+}
+
+interface CreateTextEntryAction {
+    type: "create-text-entry-action"
+}
+
+interface UpdateTextEntryAction {
+    type: "update-text-entry"
+    index: number
+    thought: string
+}
+
+interface DeleteTextEntryAction {
+    type: "delete-text-entry"
+    index: number
+}
+
+interface UpdateEntryAction {
+    type: "update-entry"
+    created: string
+}
+
+interface SetEntry {
+    type: "set-entry"
+    entry: EntryJson
+}
+
+interface SetLoading {
+    type: "set-loading"
+    value: boolean
+}
+
+interface SetSending {
+    type: "set-sending"
+    value: boolean
+}
+
+interface SetMoodFields {
+    type: "set-mood-fields"
+    fields: MoodFieldJson[]
+}
+
+interface SetLoadingFields {
+    type: "set-loading-fields"
+    value: boolean
+}
+
+interface ResetEntry {
+    type: "reset-entry"
+}
+
+interface NewEntry {
+    type: "new-entry"
+}
+
+type EntryStateActions = UpdateMoodEntryAction | UpdateTextEntryAction | UpdateEntryAction |
+    SetEntry | SetLoading | SetSending |
+    ResetEntry | NewEntry |
+    SetMoodFields | SetLoadingFields |
+    CreateMoodEntryAction | CreateTextEntryAction |
+    DeleteMoodEntryAction | DeleteTextEntryAction;
+
+function entryStateReducer(state: EntryState, action: EntryStateActions): EntryState {
+    switch (action.type) {
+        case "set-entry":{
+            let original = action.entry;
+            let current = cloneEntryJson(action.entry);
+            let existing_fields = {};
+
+            for (let field of current.mood_entries) {
+                existing_fields[field.field_id] = field.id;
+            }
+
+            return {
+                ...state,
+                original,
+                current,
+                existing_fields,
+                changes_made: false
+            };
         }
-
-        setSending(true);
-
-        json.put(`/entries/${entry_id}/text_entries/${text_entry.id}`, {thought: text})
-            .then(({}) => {
-                onUpdated?.();
-            })
-            .catch(err => {
-                console.error(err);
-            })
-            .then(() => {
-                setSending(false)
-            });
-    }
-
-    const sendDelete = () => {
-        if (sending) {
-            return;
+        case "set-loading": {
+            return {
+                ...state,
+                loading: action.value
+            }
         }
+        case "set-sending": {
+            return {
+                ...state,
+                sending: action.value
+            }
+        }
+        case "reset-entry": {
+            let current = cloneEntryJson(state.original);
+            let existing_fields = {};
 
-        setSending(true);
+            for (let field of current.mood_entries) {
+                existing_fields[field.field_id] = field.id;
+            }
 
-        json.delete(`/entries/${entry_id}/text_entries/${text_entry.id}`)
-            .then(() => {
-                onUpdated?.();
-            })
-            .catch(err => {
-                console.error(err);
-            })
-            .then(() => {
-                setSending(false)
-            });
+            return {
+                ...state,
+                current,
+                existing_fields,
+                changes_made: false
+            }
+        }
+        case "new-entry": {
+            let original = makeEntryJson();
+            original.created = getCreatedDateToString(new Date());
+            let current = makeEntryJson();
+            current.created = original.created.slice(0);
+
+            return {
+                ...state,
+                original,
+                current,
+                existing_fields: {},
+                changes_made: true
+            }
+        }
+        case "update-entry": {
+            let current = cloneEntryJson(state.current);
+            current.created = action.created;
+
+            return {
+                ...state,
+                current,
+                changes_made: true
+            };
+        }
+        case "create-mood-entry-action": {
+            let field = state.fields[action.field];
+
+            if (field == null) {
+                console.log("field requested was not found");
+                return {
+                    ...state
+                };
+            }
+
+            if (field.id in state.existing_fields) {
+                console.log("field requested already exists");
+                return {
+                    ...state
+                };
+            }
+
+            let current = cloneEntryJson(state.current);
+            let existing_fields = {};
+            let mood_entry = makeMoodEntryJson();
+            mood_entry.field = field.name;
+            mood_entry.field_id = field.id;
+            mood_entry.is_range = field.is_range;
+            
+            if (field.is_range) {
+                mood_entry.high = 0;
+            }
+
+            current.mood_entries.push(mood_entry);
+
+            for (let f of current.mood_entries) {
+                existing_fields[f.field_id] = 0;
+            }
+
+            return {
+                ...state,
+                current,
+                existing_fields,
+                changes_made: true
+            }
+        }
+        case "update-mood-entry": {
+            let current = cloneEntryJson(state.current);
+            current.mood_entries[action.index].low = action.low;
+            current.mood_entries[action.index].high = action.high;
+            current.mood_entries[action.index].comment = action.comment;
+
+            return {
+                ...state,
+                current,
+                changes_made: true
+            };
+        }
+        case "delete-mood-entry": {
+            let existing_fields = {};
+            let current = cloneEntryJson(state.current);
+            current.mood_entries.splice(action.index, 1);
+
+            for (let f of current.mood_entries) {
+                existing_fields[f.field_id] = f.id;
+            }
+
+            return {
+                ...state,
+                current,
+                existing_fields,
+                changes_made: true
+            }
+        }
+        case "create-text-entry-action": {
+            let current = cloneEntryJson(state.current);
+            let text_entry: TextEntryUI = makeTextEntry();
+            text_entry.key = Date.now().toString();
+            current.text_entries.push(text_entry);
+
+            return {
+                ...state,
+                current,
+                changes_made: true
+            }
+        }
+        case "update-text-entry": {
+            let current = cloneEntryJson(state.current);
+            current.text_entries[action.index].thought = action.thought;
+
+            return {
+                ...state,
+                current,
+                changes_made: true
+            }
+        }
+        case "delete-text-entry": {
+            let current = cloneEntryJson(state.current);
+            current.text_entries.splice(action.index, 1);
+
+            return {
+                ...state,
+                current,
+                changes_made: true
+            }
+        }
+        case "set-mood-fields": {
+            let mapping = {};
+
+            for (let field of action.fields) {
+                mapping[field.id] = field;
+            }
+
+            return {
+                ...state,
+                fields: mapping
+            }
+        }
+        default: {
+            return {
+                ...state
+            }
+        }
     }
-
-    useEffect(() => {
-        setCurrent(text_entry.thought);
-        setText(text_entry.thought);
-    }, [text_entry.thought])
-
-    return <Stack tokens={{childrenGap: 8}}>
-        <TextField multiline autoAdjustHeight value={text} onChange={(e,v) => {
-            setText(v);
-        }}/>
-        <Stack horizontal tokens={{childrenGap: 8}}>
-            <DefaultButton text="Update" disabled={text === current || sending} onClick={() => {
-                sendUpdate();
-            }}/>
-            <DefaultButton text="Delete" disabled={sending} onClick={() => {
-                sendDelete();
-            }}/>
-        </Stack>
-    </Stack>
 }
+
+const EntryStateContext = createContext<Dispatch<EntryStateActions>>(null);
 
 interface TextEntryAreaProps {
-    entry_id: number
     text_entries: TextEntryJson[]
-
-    onCreated?: () => void
-    onUpdated?: () => void
 }
 
-const TextEntryArea = ({entry_id, text_entries, onCreated, onUpdated}: TextEntryAreaProps) => {
+const TextEntryArea = ({text_entries}: TextEntryAreaProps) => {
+    let dispatch = useContext(EntryStateContext);
+
     return <Stack tokens={{childrenGap: 8}}>
-        <NewTextEntry entry_id={entry_id} onCreated={onCreated}/>
-        {text_entries.map(v => {
-            return <CurrentTextEntry key={v.id} entry_id={entry_id} text_entry={v} onUpdated={onUpdated}/>
+        {text_entries.map((v, index) => {
+            return <Stack key={v.id} horizontal tokens={{childrenGap: 8}}>
+                <Stack.Item grow>
+                    <TextField key={v.id} multiline autoAdjustHeight value={v.thought} onChange={(e,t) => {
+                        dispatch({type: "update-text-entry", index, thought: t});
+                    }}/>
+                </Stack.Item>
+                <IconButton iconProps={{iconName: "Delete"}} onClick={() => {
+                    dispatch({type: "delete-text-entry", index});
+                }}/>
+            </Stack>
         })}
     </Stack>
 }
@@ -139,277 +326,98 @@ interface MoodEntryInputProps {
 
     is_range: boolean
 
-    disable_save: boolean
-    save_text: string
+    min?: number
+    max?: number
 
     onLow?: (v: number) => void
     onHigh?: (v: number) => void
     onComment?: (v: string) => void
-
-    onSave?: () => void
+    onDelete?: () => void
 }
 
 const MoodEntryInputs = ({
     field,
     low, high, comment,
     is_range,
-    disable_save, save_text,
-    onLow, onHigh, onComment, onSave
+    min, max,
+    onLow, onHigh, onComment,
+    onDelete
 }: MoodEntryInputProps) => {
     return <Stack tokens={{childrenGap: 8}}>
-        <div>
+        <Stack horizontal tokens={{childrenGap: 8}}>
             <Label>{field}</Label>
-        </div>
+            <IconButton iconProps={{iconName: "Delete"}} onClick={() => {
+                onDelete?.();
+            }}/>
+        </Stack>
         <Stack horizontal tokens={{childrenGap: 8}}>
             <SpinButton
                 label="Low"
-                value={low.toString()} 
-                onIncrement={(v,e) => {
-                    onLow?.(low + 1);
-                }}
-                onDecrement={(_v,e) => {
-                    onLow?.(low - 1);
-                }}
-                onValidate={(v,e) => {
-                    onLow?.(parseInt(v));
+                value={low.toString()}
+                min={min} max={max}
+                onChange={(e,v) => {
+                    let int = parseInt(v);
+                    onLow?.(isNaN(int) ? 0 : int);
                 }}
             />
             <SpinButton
                 label="High"
                 disabled={!is_range}
                 value={high.toString()}
-                onIncrement={(v,e) => {
-                    onHigh?.(high + 1);
-                }}
-                onDecrement={(v,e) => {
-                    onHigh?.(high - 1);
-                }}
-                onValidate={(v,e) => {
-                    onHigh?.(parseInt(v));
+                min={min} max={max}
+                onChange={(e,v) => {
+                    let int = parseInt(v);
+                    onHigh?.(isNaN(int) ? 0 : int)
                 }}
             />
         </Stack>
         <TextField type="text" placeholder="comment" value={comment} onChange={(e,v) => {
             onComment?.(v);
         }}/>
-        <div>
-            <DefaultButton
-                text={save_text} 
-                disabled={disable_save}
-                onClick={() => {
-                    onSave?.();
-                }}
-            />
-        </div>
     </Stack>
 }
 
-interface NewMoodEntryProps {
-    entry_id: number
-    mood_field: MoodFieldJson
-
-    onCreated?: () => void
-}
-
-const NewMoodEntry = ({entry_id, mood_field, onCreated}: NewMoodEntryProps) => {
-    let [low, setLow] = useState(0);
-    let [high, setHigh] = useState(0);
-    let [comment, setComment] = useState("");
-    let [sending, setSending] = useState(false);
-
-    const sendMoodEntry = () => {
-        if (sending)
-            return;
-        
-        setSending(true);
-
-        json.post(`/entries/${entry_id}/mood_entries`, [{
-            field_id: mood_field.id,
-            low: low,
-            high: mood_field.is_range ? high : null,
-            comment: comment.length > 0 ? comment : null
-        }])
-            .then(({}) => {
-                onCreated?.();
-            })
-            .catch((err) => {
-                console.error(err);
-            })
-            .then(() => {
-                setSending(false)
-            });
-    }
-
-    return <MoodEntryInputs
-        field={mood_field.name}
-        low={low} high={high} comment={comment}
-        is_range={mood_field.is_range}
-        save_text="Save"
-        disable_save={false}
-
-        onLow={v => setLow(v)}
-        onHigh={v => setHigh(v)}
-        onComment={v => setComment(v)}
-        onSave={() => sendMoodEntry()}
-    />
-}
-
-interface CurrentMoodEntryProps {
-    entry_id: number
-    mood_entry: MoodEntryJson
-
-    onUpdated?: () => void
-}
-
-const CurrentMoodEntry = ({entry_id, mood_entry, onUpdated}: CurrentMoodEntryProps) => {
-    let [low, setLow] = useState(mood_entry.low);
-    let [high, setHigh] = useState((mood_entry.high ?? 0));
-    let [comment, setComment] = useState(mood_entry.comment);
-    let [sending, setSending] = useState(false);
-
-    const updateMoodEntry = () => {
-        if (sending)
-            return;
-
-        setSending(true);
-
-        json.put(`/entries/${entry_id}/mood_entries/${mood_entry.id}`, {
-            low: low,
-            high: mood_entry.is_range ? high : null,
-            comment: comment?.length ? comment : null
-        })
-            .then(({}) => {
-                onUpdated?.();
-            })
-            .catch(err => {
-                console.error(err);
-            })
-            .then(() => {
-                setSending(false)
-            });
-    }
-
-    return <MoodEntryInputs
-        field={mood_entry.field}
-        low={low} high={high} comment={comment}
-        is_range={mood_entry.is_range}
-        save_text="Update"
-        disable_save={low === mood_entry.low && high === mood_entry.high && comment === mood_entry.comment}
-
-        onLow={v => setLow(v)}
-        onHigh={v => setHigh(v)}
-        onComment={v => setComment(v)}
-        onSave={() => updateMoodEntry()}
-    />
-}
-
-
 interface MoodEntriesAreaProps {
-    entry_id: number
+    mood_fields: {[id: string]: MoodFieldJson}
     mood_entries: MoodEntryJson[]
-
-    onCreated?: () => void
-    onUpdated?: () => void
 }
 
-const MoodEntriesArea = ({entry_id, mood_entries, onCreated, onUpdated}: MoodEntriesAreaProps) => {
-    let [fields, setFields] = useState<{[id: number]: MoodFieldJson}>();
-    let rendered_fields: number[] = [];
-
-    useEffect(() => {
-        getMoodFields()
-            .then(list => {
-                setFields(() => {
-                    let rtn = {};
-
-                    for (let f of list) {
-                        rtn[f.id] = f;
-                    }
-
-                    return rtn;
-                });
-            })
-            .catch(err => {
-                console.error(err);
-            })
-    }, []);
-
-    let given_fields = [];
-    let missing_fields = [];
-
-    for (let mf of mood_entries) {
-        rendered_fields.push(mf.field_id);
-
-        given_fields.push(<CurrentMoodEntry key={mf.id} entry_id={entry_id} mood_entry={mf} onUpdated={onUpdated}/>);
-    }
-
-    for (let f_id in fields) {
-        if (parseInt(f_id) === rendered_fields[0]) {
-            rendered_fields.shift();
-            continue;
-        }
-
-        missing_fields.push(<NewMoodEntry key={f_id} entry_id={entry_id} mood_field={fields[f_id]} onCreated={onCreated}/>);
-    }
+const MoodEntriesArea = ({mood_fields, mood_entries}: MoodEntriesAreaProps) => {
+    let dispatch = useContext(EntryStateContext);
 
     return <Stack tokens={{childrenGap: 8}}>
-        {given_fields}
-        {missing_fields}
+        {mood_entries.map((mood_entry,index) => 
+            <MoodEntryInputs
+                key={mood_entry.id}
+                field={mood_entry.field}
+                low={mood_entry.low} high={mood_entry.high ?? 0} comment={mood_entry.comment ?? ""}
+                min={mood_fields?.[mood_entry.field_id].minimum ?? null}
+                max={mood_fields?.[mood_entry.field_id].maximum ?? null}
+                is_range={mood_entry.is_range}
+        
+                onLow={v => dispatch({type: "update-mood-entry", index, low: v, high: mood_entry.high, comment: mood_entry.comment })}
+                onHigh={v => dispatch({type: "update-mood-entry", index, low: mood_entry.low, high: v, comment: mood_entry.comment })}
+                onComment={v => dispatch({type: "update-mood-entry", index, low: mood_entry.low, high: mood_entry.high, comment: v })}
+                onDelete={() => dispatch({type: "delete-mood-entry", index})}
+            />
+        )}
     </Stack>
 }
 
 interface CreatedDateFieldProps {
-    entry_id: number
     created: string
-
-    onUpdated?: () => void
 }
 
-const CreatedDateField = ({entry_id, created, onUpdated}: CreatedDateFieldProps) => {
-    let [sending, setSending] = useState(false);
-    let [current, setCurrent] = useState(getCreatedStringToDate(created));
-    let [date, setDate] = useState(getCreatedStringToDate(created));
-
-    const sendUpdate = (d: Date) => {
-        if (sending) {
-            return;
-        }
-
-        setSending(true);
-
-        json.put(`/entries/${entry_id}`, {created: getCreatedDateToString(d)})
-            .then(({body}) => {
-                onUpdated?.();
-            })
-            .catch(err => {
-                console.log(err)
-            })
-            .then(() => {
-                setSending(false)
-            });
-    }
+const CreatedDateField = ({created}: CreatedDateFieldProps) => {
+    let dispatch = useContext(EntryStateContext);
     
-    useEffect(() => {
-        setCurrent(getCreatedStringToDate(created));
-        setDate(getCreatedStringToDate(created));
-    }, [created]);
-    
-    return <Stack horizontal tokens={{childrenGap: 8, padding: "12px 0 0"}}>
-        <DatePicker 
-            value={date}
-            onSelectDate={d => {
-                setDate(d)
-            }}
-            formatDate={getCreatedDateToString}
-        />
-        <DefaultButton
-            text="Save Date"
-            disabled={compareDates(current, date)}
-            onClick={() => {
-                sendUpdate(date);
-            }}
-        />
-    </Stack>
+    return <DatePicker 
+        value={getCreatedStringToDate(created)}
+        onSelectDate={d => {
+            dispatch({type: "update-entry", created: getCreatedDateToString(d)})
+        }}
+        formatDate={getCreatedDateToString}
+    />
 }
 
 const EntryId = () => {
@@ -418,107 +426,193 @@ const EntryId = () => {
     let params = useParams<{entry_id: string}>();
     let history = useHistory();
 
-    let [loading, setLoading] = useState(false);
-    let [entry, setEntry] = useState<EntryJson>(null);
+    let [state, dispatch] = useReducer(entryStateReducer, {
+        current: null, original: null,
+        loading: false, sending: false,
+        fields: null, loading_fields: false,
+        existing_fields: {},
+        changes_made: false
+    });
 
     const fetchEntry = (id: number) => {
-        if (loading) {
+        if (state.loading) {
             return;
         }
 
-        setLoading(true);
+        dispatch({type: "set-loading", value: true});
 
         getEntry(id).then(entry => {
-            setEntry(entry);
+            dispatch({type: "set-entry", entry});
             history.replace(location.pathname, {entry});
         }).catch(err => {
             console.log(err);
         }).then(() => {
-            setLoading(false);
+            dispatch({type: "set-loading", value: false});
         })
     }
 
-    useEffect(() => {
-        if (entry === null) {
-            let entry_id = parseInt(params.entry_id);
+    const sendEntry = () => {
+        if (state.current == null)
+            return;
+        
+        if (state.sending)
+            return;
 
-            if (entry_id != null) {
-                fetchEntry(entry_id)
+        dispatch({type:"set-sending", value: true});
+
+        let path = "/entries";
+        let is_post = true;
+
+        if (state.current.id) {
+            path += "/" + state.current.id;
+            is_post = false;
+        }
+        
+        json[is_post ? "post" : "put"]<EntryJson>(path, {
+            created: state.current.created,
+            mood_entries: state.current.mood_entries,
+            text_entries: state.current.text_entries.map(v => {
+                return {id: v.id, thought: v.thought}
+            })
+        }).then(({body}) => {
+            if (is_post) {
+                history.push(`/entries/${body.data.id}`);
             } else {
-                console.log("failed to get entry id from path");
+                dispatch({type: "set-entry", entry: body.data});
             }
+        }).catch(err => {
+            console.error(err);
+        }).then(() => {
+            dispatch({type: "set-sending", value: false});
+        });
+    }
+
+    useEffect(() => {
+        let entry_id = parseInt(params.entry_id);
+
+        if (!isNaN(entry_id) && entry_id !== 0) {
+            fetchEntry(entry_id)
+        } else {
+            dispatch({type: "new-entry"});
+        }
+    }, [params.entry_id]);
+
+    useEffect(() => {
+        dispatch({type: "set-loading-fields", value: true});
+        getMoodFields().then(list => {
+            dispatch({type: "set-mood-fields", fields: list});
+        }).catch(err => {
+            console.error(err);
+        }).then(() => {
+            dispatch({type: "set-loading-fields", value: false});
+        })
+    }, []);
+
+    let mood_field_options = [];
+
+    for (let field_id in (state.fields ?? {})) {
+        if (field_id in state.existing_fields) {
+            continue;
         }
 
-    }, [entry]);
+        mood_field_options.push({
+            key: state.fields[field_id].name,
+            text: state.fields[field_id].name,
+            title: state.fields[field_id].comment,
+            onClick: () => {
+                dispatch({type: "create-mood-entry-action", field: field_id})
+            }
+        });
+    }
 
-    return <Stack 
-        horizontal 
-        verticalAlign="center" 
-        horizontalAlign="center" 
-        style={{
-            width: "100vw",height: "100vh",
-            backgroundColor: "rgba(0,0,0,0.5)",
-            position: "absolute",
-            top: 0
-        }}
-        onClick={() => {
-            history.push("/entries");
-        }}
-    >
+    return <EntryStateContext.Provider value={dispatch}>
         <Stack 
+            horizontal 
+            verticalAlign="center" 
+            horizontalAlign="center" 
             style={{
-                width: `${width}px`, height: "100vh",
-                backgroundColor: "white",
-                position: "relative",
-                overflowY: "auto"
-            }}
-            tokens={{
-                padding: "0 12px",
-                childrenGap: 8
-            }}
-            onClick={(e) => {
-                e.stopPropagation();
+                width: "100%", height: "100%",
+                backgroundColor: "rgba(0,0,0,0.5)",
+                position: "absolute",
+                top: 0,
+                zIndex: 1
             }}
         >
-            <Stack.Item grow={0} shrink={0} style={{position:"sticky", top: 0, zIndex: 1, backgroundColor: "white"}}>
-                {entry != null ? 
-                    <CreatedDateField entry_id={entry.id} created={entry.created} onUpdated={() => {
-                        fetchEntry(entry.id);
-                    }}/>
-                    :
-                    loading ?
-                        <h4>Loading</h4>
+            <Stack 
+                style={{
+                    width: `${width}px`, height: "100%",
+                    backgroundColor: "white",
+                    position: "relative"
+                }}
+                onClick={(e) => {
+                    e.stopPropagation();
+                }}
+            >
+                <Stack.Item grow={0} shrink={0} style={{
+                    position:"sticky", 
+                    top: 0, zIndex: 2, 
+                    backgroundColor: "rgba(0,0,0,0.5)",
+                    paddingTop: 8,
+                    paddingBottom: 8
+                }}>
+                    {state.current != null ? 
+                        <Stack horizontal tokens={{childrenGap: 8}}>
+                            <CreatedDateField created={state.current.created}/>
+                            <DefaultButton
+                                text="Add"
+                                iconProps={{iconName: "Add"}}
+                                menuProps={{items: [
+                                    {key: "new-text-entry", text: "Text Entry", onClick: () => {
+                                        dispatch({type: "create-text-entry-action"});
+                                    }},
+                                    {
+                                        key: "new-mood-entry",
+                                        text: "Mood Entry",
+                                        disabled: mood_field_options.length === 0,
+                                        subMenuProps: {
+                                            items: mood_field_options
+                                        }
+                                    }
+                                ]}}
+                            />
+                            <DefaultButton
+                                text="Save"
+                                disabled={!state.changes_made}
+                                onClick={() => sendEntry()}
+                            />
+                            <DefaultButton
+                                text="Reset"
+                                disabled={!state.changes_made}
+                                onClick={() => dispatch({type: "reset-entry"})}
+                            />
+                        </Stack>
                         :
-                        <h4>No Entry to Show</h4>
-                }
-                <IconButton 
-                    iconProps={{iconName: "Cancel"}} 
-                    style={{position: "absolute", top: 0, right: 0}}
-                    onClick={() => {
-                        history.push("/entries");
-                    }}
-                />
-            </Stack.Item>
-            {entry != null ?
-                <>
-                    <TextEntryArea 
-                        entry_id={entry.id} text_entries={entry.text_entries}
-                        onCreated={() => fetchEntry(entry.id)}
-                        onUpdated={() => fetchEntry(entry.id)}
+                        state.loading ?
+                            <h4>Loading</h4>
+                            :
+                            <h4>No Entry to Show</h4>
+                    }
+                    <IconButton 
+                        iconProps={{iconName: "Cancel"}} 
+                        style={{position: "absolute", top: 0, right: 0}}
+                        onClick={() => {
+                            history.push("/entries");
+                        }}
                     />
-                    <div style={{width: `${width * (2/3)}px`}}>
-                        <MoodEntriesArea
-                            entry_id={entry.id} mood_entries={entry.mood_entries}
-                            onCreated={() => fetchEntry(entry.id)}
-                            onUpdated={() => fetchEntry(entry.id)}
-                        />
-                    </div>
-                </>
-                :
-                null
-            }
+                </Stack.Item>
+                {state.current != null ?
+                    <Stack style={{overflowY: "auto"}} tokens={{childrenGap: 8, padding: 8}}>
+                        <TextEntryArea text_entries={state.current.text_entries}/>
+                        <div style={{width: `${width * (2/3)}px`}}>
+                            <MoodEntriesArea mood_fields={state.fields} mood_entries={state.current.mood_entries}/>
+                        </div>
+                    </Stack>
+                    :
+                    null
+                }
+            </Stack>
         </Stack>
-    </Stack>
+    </EntryStateContext.Provider>
 }
 
 export default EntryId;

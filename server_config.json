@@ -4,7 +4,7 @@
     "db": {
         "username": "postgres",
         "password": "password",
-        "hostname": "buck.dac098.com",
+        "hostname": "truth.dac098.com",
         "port": 5432
     },
     "key": "/etc/ssl/certs/STAR_dac098_com.key",

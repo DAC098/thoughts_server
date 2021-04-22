@@ -1,6 +1,7 @@
 use std::pin::Pin;
 use actix_web::{web, dev::Payload, FromRequest, HttpRequest};
-use actix_session::{UserSession};
+use actix_session::{UserSession, Session};
+use tokio_postgres::{Client};
 use futures::Future;
 
 use crate::db::users;
@@ -12,38 +13,40 @@ pub struct Initiator {
     pub user: users::User
 }
 
+pub async fn get_initiator(
+    conn: &Client,
+    session: Session,
+) -> error::Result<Option<Initiator>> {
+    if let Some(token) = session.get::<String>("token")? {
+        let uuid_token = uuid::Uuid::parse_str(token.as_str())?;
+        let owner_opt = user_sessions::find_token_user(conn, uuid_token).await?;
+
+        match owner_opt {
+            Some(owner) => Ok(Some(Initiator {user: owner})),
+            None => Ok(None)
+        }
+    } else {
+        Ok(None)
+    }
+}
+
 impl FromRequest for Initiator {
     type Config = ();
     type Error = error::ResponseError;
     type Future = Pin<Box<dyn Future<Output = error::Result<Self>>>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
-        let app = req.app_data::<web::Data<state::AppState>>().unwrap().clone();
+        let app_data = req.app_data::<web::Data<state::AppState>>().unwrap().clone();
         let session = UserSession::get_session(req);
-        let token_result = session.get::<String>("token").map_err(
-            |e| error::ResponseError::ActixError(e)
-        );
 
         Box::pin(async move {
-            if token_result.is_err() {
-                return Err(token_result.err().unwrap());
+            let app = app_data.into_inner();
+            let conn = app.pool.get().await?;
+
+            match get_initiator(&conn, session).await? {
+                Some(initiator) => Ok(initiator),
+                None => Err(error::ResponseError::Session)
             }
-
-            if let Some(token) = token_result.unwrap() {
-                let conn = &app.get_conn().await?;
-                let uuid_token = uuid::Uuid::parse_str(token.as_str()).map_err(
-                    |e| error::ResponseError::UuidError(e)
-                )?;
-                let owner_opt = user_sessions::UserSession::find_token_user(conn, uuid_token).await.map_err(
-                    |e| error::ResponseError::PostgresError(e)
-                )?;
-
-                if let Some(owner) = owner_opt {
-                    return Ok(Initiator { user: owner });
-                }
-            }
-
-            Err(error::ResponseError::Session)
         })
     }
 }

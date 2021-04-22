@@ -7,6 +7,8 @@ pub struct AppState {
     pub pool: Pool<PostgresConnectionManager<NoTls>>
 }
 
+
+
 impl AppState {
     
     pub fn new(pool: &Pool<PostgresConnectionManager<NoTls>>) -> AppState {

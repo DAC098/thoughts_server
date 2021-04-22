@@ -1,4 +1,5 @@
 use actix_web::{web, http, HttpRequest, Responder};
+use actix_session::{Session};
 use tokio_postgres::{Client};
 use serde::{Serialize, Deserialize};
 
@@ -11,6 +12,8 @@ use crate::state;
 pub struct MoodFieldJson {
     id: i32,
     name: String,
+    minimum: Option<i32>,
+    maximum: Option<i32>,
     is_range: bool,
     comment: Option<String>
 }
@@ -21,7 +24,10 @@ async fn search_mood_fields(
 ) -> Result<Vec<MoodFieldJson>> {
     let rows = conn.query(
         r#"
-        select id, name, is_range, comment
+        select id, 
+               name, 
+               minimum, maximum, is_range, 
+               comment
         from mood_fields
         where owner = $1
         order by id asc
@@ -34,8 +40,10 @@ async fn search_mood_fields(
         rtn.push(MoodFieldJson {
             id: row.get(0),
             name: row.get(1),
-            is_range: row.get(2),
-            comment: row.get(3)
+            minimum: row.get(2),
+            maximum: row.get(3),
+            is_range: row.get(4),
+            comment: row.get(5)
         });
     }
 
@@ -67,30 +75,40 @@ async fn assert_is_owner_for_mood_field(
 
 pub async fn handle_get_mood_fields(
     req: HttpRequest,
-    initiator: from::Initiator,
+    session: Session,
     app: web::Data<state::AppState>,
 ) -> Result<impl Responder> {
-    if let Ok(accept_html) = response::check_if_html_req(&req) {
-        if accept_html {
-            return Ok(response::respond_index_html())
-        }
-    }
-
+    let accept_html = response::check_if_html_req(&req, true)?;
     let conn = &app.get_conn().await?;
-    let fields = search_mood_fields(conn, initiator.user.get_id()).await?;
+    let initiator_opt = from::get_initiator(conn, session).await?;
 
-    Ok(response::json::respond_json(
-        http::StatusCode::OK,
-        response::json::MessageDataJSON::build(
-            "successful",
-            fields
-        )
-    ))
+    if accept_html {
+        if initiator_opt.is_some() {
+            Ok(response::respond_index_html())
+        } else {
+            Ok(response::redirect_to_path("/auth/login"))
+        }
+    } else if initiator_opt.is_none() {
+        Err(ResponseError::Session)
+    } else {
+        let initiator = initiator_opt.unwrap();
+
+        Ok(response::json::respond_json(
+            http::StatusCode::OK,
+            response::json::MessageDataJSON::build(
+                "successful",
+                search_mood_fields(conn, initiator.user.get_id()).await?
+            )
+        ))
+    }
+    
 }
 
 #[derive(Deserialize)]
 pub struct PostMoodFieldJson {
     name: String,
+    minimum: Option<i32>,
+    maximum: Option<i32>,
     is_range: bool,
     comment: Option<String>
 }
@@ -112,8 +130,16 @@ pub async fn handle_post_mood_fields(
     }
 
     let result = conn.query_one(
-        "insert into mood_fields (name, is_range, comment, owner) values ($1, $2, $3, $4) returning id, name, is_range, comment, owner",
-        &[&posted.name, &posted.is_range, &posted.comment, &initiator.user.get_id()]
+        "insert into mood_fields (name, minimum, maximum, is_range, comment, owner) values 
+        ($1, $2, $3, $4, $5, $6) 
+        returning id, name, minimum, maximum, is_range, comment",
+        &[
+            &posted.name, 
+            &posted.minimum, &posted.maximum,
+            &posted.is_range, 
+            &posted.comment, 
+            &initiator.user.get_id()
+        ]
     ).await?;
 
     Ok(response::json::respond_json(
@@ -123,8 +149,10 @@ pub async fn handle_post_mood_fields(
             MoodFieldJson {
                 id: result.get(0),
                 name: result.get(1),
-                is_range: result.get(2),
-                comment: result.get(3)
+                minimum: result.get(2),
+                maximum: result.get(3),
+                is_range: result.get(4),
+                comment: result.get(5)
             }
         )
     ))
@@ -133,6 +161,8 @@ pub async fn handle_post_mood_fields(
 #[derive(Deserialize)]
 pub struct PutMoodFieldJson {
     name: String,
+    minimum: Option<i32>,
+    maximum: Option<i32>,
     is_range: bool,
     comment: Option<String>
 }
@@ -152,8 +182,21 @@ pub async fn handle_put_mood_fields_id(
     assert_is_owner_for_mood_field(conn, path.field_id, initiator.user.get_id()).await?;
 
     let _result = conn.query(
-        "update mood_fields set name = $1, is_range = $2, comment = $3 where id = $4",
-        &[&posted.name, &posted.is_range, &posted.comment, &path.field_id]
+        r#"
+        update mood_fields 
+        set name = $1,
+            minimum = $2,
+            maximum = $3,
+            is_range = $4,
+            comment = $5
+        where id = $6"#,
+        &[
+            &posted.name, 
+            &posted.minimum, &posted.maximum,
+            &posted.is_range, 
+            &posted.comment, 
+            &path.field_id
+        ]
     ).await?;
 
     Ok(response::json::respond_json(

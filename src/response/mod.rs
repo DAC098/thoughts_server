@@ -60,21 +60,28 @@ pub fn respond_index_html() -> HttpResponse {
 }
 
 pub fn check_if_html(
-    headers: &http::HeaderMap
+    headers: &http::HeaderMap,
+    ignore_err: bool
 ) -> Result<bool, http::header::ToStrError> {
     let accept_opt = headers.get("accept");
 
     if let Some(accept_type) = accept_opt {
-        let accept = accept_type.to_str()?;
-
-        return Ok(accept.contains("text/html"));
+        match accept_type.to_str() {
+            Ok(accept) => Ok(accept.contains("text/html")),
+            Err(e) => if ignore_err { Ok(false) } else { Err(e) }
+        }
+    } else {
+        Ok(false)
     }
-
-    return Ok(false);
 }
 
 pub fn check_if_html_req(
-    req: &HttpRequest
+    req: &HttpRequest,
+    ignore_err: bool
 ) -> Result<bool, http::header::ToStrError> {
-    check_if_html(req.headers())
+    check_if_html(req.headers(), ignore_err)
+}
+
+pub fn redirect_to_path(path: &str) -> HttpResponse {
+    HttpResponse::Found().insert_header((http::header::LOCATION, path)).finish()
 }

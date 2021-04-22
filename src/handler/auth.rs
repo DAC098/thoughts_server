@@ -1,4 +1,4 @@
-use actix_web::{web, http, HttpResponse, Responder};
+use actix_web::{web, http, Responder};
 use actix_session::{Session};
 use serde::{Deserialize};
 use argon2::{Config, ThreadMode, Variant, Version};
@@ -8,18 +8,22 @@ use crate::db::user_sessions;
 use crate::error;
 use crate::response;
 use crate::state;
+use crate::request::from;
 
 /**
  * GET /auth/login
  * currently will only serve the html
  */
-pub async fn handle_get_auth_login(session: Session) -> error::Result<impl Responder> {
-    let check = session.get::<String>("token")?;
+pub async fn handle_get_auth_login(
+    app: web::Data<state::AppState>,
+    session: Session
+) -> error::Result<impl Responder> {
+    let app = app.into_inner();
+    let conn = app.get_conn().await?;
 
-    if check.is_some() {
-        Ok(HttpResponse::Found().insert_header((http::header::LOCATION, "/entries")).finish())
-    } else {
-        Ok(response::respond_index_html())
+    match from::get_initiator(&conn, session).await? {
+        Some(_) => Ok(response::redirect_to_path("/entries")),
+        None => Ok(response::respond_index_html())
     }
 }
 
@@ -39,7 +43,7 @@ pub async fn handle_post_auth_login(
     session: Session, 
     posted: web::Json<LoginBodyJSON>
 ) -> error::Result<impl Responder> {
-    let conn = &app.get_conn().await?;
+    let conn = &mut app.get_conn().await?;
     let result = conn.query(
         "select id, hash from users where username = $1",
         &[&posted.username]
@@ -55,10 +59,14 @@ pub async fn handle_post_auth_login(
         return Err(error::ResponseError::InvalidPassword);
     }
 
+    let transaction = conn.transaction().await?;
+
     let token = uuid::Uuid::new_v4();
-    user_sessions::UserSession::insert(conn, token, result[0].get(0)).await?;
+    user_sessions::insert(&transaction, token, result[0].get(0)).await?;
 
     session.insert("token", token)?;
+
+    transaction.commit().await?;
 
     Ok(response::json::respond_json(
         http::StatusCode::OK,
@@ -81,8 +89,8 @@ pub async fn handle_post_auth_create(
     session: Session,
     posted: web::Json<NewLoginJSON>
 ) -> error::Result<impl Responder> {
-    let conn = &app.get_conn().await?;
-    let (found_username, found_email) = users::User::check_username_email(
+    let conn = &mut app.get_conn().await?;
+    let (found_username, found_email) = users::check_username_email(
         conn, &posted.username, &posted.email
     ).await?;
 
@@ -115,17 +123,21 @@ pub async fn handle_post_auth_create(
         &config
     )?;
 
-    let user = users::User::insert(
-        conn, 
+    let transaction = conn.transaction().await?;
+
+    let user = users::insert(
+        &transaction, 
         &posted.username,
         &hash,
         &posted.email
     ).await?;
 
     let token = uuid::Uuid::new_v4();
-    user_sessions::UserSession::insert(conn, token, user.get_id()).await?;
+    user_sessions::insert(&transaction, token, user.get_id()).await?;
 
     session.insert("token", token)?;
+
+    transaction.commit().await?;
 
     Ok(response::json::respond_json(
         http::StatusCode::OK,

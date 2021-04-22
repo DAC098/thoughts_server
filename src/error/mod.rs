@@ -39,6 +39,7 @@ pub enum ResponseError {
     RustIOError(std::io::Error),
 
     ActixError(actix_web::error::Error),
+    HeaderError(actix_web::http::header::ToStrError),
     PostgresError(tokio_postgres::Error),
     BB8Error(bb8_postgres::bb8::RunError<tokio_postgres::Error>),
     Argon2Error(argon2::Error),
@@ -77,6 +78,8 @@ impl ResponseError {
             ResponseError::RustIOError(_) => "InternalError",
 
             ResponseError::ActixError(_) => "InternalError",
+            ResponseError::HeaderError(_) => "InternalError",
+
             ResponseError::PostgresError(_) => "DatabaseError",
             ResponseError::BB8Error(_) => "DatabaseError",
             ResponseError::Argon2Error(_) => "InternalError",
@@ -114,6 +117,8 @@ impl ResponseError {
             ResponseError::RustIOError(_) => "internal server error".to_owned(),
 
             ResponseError::ActixError(_) => "internal server error".to_owned(),
+            ResponseError::HeaderError(_) => "internal server error".to_owned(),
+
             ResponseError::PostgresError(_) => "database server error".to_owned(),
             ResponseError::BB8Error(_) => "database server error".to_owned(),
             ResponseError::Argon2Error(_) => "internal server error".to_owned(),
@@ -173,6 +178,8 @@ impl ActixResponseError for ResponseError {
             ResponseError::RustIOError(_) => StatusCode::INTERNAL_SERVER_ERROR,
 
             ResponseError::ActixError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ResponseError::HeaderError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+
             ResponseError::PostgresError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             ResponseError::BB8Error(_) => StatusCode::INTERNAL_SERVER_ERROR,
             ResponseError::Argon2Error(_) => StatusCode::INTERNAL_SERVER_ERROR,
@@ -191,6 +198,14 @@ impl From<actix_web::error::Error> for ResponseError {
 
     fn from(error: actix_web::error::Error) -> Self {
         ResponseError::ActixError(error)
+    }
+    
+}
+
+impl From<actix_web::http::header::ToStrError> for ResponseError {
+
+    fn from(error: actix_web::http::header::ToStrError) -> Self {
+        ResponseError::HeaderError(error)
     }
     
 }

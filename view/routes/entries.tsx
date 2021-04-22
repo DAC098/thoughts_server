@@ -1,128 +1,75 @@
-import { DatePicker, DefaultButton, IconButton, Stack } from "@fluentui/react"
-import React, { useEffect, useState } from "react"
+import { DatePicker, DefaultButton, DetailsList, IColumn, Icon, IconButton, Stack } from "@fluentui/react"
+import React, { useEffect, useMemo, useState } from "react"
 import { Link, Route, useLocation } from "react-router-dom"
 import { json } from "../request"
 import EntryId from "./entries/entry_id"
-import {EntryJson, getEntries} from "../json"
-import { getCreatedDateToString } from "../time"
-
-interface NewEntrySectionProps {
-    onCreated?: () => void
-}
-
-const NewEntrySection = ({onCreated}: NewEntrySectionProps) => {
-    let [created, setCreated] = useState<Date>(new Date());
-    let [sending, setSending] = useState(false);
-
-    const sendEntry = (created: Date) => {
-        if (sending) {
-            return;
-        }
-
-        setSending(true);
-        
-        let month = created.getMonth() + 1;
-        let day = created.getDate();
-
-        json.post("/entries", {created: `${created.getFullYear()}-${month < 10 ? `0${month}` : month}-${day < 10 ? `0${day}` : day}`})
-            .then(({}) => {
-                setCreated(new Date());
-                onCreated?.();
-            }).catch(err => {
-                if (err.type === "EntryExists") {
-                }
-            }).then(() => {
-                setSending(false);
-            });
-    }
-    
-    return <form
-        onSubmit={e => {
-            e.preventDefault();
-
-            sendEntry(created);
-        }}
-    >
-        <Stack horizontal tokens={{
-            childrenGap: 8
-        }}>
-            <DatePicker
-                placeholder="Entry Date"
-                value={created}
-                onSelectDate={d => {
-                    setCreated(d)
-                }}
-                formatDate={getCreatedDateToString}
-            />
-            <Stack.Item>
-                <DefaultButton 
-                    text="Create Entry"
-                    primary
-                    onClick={() => {
-                        sendEntry(created);
-                    }}
-                    primaryDisabled={sending}
-                />
-            </Stack.Item>
-        </Stack>
-    </form>
-}
-
-interface EntryListItemProps {
-    entry: EntryJson
-
-    onDelete?: () => void
-}
-
-const EntryListItem = ({entry, onDelete}: EntryListItemProps) => {
-    let [sending, setSending] = useState(false);
-
-    const sendDelete = () => {
-        if (sending)
-            return;
-
-        setSending(true);
-
-        json.delete(`/entries/${entry.id}`)
-            .then(({}) => {
-                onDelete?.();
-            })
-            .catch(err => {
-                console.error(err);
-            })
-            .then(() => {
-                setSending(false);
-            })
-    }
-    
-    return <Stack horizontal verticalAlign="center" tokens={{
-        childrenGap: 8
-    }}>
-        <span>{entry.created}</span>
-        <Stack horizontal>
-            <Link 
-                to={{
-                    pathname: `/entries/${entry.id}`,
-                    state: {entry}
-                }}
-            >
-                <IconButton 
-                    title="Edit"
-                    iconProps={{iconName: "Edit"}}
-                />
-            </Link>
-            <IconButton
-                title="Delete"
-                iconProps={{iconName: "Delete"}}
-                onClick={() => sendDelete()}
-            />
-        </Stack>
-    </Stack>
-}
+import {EntryJson, getEntries, getMoodFields, MoodFieldJson} from "../json"
 
 const Entries = () => {
+    let [fields, setFields] = useState<MoodFieldJson[]>([]);
     let [entries, setEntries] = useState<EntryJson[]>([]);
     let [loading, setLoading] = useState(false);
+    let [loading_fields, setLoadingFields] = useState(false);
+    let columns = useMemo(() => {
+        let rtn: IColumn[] = [
+            {
+                key: "date",
+                name: "Date",
+                minWidth: 80,
+                maxWidth: 80,
+                onRender: (item: EntryJson) => {
+                    return <Link to={`/entries/${item.id}`}>
+                        {item.created}
+                    </Link>
+                }
+            }
+        ];
+
+        for (let field of fields) {
+            rtn.push({
+                key: field.name,
+                name: field.name,
+                minWidth: 100,
+                maxWidth: 150,
+                onRender: field.is_range ?
+                    (item: EntryJson) => {
+                        for (let m of item.mood_entries) {
+                            if (m.field_id === field.id) {
+                                return <span>
+                                    {`${m.low} - ${m.high} `}
+                                    {m.comment && m.comment.length > 0 ?
+                                        <Icon iconName="Info"/>
+                                        :
+                                        null
+                                    }
+                                </span>
+                            }
+                        }
+
+                        return <span/>
+                    }
+                    :
+                    (item: EntryJson) => {
+                        for (let m of item.mood_entries) {
+                            if (m.field_id === field.id) {
+                                return <span>
+                                    {`${m.low} `}
+                                    {m.comment && m.comment.length > 0 ?
+                                        <Icon iconName="Info"/>
+                                        :
+                                        null
+                                    }
+                                </span>
+                            }
+                        }
+
+                        return <span/>
+                    }
+            })
+        }
+
+        return rtn;
+    }, [fields]);
 
     const location = useLocation();
 
@@ -140,21 +87,54 @@ const Entries = () => {
         });
     }
 
+    const loadFields = () => {
+        if (loading)
+            return;
+
+        setLoadingFields(true);
+
+        getMoodFields().then(list => {
+            setFields(list);
+        }).catch(err => {
+            console.error(err);
+        }).then(() => {
+            setLoadingFields(false);
+        })
+    }
+
     useEffect(() => {
-        loadEntries();
+        if (location.pathname !== "/entries") {
+            loadEntries();
+            loadFields();
+        }
+    },[]);
+
+    useEffect(() => {
+        if (location.pathname === "/entries") {
+            loadEntries();
+            loadFields();
+        }
     },[location.pathname]);
 
-    return <>
-        <Stack tokens={{padding: 12, childrenGap: 8}}>
-            <NewEntrySection onCreated={() => loadEntries()}/>
-            <Stack tokens={{childrenGap: 8}}>
-                {entries.map(v => 
-                    <EntryListItem key={v.id} entry={v} onDelete={() => loadEntries()}/>
-                )}
-            </Stack>
+    return <Stack tokens={{padding: 12, childrenGap: 8}}>
+        <Stack horizontal tokens={{childrenGap: 8}}>
+            <Stack.Item>
+                <Link to="/entries/0">
+                    <DefaultButton text="Create Entry" primary/>
+                </Link>
+            </Stack.Item>
+            <Stack.Item>
+                <Link to="/mood_fields">
+                    <DefaultButton text="Edit Mood Fields"/>
+                </Link>
+            </Stack.Item>
         </Stack>
-        <Route path="/entries/:entry_id" component={EntryId}/>
-    </>
+        <DetailsList
+            items={entries}
+            columns={columns}
+            compact={true}
+        />
+    </Stack>
 }
 
 export default Entries;

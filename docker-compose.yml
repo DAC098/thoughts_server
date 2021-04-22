@@ -7,3 +7,4 @@ services:
       POSTGRES_PASSWORD: "password"
     volumes:
       - "./db:/docker-entrypoint-initdb.d"
+    command: ["postgres", "-c", "log_statement=all"]

@@ -26,7 +26,7 @@ const Login = () => {
 
             json.post("/auth/login", {username,password})
                 .then(({body,response,status}) => {
-                    history.push("/dashboard");
+                    history.push("/entries");
                 })
                 .catch(err => {
                     console.log(err, err.type, err.status);
