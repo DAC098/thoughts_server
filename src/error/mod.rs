@@ -38,6 +38,8 @@ pub enum ResponseError {
     RustFMTError(std::fmt::Error),
     RustIOError(std::io::Error),
 
+    SerdeJsonError(serde_json::Error),
+
     ActixError(actix_web::error::Error),
     HeaderError(actix_web::http::header::ToStrError),
     PostgresError(tokio_postgres::Error),
@@ -77,6 +79,8 @@ impl ResponseError {
             ResponseError::RustFMTError(_) => "InternalError",
             ResponseError::RustIOError(_) => "InternalError",
 
+            ResponseError::SerdeJsonError(_) => "InternalError",
+
             ResponseError::ActixError(_) => "InternalError",
             ResponseError::HeaderError(_) => "InternalError",
 
@@ -115,6 +119,8 @@ impl ResponseError {
 
             ResponseError::RustFMTError(_) => "internal server error".to_owned(),
             ResponseError::RustIOError(_) => "internal server error".to_owned(),
+
+            ResponseError::SerdeJsonError(_) => "internal server error".to_owned(),
 
             ResponseError::ActixError(_) => "internal server error".to_owned(),
             ResponseError::HeaderError(_) => "internal server error".to_owned(),
@@ -176,6 +182,8 @@ impl ActixResponseError for ResponseError {
 
             ResponseError::RustFMTError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             ResponseError::RustIOError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+
+            ResponseError::SerdeJsonError(_) => StatusCode::INTERNAL_SERVER_ERROR,
 
             ResponseError::ActixError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             ResponseError::HeaderError(_) => StatusCode::INTERNAL_SERVER_ERROR,
@@ -270,6 +278,14 @@ impl From<std::io::Error> for ResponseError {
 
     fn from(error: std::io::Error) -> Self {
         ResponseError::RustIOError(error)
+    }
+    
+}
+
+impl From<serde_json::Error> for ResponseError {
+    
+    fn from(error: serde_json::Error) -> Self {
+        ResponseError::SerdeJsonError(error)
     }
     
 }

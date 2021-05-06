@@ -9,7 +9,8 @@ pub async fn find_token_user(
     let result = client.query(
         r#"
         select users.id, 
-               users.username, 
+               users.username,
+               users.full_name,
                users.email 
         from user_sessions 
         join users on user_sessions.owner = users.id 
@@ -24,7 +25,8 @@ pub async fn find_token_user(
         Ok(Some(users::User::create(
             result[0].get(0),
             result[0].get(1),
-            result[0].get(2)
+            result[0].get(2),
+            result[0].get(3)
         )))
     }
 }
@@ -48,4 +50,14 @@ pub async fn insert(
     } else {
         Ok(false)
     }
+}
+
+pub async fn delete(
+    client: &impl GenericClient,
+    token: uuid::Uuid,
+) -> Result<u64, PGError> {
+    Ok(client.execute(
+        "delete from user_sessions where token = $1",
+        &[&token]
+    ).await?)
 }

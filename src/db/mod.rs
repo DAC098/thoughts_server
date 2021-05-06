@@ -1,3 +1,4 @@
+pub mod mood_entries;
 pub mod mood_fields;
 pub mod users;
 pub mod user_sessions;

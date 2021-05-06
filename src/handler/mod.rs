@@ -12,13 +12,14 @@ pub mod mood_fields;
 pub mod users;
 pub mod text_entries;
 pub mod mood_entries;
+pub mod account;
 
 pub async fn handle_get_root(
     session: Session,
     app: web::Data<state::AppState>,
 ) -> app_error::Result<impl Responder> {
     let conn = &app.get_conn().await?;
-    let initiator = from::get_initiator(conn, session).await?;
+    let initiator = from::get_initiator(conn, &session).await?;
 
     match initiator {
         Some(_) => Ok(response::redirect_to_path("/entries")),
@@ -29,6 +30,18 @@ pub async fn handle_get_root(
 #[allow(dead_code)]
 pub async fn okay() -> impl Responder {
     HttpResponse::Ok().body("okay")
+}
+
+pub async fn handle_get_data(
+    initiator: from::Initiator
+) -> app_error::Result<impl Responder> {
+    Ok(response::json::respond_json(
+        http::StatusCode::OK,
+        response::json::MessageDataJSON::build(
+            "successful",
+            initiator.user
+        )
+    ))
 }
 
 pub fn handle_json_error(

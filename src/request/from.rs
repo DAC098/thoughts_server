@@ -13,12 +13,18 @@ pub struct Initiator {
     pub user: users::User
 }
 
+pub fn get_session_token(session: &Session) -> error::Result<Option<uuid::Uuid>> {
+    match session.get::<String>("token")? {
+        Some(token) => Ok(Some(uuid::Uuid::parse_str(token.as_str())?)),
+        None => Ok(None)
+    }
+}
+
 pub async fn get_initiator(
     conn: &Client,
-    session: Session,
+    session: &Session,
 ) -> error::Result<Option<Initiator>> {
-    if let Some(token) = session.get::<String>("token")? {
-        let uuid_token = uuid::Uuid::parse_str(token.as_str())?;
+    if let Some(uuid_token) = get_session_token(session)? {
         let owner_opt = user_sessions::find_token_user(conn, uuid_token).await?;
 
         match owner_opt {
@@ -43,7 +49,7 @@ impl FromRequest for Initiator {
             let app = app_data.into_inner();
             let conn = app.pool.get().await?;
 
-            match get_initiator(&conn, session).await? {
+            match get_initiator(&conn, &session).await? {
                 Some(initiator) => Ok(initiator),
                 None => Err(error::ResponseError::Session)
             }

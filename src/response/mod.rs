@@ -1,9 +1,20 @@
 use actix_web::{http, HttpRequest, HttpResponse};
+use serde_json::{to_string};
 
 pub mod json;
 
-pub fn respond_index_html() -> HttpResponse {
-    HttpResponse::Ok().body(r#"
+use crate::db::users;
+
+pub fn respond_index_html(user_opt: Option<users::User>) -> HttpResponse {
+    let user_json = match user_opt {
+        Some(user) => match to_string(&user) {
+            Ok(rtn) => rtn,
+            Err(_) => "null".to_owned()
+        },
+        None => "null".to_owned()
+    };
+
+    HttpResponse::Ok().body(format!(r#"
 <!DOCTYPE html>
 <html>
     <head>
@@ -11,52 +22,14 @@ pub fn respond_index_html() -> HttpResponse {
         <link rel="icon" href="data:;base64,iVBORw0KGgo=">
         <link rel="stylesheet" href="https://static2.sharepointonline.com/files/fabric/office-ui-fabric-core/11.0.0/css/fabric.min.css">
         <script src="/static/runtime.b.js"></script>
+        <script>const active_user = {}; window.active_user = active_user;</script>
         <script src="/static/main.b.js"></script>
-        <style>
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Roboto Mono', monospace;
-            
-            margin:0;
-            padding:0;
-        }
-        </style>
-        <script>
-        function getJSON(path) {
-            return fetch(path, {
-                method: "GET",
-                headers: {
-                    "Accept": "application/json"
-                },
-                credentials: "same-origin"
-            })
-            .then(res => res.json())
-            .catch(e => {console.error(e); return {};});
-        }
-
-        function postJSON(path, data) {
-            return fetch(path, {
-                method: "POST",
-                headers: {
-                    "Accept": "application/json",
-                    "Content-Type": "application/json"
-                },
-                credentials: "same-origin",
-                body: JSON.stringify(data)
-            })
-            .then(res => res.json())
-            .catch(e => {console.error(e); return {};});
-        }
-        </script>
     </head>
-    <body class="ms-Fabric" dir="ltr">
+    <body class="ms-Fabric" dir="ltr" style="margin: 0">
         <div id="render-root"></div>
     </body>
 </html>
-"#)
+"#, user_json))
 }
 
 pub fn check_if_html(

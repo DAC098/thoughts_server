@@ -5,6 +5,7 @@ use serde::{Serialize, Deserialize};
 pub struct User {
     id: i32,
     username: String,
+    full_name: Option<String>,
     email: Option<String>
 }
 
@@ -28,6 +29,7 @@ pub async fn insert(
     Ok(User {
         id: result.get(0),
         username: result.get(1),
+        full_name: None,
         email: result.get(2)
     })
 }
@@ -62,10 +64,31 @@ pub async fn check_username_email(
     Ok((found_username, found_email))
 }
 
+pub async fn get_via_id(
+    client: &Client,
+    id: i32
+) -> Result<Option<User>, PGError> {
+    let result = client.query(
+        r#"select id, username, full_name, email from users where id = $1"#,
+        &[&id]
+    ).await?;
+
+    if result.len() == 1 {
+        Ok(Some( User {
+            id: result[0].get(0),
+            username: result[0].get(1),
+            full_name: result[0].get(2),
+            email: result[0].get(3)
+        }))
+    } else {
+        Ok(None)
+    }
+}
+
 impl User {
 
-    pub fn create(id: i32, username: String, email: Option<String>) -> Self {
-        User { id, username, email }
+    pub fn create(id: i32, username: String, full_name: Option<String>, email: Option<String>) -> Self {
+        User { id, username, full_name, email }
     }
 
     pub fn get_id(&self) -> i32 {

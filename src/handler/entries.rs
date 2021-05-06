@@ -1,166 +1,60 @@
-use std::fmt::{Write};
-use std::convert::{Into};
-
 use actix_web::{web, http, HttpRequest, Responder};
 use actix_session::{Session};
 use tokio_postgres::{Client, GenericClient};
-use chrono::{NaiveDate, Local};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize};
 
 use crate::db;
 use crate::response;
 use crate::{error as app_error};
 use crate::state;
-use crate::time;
 use crate::request::from;
+use crate::json;
 
-#[derive(Serialize)]
-struct MoodEntryJson {
-    id: i32,
-    field: String,
-    field_id: i32,
-    low: i32,
-    high: Option<i32>,
-    is_range: bool,
-    comment: Option<String>
-}
-
-#[derive(Serialize)]
-struct TextEntryJson {
-    id: i32,
+#[derive(Deserialize)]
+pub struct PostTextEntryJson {
     thought: String
 }
 
-#[derive(Serialize)]
-struct EntryJson {
-    id: i32,
-    created: String,
-    owner: i32,
-    mood_entries: Vec<MoodEntryJson>,
-    text_entries: Vec<TextEntryJson>
+#[derive(Deserialize)]
+pub struct PostMoodEntryJson {
+    field_id: i32,
+    value: db::mood_entries::MoodEntryType,
+    comment: Option<String>
 }
 
-async fn search_text_entries(
-    conn: &Client,
-    owner: i32,
-    entry_id_opt: Option<i32>
-) -> app_error::Result<Vec<TextEntryJson>> {
-    let mut query_str = r#"
-    select text_entries.id as id,
-           text_entries.thought as thought
-    from text_entries
-    join entries on
-        text_entries.entry = entries.id
-    where entries.owner = $1"#.to_owned();
-    let mut query_slice: Vec<&(dyn tokio_postgres::types::ToSql + std::marker::Sync)> = vec!(&owner);
-    let entry_id = entry_id_opt.unwrap_or(0);
-
-    if entry_id != 0 {
-        write!(&mut query_str, " and entries.id = $2")?;
-        query_slice.push(&entry_id);
-    }
-
-    write!(&mut query_str, "\n    order by text_entries.id asc")?;
-
-    let rows = conn.query(query_str.as_str(), &query_slice[..]).await?;
-    let mut rtn = Vec::<TextEntryJson>::with_capacity(rows.len());
-
-    for row in rows {
-        rtn.push(TextEntryJson{
-            id: row.get(0),
-            thought: row.get(1)
-        });
-    }
-
-    Ok(rtn)
+#[derive(Deserialize)]
+pub struct PostEntryJson {
+    created: Option<chrono::DateTime<chrono::Utc>>,
+    mood_entries: Option<Vec<PostMoodEntryJson>>,
+    text_entries: Option<Vec<PostTextEntryJson>>
 }
 
-async fn search_mood_entries(
-    conn: &Client,
-    owner: i32,
-    entry_id_opt: Option<i32>
-) -> app_error::Result<Vec<MoodEntryJson>> {
-    let mut query_str = r#"
-    select mood_entries.id as id,
-           mood_fields.name as field,
-           mood_fields.id as field_id,
-           mood_entries.low as low,
-           mood_entries.high as high,
-           mood_fields.is_range as is_range,
-           mood_entries.comment as comment
-    from mood_entries
-    join mood_fields on mood_entries.field = mood_fields.id
-    join entries on mood_entries.entry = entries.id
-    where entries.owner = $1"#.to_owned();
-    let mut query_slice: Vec<&(dyn tokio_postgres::types::ToSql + std::marker::Sync)> = vec!(&owner);
-    let entry_id = entry_id_opt.unwrap_or(0);
-
-    if entry_id != 0 {
-        write!(&mut query_str, " and entries.id = $2")?;
-        query_slice.push(&entry_id);
-    }
-
-    write!(&mut query_str, "\n    order by mood_entries.field asc")?;
-
-    let rows = conn.query(query_str.as_str(), &query_slice[..]).await?;
-    let mut rtn = Vec::<MoodEntryJson>::with_capacity(rows.len());
-
-    for row in rows {
-        rtn.push(MoodEntryJson {
-            id: row.get(0),
-            field: row.get(1),
-            field_id: row.get(2),
-            low: row.get(3),
-            high: row.get(4),
-            is_range: row.get(5),
-            comment: row.get(6)
-        });
-    }
-
-    Ok(rtn)
+#[derive(Deserialize)]
+pub struct PutTextEntryJson {
+    id: Option<i32>,
+    thought: String
 }
 
-async fn search_entries(
-    conn: &Client, 
-    owner: i32, 
-    entry_id_opt: Option<i32>
-) -> app_error::Result<Vec<EntryJson>> {
-    let mut query_str = "select id, day, owner from entries where owner = $1".to_owned();
-    let mut query_slice: Vec<&(dyn tokio_postgres::types::ToSql + std::marker::Sync)> = vec!(&owner);
-    let entry_id = entry_id_opt.unwrap_or(0);
-
-    if entry_id != 0 {
-        write!(&mut query_str, " and id = $2")?;
-        query_slice.push(&entry_id);
-    }
-
-    write!(&mut query_str, " order by day desc")?;
-
-    let rows = conn.query(query_str.as_str(), &query_slice[..]).await?;
-    let mut rtn: Vec<EntryJson> = Vec::<EntryJson>::with_capacity(rows.len());
-
-    for row in rows {
-        let entry_id: i32 = row.get(0);
-
-        rtn.push(EntryJson {
-            id: entry_id,
-            created: time::naive_date_to_string(row.get(1)),
-            owner: row.get(2),
-            mood_entries: search_mood_entries(conn, owner, Some(entry_id)).await?,
-            text_entries: search_text_entries(conn, owner, Some(entry_id)).await?
-        });
-    }
-
-    Ok(rtn)
+#[derive(Deserialize)]
+pub struct PutMoodEntryJson {
+    id: Option<i32>,
+    field_id: Option<i32>,
+    value: db::mood_entries::MoodEntryType,
+    comment: Option<String>
 }
 
+#[derive(Deserialize)]
+pub struct PutEntryJson {
+    created: chrono::DateTime<chrono::Utc>,
+    mood_entries: Option<Vec<PutMoodEntryJson>>,
+    text_entries: Option<Vec<PutTextEntryJson>>
+}
 
-fn get_created_naive(created: &String) -> app_error::Result<NaiveDate> {
-    NaiveDate::parse_from_str(created.as_str(), "%Y-%m-%d").map_err(
-        |_| app_error::ResponseError::Validation(
-            format!("given date string is in an invalid format. make sure that the format is \"YYYY-mm-dd\" given: {}", created)
-        )
-    )
+fn clone_string_option(string_opt: &Option<String>) -> Option<String> {
+    match string_opt {
+        Some(string) => Some(string.clone()),
+        None => None
+    }
 }
 
 async fn get_mood_field_via_id(
@@ -244,14 +138,16 @@ pub async fn handle_get_entries(
     session: Session,
     app: web::Data<state::AppState>
 ) -> app_error::Result<impl Responder> {
-    let conn = &app.get_conn().await?;
+    let conn = &*app.get_conn().await?;
     let accept_html = response::check_if_html_req(&req, true).unwrap();
-    let initiator_opt = from::get_initiator(conn, session).await?;
+    let initiator_opt = from::get_initiator(conn, &session).await?;
 
-    if accept_html && initiator_opt.is_some() {
-        Ok(response::respond_index_html())
-    } else if accept_html && initiator_opt.is_none() {
-        Ok(response::redirect_to_path("/auth/login"))
+    if accept_html {
+        if initiator_opt.is_some() {
+            Ok(response::respond_index_html(Some(initiator_opt.unwrap().user)))
+        } else {
+            Ok(response::redirect_to_path("/auth/login"))
+        }
     } else if initiator_opt.is_none() {
         Err(app_error::ResponseError::Session)
     } else {
@@ -261,395 +157,14 @@ pub async fn handle_get_entries(
             http::StatusCode::OK, 
             response::json::MessageDataJSON::build(
                 "successful",
-                search_entries(conn, initiator.user.get_id(), None).await?
+                json::search_entries(conn, json::SearchEntriesOptions {
+                    owner: initiator.user.get_id(),
+                    from: None,
+                    to: None
+                }).await?
             )
         ))
     }
-}
-
-#[derive(Deserialize)]
-pub struct PostTextEntryJson {
-    thought: String
-}
-
-#[derive(Deserialize)]
-pub struct PostMoodEntryJson {
-    field_id: i32,
-    low: i32,
-    high: Option<i32>,
-    comment: Option<String>
-}
-
-#[derive(Deserialize)]
-pub struct PostEntryJson {
-    created: Option<String>,
-    mood_entries: Option<Vec<PostMoodEntryJson>>,
-    text_entries: Option<Vec<PostTextEntryJson>>
-}
-
-#[derive(Serialize)]
-pub struct PostEntryResultJson {
-    id: i32,
-    created: String,
-    mood_entries: Vec<MoodEntryJson>,
-    text_entries: Vec<TextEntryJson>
-}
-
-#[derive(Serialize)]
-pub struct PutEntryResultJson {
-    id: i32,
-    created: String,
-    mood_entries: Option<Vec<MoodEntryJson>>,
-    text_entries: Option<Vec<TextEntryJson>>
-}
-
-fn validate_range(
-    low: i32,
-    high: i32,
-    field: &db::mood_fields::MoodField
-) -> app_error::Result<()> {
-    if let Some(min) = field.get_minimum() {
-        if low < min {
-            return Err(app_error::ResponseError::Validation(
-                format!("this field has a specified minimum and the low is less than it. field {} minimum {} value {}", field.get_id(), min, low)
-            ));
-        }
-    }
-
-    if high < low {
-        return Err(app_error::ResponseError::Validation(
-            format!("the high value cannot be less than the low value given. low {} high {}", low, high)
-        ));
-    }
-
-    if let Some(max) = field.get_maximum() {
-        if high > max {
-            return Err(app_error::ResponseError::Validation(
-                format!("this field has a specified maximum and the high is greater than it. field {} maximum {} value {}", field.get_id(), max, high)
-            ));
-        }
-    }
-
-    Ok(())
-}
-
-fn validate_low_value(
-    low: i32,
-    field: &db::mood_fields::MoodField
-) -> app_error::Result<()> {
-    if let Some(min) = field.get_minimum() {
-        if low < min {
-            return Err(app_error::ResponseError::Validation(
-                format!("this field has a specified minimum and the value is less than it. field {} minimum {} value {}", field.get_id(), min, low)
-            ));
-        }
-    }
-
-    if let Some(max) = field.get_maximum() {
-        if low > max {
-            return Err(app_error::ResponseError::Validation(
-                format!("this field has a specified maximum and the value is greater than it. field {} maximum {} value {}", field.get_id(), max, low)
-            ));
-        }
-    }
-
-    Ok(())
-}
-
-fn get_posted_high(
-    posted_high: Option<i32>
-) -> app_error::Result<i32> {
-    match posted_high {
-        Some(h) => Ok(h),
-        None => Err(app_error::ResponseError::Validation(
-            "the field being used requires the high value to be specified but none was given".to_owned()
-        ))
-    }
-}
-
-struct CreateMoodEntryInfo {
-    field_id: Option<i32>,
-    low: i32,
-    high: Option<i32>,
-    comment: Option<String>
-}
-
-impl Into<CreateMoodEntryInfo> for &PostMoodEntryJson {
-    fn into(self) -> CreateMoodEntryInfo {
-        CreateMoodEntryInfo {
-            field_id: Some(self.field_id),
-            low: self.low,
-            high: self.high,
-            comment: match &self.comment {
-                Some(c) => Some(c.clone()),
-                None => None
-            }
-        }
-    }
-}
-
-impl Into<CreateMoodEntryInfo> for &PutMoodEntryJson {
-    fn into(self) -> CreateMoodEntryInfo {
-        CreateMoodEntryInfo {
-            field_id: self.field_id,
-            low: self.low,
-            high: self.high,
-            comment: match &self.comment {
-                Some(c) => Some(c.clone()),
-                None => None
-            }
-        }
-    }
-}
-
-async fn create_mood_entry<T: Into<CreateMoodEntryInfo>>(
-    conn: &impl GenericClient,
-    initiator: i32,
-    entry_id: i32,
-    posted: T
-) -> app_error::Result<MoodEntryJson> {
-    let post = posted.into();
-    let field_id = match post.field_id {
-        Some(id) => id,
-        None => Err(app_error::ResponseError::Validation(
-            "no field was specified for the new mood entry".to_owned()
-        ))?
-    };
-
-    let field = get_mood_field_via_id(conn, initiator, field_id).await?;
-
-    if field.get_owner() != initiator {
-        return Err(app_error::ResponseError::PermissionDenied(
-            format!("you do not haver permission to create a mood entry using this field id: {}", field.get_owner())
-        ));
-    }
-
-    if field.get_is_range() {
-        let high = get_posted_high(post.high)?;
-
-        validate_range(post.low, high, &field)?;
-
-        let result = conn.query_one(r#"
-            insert into mood_entries (field, low, high, comment, entry) values
-            ($1, $2, $3, $4, $5)
-            returning id
-            "#, &[&post.field_id, &post.low, &high, &post.comment, &entry_id]
-        ).await?;
-
-        Ok(MoodEntryJson {
-            id: result.get(0),
-            field: field.get_name(),
-            field_id: field.get_id(),
-            low: post.low,
-            high: post.high,
-            is_range: field.get_is_range(),
-            comment: post.comment.clone()
-        })
-    } else {
-        validate_low_value(post.low, &field)?;
-
-        let result = conn.query_one(r#"
-            insert into mood_entries (field, low, comment, entry) values
-            ($1, $2, $3, $4)
-            returning id
-            "#, &[&field_id, &post.low, &post.comment, &entry_id]
-        ).await?;
-
-        Ok(MoodEntryJson {
-            id: result.get(0),
-            field: field.get_name(),
-            field_id: field.get_id(),
-            low: post.low,
-            high: None,
-            is_range: field.get_is_range(),
-            comment: post.comment.clone()
-        })
-    }
-}
-
-async fn create_mood_entries(
-    conn: &impl GenericClient,
-    initiator: i32,
-    entry_id: i32, 
-    list: &Vec<PostMoodEntryJson>
-) -> app_error::Result<Vec<MoodEntryJson>> {
-    let mut rtn = Vec::<MoodEntryJson>::with_capacity(list.len());
-
-    for post in list {
-        rtn.push(create_mood_entry(conn, initiator, entry_id, post).await?);
-    }
-
-    Ok(rtn)
-}
-
-#[derive(Deserialize)]
-pub struct PutTextEntryJson {
-    id: Option<i32>,
-    thought: String
-}
-
-#[derive(Deserialize)]
-pub struct PutMoodEntryJson {
-    id: Option<i32>,
-    field_id: Option<i32>,
-    low: i32,
-    high: Option<i32>,
-    comment: Option<String>
-}
-
-#[derive(Deserialize)]
-pub struct PutEntryJson {
-    created: String,
-    mood_entries: Option<Vec<PutMoodEntryJson>>,
-    text_entries: Option<Vec<PutTextEntryJson>>
-}
-
-struct UpdateMoodEntryInfo {
-    id: Option<i32>,
-    low: i32,
-    high: Option<i32>,
-    comment: Option<String>
-}
-
-impl Into<UpdateMoodEntryInfo> for &PutMoodEntryJson {
-    fn into(self) -> UpdateMoodEntryInfo {
-        UpdateMoodEntryInfo {
-            id: self.id,
-            low: self.low,
-            high: self.high,
-            comment: match &self.comment {
-                Some(c) => Some(c.clone()),
-                None => None
-            }
-        }
-    }
-}
-
-async fn update_mood_entry<T: Into<UpdateMoodEntryInfo>>(
-    conn: &impl GenericClient,
-    initiator: i32,
-    _entry_id: i32,
-    posted: T
-) -> app_error::Result<MoodEntryJson> {
-    let post = posted.into();
-    let mood_id = match post.id {
-        Some(i) => i,
-        None => Err(app_error::ResponseError::Validation(
-            "no mood entry id was specified to update".to_owned()
-        ))?
-    };
-    let field = get_mood_field_via_mood_entry(conn, initiator, mood_id).await?;
-
-    if field.get_is_range() {
-        let high = get_posted_high(post.high)?;
-
-        validate_range(post.low, high, &field)?;
-
-        let result = conn.query_one(r#"
-            update mood_entries
-            set low = $1,
-                high = $2,
-                comment = $3
-            where id = $4
-            returning low, high, comment
-            "#, &[&post.low, &high, &post.comment, &mood_id]
-        ).await?;
-
-        Ok(MoodEntryJson {
-            id: mood_id,
-            field: field.get_name(),
-            field_id: field.get_id(),
-            low: result.get(0),
-            high: result.get(1),
-            is_range: field.get_is_range(),
-            comment: result.get(2)
-        })
-    } else {
-        validate_low_value(post.low, &field)?;
-
-        let result = conn.query_one(r#"
-            update mood_entries
-            set low = $1,
-                comment = $2
-            where id = $3
-            returning low, comment
-            "#, &[&post.low, &post.comment, &mood_id]
-        ).await?;
-
-        Ok(MoodEntryJson {
-            id: mood_id,
-            field: field.get_name(),
-            field_id: field.get_id(),
-            low: result.get(0),
-            high: None,
-            is_range: field.get_is_range(),
-            comment: result.get(1)
-        })
-    }
-}
-
-async fn update_mood_entries(
-    conn: &impl GenericClient,
-    initiator: i32,
-    entry_id: i32,
-    posted: &Vec<PutMoodEntryJson>
-) -> app_error::Result<Vec<MoodEntryJson>> {
-    let mut rtn = Vec::<MoodEntryJson>::with_capacity(posted.len());
-
-    for post in posted {
-        rtn.push(
-            if post.id.is_some() { update_mood_entry(conn, initiator, entry_id, post).await? }
-            else { create_mood_entry(conn, initiator, entry_id, post).await? }
-        );
-    }
-
-    Ok(rtn)
-}
-
-async fn delete_entries(
-    conn: &impl GenericClient,
-    initiator: i32,
-    entry_ids: Vec<i32>,
-) -> app_error::Result<()> {
-    let check = conn.query(
-        "select id, owner from entries where id = any($1)",
-        &[&entry_ids]
-    ).await?;
-    let mut invalid_entries: Vec<i32> = vec!();
-
-    for row in check {
-        if row.get::<usize, i32>(1) != initiator {
-            invalid_entries.push(row.get(0));
-        }
-
-        if invalid_entries.len() > 0 {
-            return Err(app_error::ResponseError::PermissionDenied(
-                format!("you are not allowed to delete entries owned by another user. entries ({:?})", invalid_entries)
-            ));
-        }
-    }
-    
-    let _text_result = conn.execute(
-        "delete from text_entries where entry = any($1)",
-        &[&entry_ids]
-    ).await?;
-
-    let _mood_result = conn.execute(
-        "delete from mood_entries where entry = any($1)",
-        &[&entry_ids]
-    ).await?;
-
-    let _entry_result = conn.execute(
-        "delete from entries where id = any($1)",
-        &[&entry_ids]
-    ).await?;
-
-    Ok(())
-}
-
-pub async fn handle_get_root(
-) -> app_error::Result<impl Responder> {
-    Ok(response::respond_index_html())
 }
 
 /**
@@ -665,8 +180,8 @@ pub async fn handle_post_entries(
     let app = app_data.into_inner();
     let mut conn = app.get_conn().await?;
     let created = match &posted.created {
-        Some(s) => get_created_naive(s)?,
-        None => Local::today().naive_local()
+        Some(s) => s.clone(),
+        None => chrono::Utc::now()
     };
 
     let entry_check = conn.query(
@@ -675,7 +190,9 @@ pub async fn handle_post_entries(
     ).await?;
 
     if entry_check.len() != 0 {
-        return Err(app_error::ResponseError::EntryExists(time::naive_date_to_string(created)));
+        return Err(app_error::ResponseError::EntryExists(
+            format!("{}", created)
+        ));
     }
 
     let transaction = conn.transaction().await?;
@@ -685,12 +202,36 @@ pub async fn handle_post_entries(
     ).await?;
     let entry_id: i32 = result.get(0);
 
-    let mood_entries: Vec<MoodEntryJson> = match &posted.mood_entries {
-        Some(m) => create_mood_entries(&transaction, initiator.user.get_id(), entry_id, m).await?,
-        None => vec!()
-    };
+    let mut mood_entries: Vec<json::MoodEntryJson> = vec!();
 
-    let mut text_entries: Vec<TextEntryJson> = vec!();
+    if let Some(m) = &posted.mood_entries {
+        for mood_entry in m {
+            let field = get_mood_field_via_id(&transaction, initiator.user.get_id(), mood_entry.field_id).await?;
+
+            db::mood_fields::verifiy(&field.get_config(), &mood_entry.value)?;
+
+            let value_json = serde_json::to_value(mood_entry.value.clone())?;
+            let result = transaction.query_one(
+                r#"
+                insert into mood_entries (field, value, comment, entry) values
+                ($1, $2, $3, $4)
+                returning id
+                "#,
+                &[&field.get_id(), &value_json, &mood_entry.comment, &entry_id]
+            ).await?;
+
+            mood_entries.push(json::MoodEntryJson {
+                id: result.get(0),
+                field: field.get_name(),
+                field_id: field.get_id(),
+                value: mood_entry.value.clone(),
+                comment: clone_string_option(&mood_entry.comment),
+                entry: entry_id
+            });
+        }
+    }
+
+    let mut text_entries: Vec<json::TextEntryJson> = vec!();
 
     if let Some(t) = &posted.text_entries {
         for text_entry in t {
@@ -699,9 +240,10 @@ pub async fn handle_post_entries(
                 &[&text_entry.thought, &entry_id]
             ).await?;
 
-            text_entries.push(TextEntryJson {
+            text_entries.push(json::TextEntryJson {
                 id: result.get(0),
-                thought: result.get(1)
+                thought: result.get(1),
+                entry: entry_id
             });
         }
     }
@@ -712,9 +254,10 @@ pub async fn handle_post_entries(
         http::StatusCode::OK,
         response::json::MessageDataJSON::build(
             "successful", 
-            PostEntryResultJson {
+            json::EntryJson {
                 id: result.get(0),
-                created: time::naive_date_to_string(result.get(1)),
+                created: result.get(1),
+                owner: initiator.user.get_id(),
                 mood_entries,
                 text_entries
             }
@@ -738,13 +281,13 @@ pub async fn handle_get_entries_id(
     app: web::Data<state::AppState>,
     path: web::Path<EntryPath>
 ) -> app_error::Result<impl Responder> {
-    let conn = &app.get_conn().await?;
+    let conn = &*app.get_conn().await?;
     let accept_html = response::check_if_html_req(&req, true).unwrap();
-    let initiator_opt = from::get_initiator(conn, session).await?;
+    let initiator_opt = from::get_initiator(conn, &session).await?;
 
     if accept_html {
         if initiator_opt.is_some() {
-            Ok(response::respond_index_html())
+            Ok(response::respond_index_html(Some(initiator_opt.unwrap().user)))
         } else {
             Ok(response::redirect_to_path("/auth/login"))
         }
@@ -752,19 +295,24 @@ pub async fn handle_get_entries_id(
         Err(app_error::ResponseError::Session)
     } else {
         let initiator = initiator_opt.unwrap();
-        let rtn = search_entries(conn, initiator.user.get_id(), Some(path.entry_id)).await?;
 
-        if rtn.len() == 0 {
-            return Err(app_error::ResponseError::EntryNotFound(path.entry_id));
+        if let Some(entry) = json::search_entry(conn, path.entry_id).await? {
+            if entry.owner == initiator.user.get_id() {
+                Ok(response::json::respond_json(
+                    http::StatusCode::OK, 
+                    response::json::MessageDataJSON::build(
+                        "successful",
+                        entry
+                    )
+                ))
+            } else {
+                Err(app_error::ResponseError::PermissionDenied(
+                    format!("you do not have permission to view this users entry as you are not the owner")
+                ))
+            }
+        } else {
+            Err(app_error::ResponseError::EntryNotFound(path.entry_id))
         }
-
-        Ok(response::json::respond_json(
-            http::StatusCode::OK, 
-            response::json::MessageDataJSON::build(
-                "successful",
-                &rtn[0]
-            )
-        ))
     }
 }
 
@@ -775,36 +323,93 @@ pub async fn handle_get_entries_id(
  */
 pub async fn handle_put_entries_id(
     initiator: from::Initiator,
-    app_data: web::Data<state::AppState>,
+    app: web::Data<state::AppState>,
     path: web::Path<EntryPath>,
     posted: web::Json<PutEntryJson>
 ) -> app_error::Result<impl Responder> {
-    let app = app_data.into_inner();
-    let mut conn = app.get_conn().await?;
-    let created = get_created_naive(&posted.created)?;
-    assert_is_owner_for_entry(&conn, path.entry_id, initiator.user.get_id()).await?;
+    let conn = &mut *app.get_conn().await?;
+    let created = posted.created.clone();
+    assert_is_owner_for_entry(conn, path.entry_id, initiator.user.get_id()).await?;
 
     let transaction = conn.transaction().await?;
     let result = transaction.query_one(
         "update entries set day = $1 where id = $2 returning day",
         &[&created, &path.entry_id]
     ).await?;
-    let mut rtn = PutEntryResultJson {
+    let mut rtn = json::EntryJson {
         id: path.entry_id,
-        created: time::naive_date_to_string(result.get(0)),
-        mood_entries: None,
-        text_entries: None
+        created: result.get(0),
+        mood_entries: vec!(),
+        text_entries: vec!(),
+        owner: initiator.user.get_id()
     };
+    let entry_id_list = vec!(path.entry_id);
 
     if let Some(m) = &posted.mood_entries {
-        let mood_entries = update_mood_entries(&transaction, initiator.user.get_id(), path.entry_id, m).await?;
-        let mut ids = Vec::<i32>::with_capacity(mood_entries.len());
+        let mut ids: Vec<i32> = vec!();
+        let mut mood_entries: Vec<json::MoodEntryJson> = vec!();
 
-        for ent in &mood_entries {
-            ids.push(ent.id);
+        for mood_entry in m {
+            if let Some(id) = mood_entry.id {
+                let field = get_mood_field_via_mood_entry(&transaction, initiator.user.get_id(), id).await?;
+
+                db::mood_fields::verifiy(&field.get_config(), &mood_entry.value)?;
+            
+                let value_json = serde_json::to_value(mood_entry.value.clone())?;
+                let _result = transaction.execute(
+                    r#"
+                    update mood_entries
+                    set value = $1,
+                        comment = $2
+                    where id = $3
+                    "#,
+                    &[&value_json, &mood_entry.comment, &id]
+                ).await?;
+
+                ids.push(id);
+                mood_entries.push(json::MoodEntryJson {
+                    id: id,
+                    field: field.get_name(),
+                    field_id: field.get_id(),
+                    value: mood_entry.value.clone(),
+                    comment: clone_string_option(&mood_entry.comment),
+                    entry: path.entry_id
+                });
+            } else {
+                let field_id = match mood_entry.field_id {
+                    Some(id) => id,
+                    None => Err(app_error::ResponseError::Validation(
+                        "no mood entry id was specified to update".to_owned()
+                    ))?
+                };
+
+                let field = get_mood_field_via_id(&transaction, initiator.user.get_id(), field_id).await?;
+
+                db::mood_fields::verifiy(&field.get_config(), &mood_entry.value)?;
+
+                let value_json = serde_json::to_value(mood_entry.value.clone())?;
+                let result = transaction.query_one(
+                    r#"
+                    insert into mood_entries (field, value, comment, entry) values
+                    ($1, $2, $3, $4)
+                    returning id
+                    "#,
+                    &[&field_id, &value_json, &mood_entry.comment, &path.entry_id]
+                ).await?;
+
+                ids.push(result.get(0));
+                mood_entries.push(json::MoodEntryJson {
+                    id: result.get(0),
+                    field: field.get_name(),
+                    field_id: field.get_id(),
+                    value: mood_entry.value.clone(),
+                    comment: clone_string_option(&mood_entry.comment),
+                    entry: path.entry_id
+                });
+            }
         }
 
-        rtn.mood_entries = Some(mood_entries);
+        rtn.mood_entries.append(&mut mood_entries);
 
         let left_over = transaction.query(
             "select id from mood_entries where entry = $1 and not (id = any($2))",
@@ -823,11 +428,13 @@ pub async fn handle_put_entries_id(
                 &[&to_delete]
             ).await?;
         }
+    } else {
+        rtn.mood_entries = json::search_mood_entries(&transaction, &entry_id_list).await?;
     }
 
     if let Some(t) = &posted.text_entries {
         let mut ids: Vec<i32> = vec!();
-        let mut text_entries: Vec<TextEntryJson> = vec!();
+        let mut text_entries: Vec<json::TextEntryJson> = vec!();
 
         for text_entry in t {
             if let Some(id) = text_entry.id {
@@ -857,9 +464,10 @@ pub async fn handle_put_entries_id(
                 ).await?;
 
                 ids.push(id);
-                text_entries.push(TextEntryJson {
+                text_entries.push(json::TextEntryJson {
                     id: result.get(0),
-                    thought: result.get(1)
+                    thought: result.get(1),
+                    entry: path.entry_id
                 });
             } else {
                 let result = transaction.query_one(
@@ -868,14 +476,15 @@ pub async fn handle_put_entries_id(
                 ).await?;
 
                 ids.push(result.get(0));
-                text_entries.push(TextEntryJson {
+                text_entries.push(json::TextEntryJson {
                     id: result.get(0),
-                    thought: result.get(1)
+                    thought: result.get(1),
+                    entry: path.entry_id
                 })
             }
         }
 
-        rtn.text_entries = Some(text_entries);
+        rtn.text_entries.append(&mut text_entries);
 
         let left_over = transaction.query(
             "select id from text_entries where entry = $1 and not (id = any($2))",
@@ -919,7 +528,38 @@ pub async fn handle_delete_entries_id(
     let mut conn = app.get_conn().await?;
     let transaction = conn.transaction().await?;
 
-    delete_entries(&transaction, initiator.user.get_id(), vec!(path.entry_id)).await?;
+    let check = transaction.query(
+        "select id, owner from entries where id = $1",
+        &[&path.entry_id]
+    ).await?;
+    let mut invalid_entries: Vec<i32> = vec!();
+
+    for row in check {
+        if row.get::<usize, i32>(1) != initiator.user.get_id() {
+            invalid_entries.push(row.get(0));
+        }
+
+        if invalid_entries.len() > 0 {
+            return Err(app_error::ResponseError::PermissionDenied(
+                format!("you are not allowed to delete entries owned by another user. entries ({:?})", invalid_entries)
+            ));
+        }
+    }
+    
+    let _text_result = transaction.execute(
+        "delete from text_entries where entry = $1",
+        &[&path.entry_id]
+    ).await?;
+
+    let _mood_result = transaction.execute(
+        "delete from mood_entries where entry = $1",
+        &[&path.entry_id]
+    ).await?;
+
+    let _entry_result = transaction.execute(
+        "delete from entries where id = $1",
+        &[&path.entry_id]
+    ).await?;
 
     transaction.commit().await?;
 

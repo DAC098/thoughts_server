@@ -16,6 +16,7 @@ mod db;
 mod handler;
 mod response;
 mod request;
+mod json;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -72,14 +73,14 @@ async fn main() -> std::io::Result<()> {
                     .name("thoughts_session")
                     .path("/")
             )
-            // .route("/static/{file_path:.*}", web::get().to(handler::handle_get_static))
             .route("/", web::get().to(handler::handle_get_root))
             .route("/auth/login", web::get().to(handler::auth::handle_get_auth_login))
             .route("/auth/login", web::post().to(handler::auth::handle_post_auth_login))
+            .route("/auth/logout", web::post().to(handler::auth::handle_post_auth_logout))
             .route("/auth/create", web::post().to(handler::auth::handle_post_auth_create))
+            .route("/auth/change", web::post().to(handler::auth::handle_post_auth_change))
             .route("/entries", web::get().to(handler::entries::handle_get_entries))
             .route("/entries", web::post().to(handler::entries::handle_post_entries))
-            .route("/entries/", web::get().to(handler::entries::handle_get_root))
             .route("/entries/{entry_id}", web::get().to(handler::entries::handle_get_entries_id))
             .route("/entries/{entry_id}", web::put().to(handler::entries::handle_put_entries_id))
             .route("/entries/{entry_id}", web::delete().to(handler::entries::handle_delete_entries_id))
@@ -87,14 +88,28 @@ async fn main() -> std::io::Result<()> {
             .route("/text_entries", web::get().to(handler::text_entries::handle_get_text_entries))
             .route("/mood_fields", web::get().to(handler::mood_fields::handle_get_mood_fields))
             .route("/mood_fields", web::post().to(handler::mood_fields::handle_post_mood_fields))
+            .route("/mood_fields/{field_id}", web::get().to(handler::mood_fields::handle_get_mood_fields_id))
             .route("/mood_fields/{field_id}", web::put().to(handler::mood_fields::handle_put_mood_fields_id))
             .route("/mood_fields/{field_id}", web::delete().to(handler::mood_fields::handle_delete_mood_fields_id))
+            .route("/tags", web::get().to(handler::okay))
+            .route("/tags", web::post().to(handler::okay))
             .route("/users", web::get().to(handler::users::handle_get_users))
             .route("/users/{user_id}", web::get().to(handler::users::handle_get_users_id))
+            .route("/users/{user_id}/entries", web::get().to(handler::users::handle_get_users_id_entries))
+            .route("/users/{user_id}/entries/{entry_id}", web::get().to(handler::users::handle_get_users_id_entries_id))
+            .route("/users/{user_id}/mood_fields", web::get().to(handler::users::handle_get_users_id_mood_fields))
+            .route("/users/{user_id}/mood_fields/{field_id}", web::get().to(handler::users::handle_get_users_id_mood_fields_id))
+            .route("/data", web::get().to(handler::handle_get_data))
+            .route("/account", web::get().to(handler::account::handle_get_account))
+            .route("/account", web::put().to(handler::account::handle_put_account))
+            .route("/settings", web::get().to(handler::okay))
+            .route("/settings", web::put().to(handler::okay))
+            .route("/backup", web::get().to(handler::okay))
+            .route("/backup", web::post().to(handler::okay))
             .service(
                 actix_files::Files::new("/static", &static_dir)
-                .show_files_listing()
-                .redirect_to_slash_directory()
+                    .show_files_listing()
+                    .redirect_to_slash_directory()
             )
     });
 

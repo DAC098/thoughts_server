@@ -9,7 +9,9 @@ export default class RequestError extends Error {
         this.status_ = status ?? 500;
         this.request_ = request;
 
-        Error.captureStackTrace(this);
+        try {
+            Error.captureStackTrace(this);
+        } catch(e) {}
     }
 
     get status() {

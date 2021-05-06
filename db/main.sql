@@ -8,26 +8,37 @@ create table users (
     id serial primary key,
     level integer not null,
 
-    first_name varchar,
-    last_name varchar,
+    full_name varchar,
 
     public boolean not null default false,
 
     username varchar not null unique,
     hash varchar not null,
 
-    email varchar unique
+    email varchar unique not null
+);
+
+create table user_access_requests (
+    owner integer not null,
+    ability char(1) not null,
+    allowed_for integer not null,
+    expire timestamp with time zone default null,
+
+    constraint owner_fk foreign key (owner) references users (id),
+    constraint allowed_for_fk foreign key (allowed_for) references users (id),
+    constraint unique_requests_per_user unique (owner, allowed_for),
+    constraint not_same_user check (owner != allowed_for)
 );
 
 create table user_access (
     owner integer not null,
     ability char(1) not null,
-    for_user integer not null,
+    allowed_for integer not null,
 
     constraint owner_fk foreign key (owner) references users (id),
-    constraint for_user_fk foreign key (for_user) references users (id),
-    constraint unique_ability_per_user unique (owner, ability, for_user),
-    constraint not_same_user check (owner != for_user)
+    constraint allowed_for_fk foreign key (allowed_for) references users (id),
+    constraint unique_ability_per_user unique (owner, ability, allowed_for),
+    constraint not_same_user check (owner != allowed_for)
 );
 
 create table user_sessions (
@@ -40,7 +51,7 @@ create table user_sessions (
 create table entries (
     id serial primary key,
 
-    day date not null unique default CURRENT_DATE,
+    day timestamp with time zone not null unique default CURRENT_DATE,
 
     owner integer not null,
 
@@ -70,6 +81,8 @@ create table text_entries (
 
     thought text not null,
 
+    private boolean default not null default false,
+
     entry integer not null,
 
     constraint entry_fk foreign key (entry) references entries (id)
@@ -80,14 +93,14 @@ create table mood_fields (
     
     name varchar not null,
     owner integer not null,
+    issued_by integer
 
-    minimum integer,
-    maximum integer,
-    is_range boolean not null default false,
+    config json not null,
 
     comment varchar,
 
     constraint owner_fk foreign key (owner) references users (id),
+    constraint issued_by_fk foreign key (issued_by) references users (id),
     constraint unique_name_owner unique (name, owner)
 );
 
@@ -95,8 +108,7 @@ create table mood_entries (
     id serial primary key,
     field integer not null,
 
-    low integer not null default 0,
-    high integer,
+    value json not null,
 
     comment varchar,
 
