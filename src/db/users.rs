@@ -13,7 +13,7 @@ pub async fn insert(
     client: &impl GenericClient,
     username: &String,
     hash: &String,
-    email: &Option<String>
+    email: &String
 ) -> Result<User, PGError> {
     let result = client.query_one(
         r#"
@@ -37,7 +37,7 @@ pub async fn insert(
 pub async fn check_username_email(
     client: &Client,
     username: &String,
-    email: &Option<String>
+    email: &String
 ) -> Result<(bool, bool), PGError> {
     let result = client.query(
         r#"

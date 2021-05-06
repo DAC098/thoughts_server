@@ -13,12 +13,14 @@ const Login = () => {
     let [username, setUsername] = useState("");
     let [password, setPassword] = useState("");
     let [confirm_password, setConfirmPassword] = useState("");
+    let [email, setEmail] = useState("");
+
     let [sending, setSending] = useState(false);
     let [view_create, setViewCreate] = useState(false);
     let [username_error, setUsernameError] = useState("");
     let [password_error, setPasswordError] = useState("");
 
-    let history = useHistory();
+    const history = useHistory();
 
     const login = () => {
         if (sending) {
@@ -55,7 +57,7 @@ const Login = () => {
         setUsernameError("");
         setPasswordError("");
 
-        json.post("/auth/create", {username,password}).then(() => {
+        json.post("/auth/create", {username,password,email}).then(() => {
             history.push("/entries")
         }).catch(err => {
             if (err.type === "UsernameExists") {
@@ -99,15 +101,25 @@ const Login = () => {
                     onChange={(e,v) => setPassword(v)}
                 />
                 {view_create ?
-                    <TextField
-                        label="Confirm Password"
-                        required
-                        type="password"
-                        name="confirm_password"
-                        canRevealPassword
-                        value={confirm_password}
-                        onChange={(e,v) => setConfirmPassword(v)}
-                    />
+                    <>
+                        <TextField
+                            label="Confirm Password"
+                            required
+                            type="password"
+                            name="confirm_password"
+                            canRevealPassword
+                            value={confirm_password}
+                            onChange={(e,v) => setConfirmPassword(v)}
+                        />
+                        <TextField
+                            label="Email"
+                            required
+                            type="email"
+                            name="email"
+                            value={email}
+                            onChange={(e,v) => setEmail(v)}
+                        />
+                    </>
                     :
                     null
                 }

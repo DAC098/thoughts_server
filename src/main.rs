@@ -8,6 +8,7 @@ use bb8_postgres::{PostgresConnectionManager, bb8};
 use log::{warn, info, error};
 use env_logger;
 
+mod security;
 mod error;
 mod time;
 mod config;
@@ -44,7 +45,7 @@ async fn main() -> std::io::Result<()> {
     db_config.password(config.db.password);
     db_config.host(config.db.hostname.as_ref());
     db_config.port(config.db.port);
-    db_config.dbname("thoughts");
+    db_config.dbname(config.db.database.as_ref());
 
     let manager = PostgresConnectionManager::new(db_config, NoTls);
     let pool_result = bb8::Pool::builder().build(manager).await;

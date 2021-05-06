@@ -1,7 +1,6 @@
 use actix_web::{web, http, Responder};
 use actix_session::{Session};
 use serde::{Deserialize};
-use argon2::{Config, ThreadMode, Variant, Version};
 
 use crate::db::users;
 use crate::db::user_sessions;
@@ -9,53 +8,7 @@ use crate::error;
 use crate::response;
 use crate::state;
 use crate::request::from;
-
-fn default_argon2_config() -> Config<'static> {
-    Config {
-        variant: Variant::Argon2i,
-        version: Version::Version13,
-        mem_cost: 65536,
-        time_cost: 10,
-        lanes: 4,
-        thread_mode: ThreadMode::Parallel,
-        secret: &[],
-        ad: &[],
-        hash_length: 32
-    }
-}
-
-fn generate_new_hash_with_config(
-    password: &String, 
-    config: &Config
-) -> error::Result<String> {
-    let mut salt: [u8; 64] = [0; 64];
-    openssl::rand::rand_bytes(&mut salt)?;
-
-    Ok(argon2::hash_encoded(
-        &password.as_bytes(), 
-        &salt,
-        &config
-    )?)
-}
-
-fn generate_new_hash(password: &String) -> error::Result<String> {
-    let config = default_argon2_config();
-
-    generate_new_hash_with_config(
-        password, 
-        &config
-    )
-}
-
-fn verify_password(hash: &str, password: &String) -> error::Result<()> {
-    let matches = argon2::verify_encoded(hash, password.as_bytes())?;
-
-    if !matches {
-        Err(error::ResponseError::InvalidPassword)
-    } else {
-        Ok(())
-    }
-}
+use crate::security;
 
 /**
  * GET /auth/login
@@ -92,7 +45,7 @@ pub async fn handle_post_auth_login(
 ) -> error::Result<impl Responder> {
     let conn = &mut app.get_conn().await?;
     let result = conn.query(
-        "select id, hash from users where username = $1",
+        "select id, hash from users where username = $1 or email = $1",
         &[&posted.username]
     ).await?;
 
@@ -100,7 +53,7 @@ pub async fn handle_post_auth_login(
         return Err(error::ResponseError::UsernameNotFound(posted.username.clone()));
     }
 
-    verify_password(result[0].get(1), &posted.password)?;
+    security::verify_password(result[0].get(1), &posted.password)?;
 
     let transaction = conn.transaction().await?;
     let token = uuid::Uuid::new_v4();
@@ -148,16 +101,16 @@ pub async fn handle_post_auth_logout(
 pub struct NewLoginJSON {
     username: String,
     password: String,
-    email: Option<String>
+    email: String
 }
 
 /**
  * POST /auth/create
  */
 pub async fn handle_post_auth_create(
+    _initiator: from::Initiator,
     app: web::Data<state::AppState>,
-    session: Session,
-    posted: web::Json<NewLoginJSON>
+    posted: web::Json<NewLoginJSON>,
 ) -> error::Result<impl Responder> {
     let conn = &mut app.get_conn().await?;
     let (found_username, found_email) = users::check_username_email(
@@ -169,22 +122,17 @@ pub async fn handle_post_auth_create(
     }
 
     if found_email {
-        return Err(error::ResponseError::EmailExists(posted.email.as_ref().unwrap().clone()))
+        return Err(error::ResponseError::EmailExists(posted.email.clone()))
     }
 
-    let hash = generate_new_hash(&posted.password)?;
+    let hash = security::generate_new_hash(&posted.password)?;
     let transaction = conn.transaction().await?;
-    let user = users::insert(
+    let _user = users::insert(
         &transaction, 
         &posted.username,
         &hash,
         &posted.email
     ).await?;
-    let token = uuid::Uuid::new_v4();
-
-    user_sessions::insert(&transaction, token, user.get_id()).await?;
-
-    session.insert("token", token)?;
 
     transaction.commit().await?;
 
@@ -211,9 +159,9 @@ pub async fn handle_post_auth_change(
         &[&initiator.user.get_id()]
     ).await?;
 
-    verify_password(result.get(1), &posted.current_password)?;
+    security::verify_password(result.get(1), &posted.current_password)?;
 
-    let hash = generate_new_hash(&posted.new_password)?;
+    let hash = security::generate_new_hash(&posted.new_password)?;
     let transaction = conn.transaction().await?;
     let _insert_result = transaction.execute(
         "update users set hash = $1 where id = $2",
