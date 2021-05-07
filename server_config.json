@@ -1,11 +1,11 @@
 {
     "host": ["10.0.1.41"],
     "port": 8080,
+    "threads": 4,
     "db": {
         "username": "postgres",
         "password": "password",
-        "hostname": "truth.dac098.com",
-        "port": 5432
+        "hostname": "truth.dac098.com"
     },
     "_key": "/etc/ssl/certs/STAR_dac098_com.key",
     "_cert": "/etc/ssl/certs/STAR_dac098_com.crt"

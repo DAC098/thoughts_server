@@ -160,7 +160,7 @@ async fn main() -> std::io::Result<()> {
         }
     }
 
-    let runner = server.run();
+    let runner = server.workers(config.threads).run();
     info!("server listening for requests");
     let run_result = runner.await;
 

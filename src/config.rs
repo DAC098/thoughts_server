@@ -59,12 +59,19 @@ fn default_port() -> u16 {
     8080
 }
 
+fn default_threads() -> usize {
+    num_cpus::get()
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ServerConfig {
     #[serde(default = "default_hostname")]
     pub host: Vec<String>,
     #[serde(default = "default_port")]
     pub port: u16,
+
+    #[serde(default = "default_threads")]
+    pub threads: usize,
 
     pub db: DBConfig,
 
@@ -80,6 +87,8 @@ impl Default for ServerConfig {
             host: default_hostname(),
             port: default_port(),
 
+            threads: default_threads(),
+
             db: Default::default(),
 
             session_domain: None,
@@ -91,15 +100,12 @@ impl Default for ServerConfig {
 }
 
 pub fn load_server_config(file: String) -> Result<ServerConfig> {
-    let config_file = std::fs::File::open(file);
-    let config: ServerConfig = Default::default();
-
-    if config_file.is_ok() {
+    if let Ok(config_file) = std::fs::File::open(file) {
         serde_json::from_reader::<
             std::io::BufReader<std::fs::File>,
             ServerConfig
-        >(std::io::BufReader::new(config_file.unwrap()))
+        >(std::io::BufReader::new(config_file))
     } else {
-        Ok(config)
+        Ok(Default::default())
     }
 }

@@ -2325,6 +2325,7 @@ dependencies = [
  "env_logger",
  "futures",
  "log",
+ "num_cpus",
  "openssl",
  "postgres",
  "rust-argon2",

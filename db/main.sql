@@ -1,5 +1,3 @@
-create user thoughts_user;
-
 create database thoughts;
 
 \connect thoughts;
