@@ -2,3 +2,5 @@ target/
 static/main.b.js
 static/runtime.b.js
 node_modules/
+
+docker-compose.override.yml

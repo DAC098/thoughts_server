@@ -96,7 +96,7 @@ create table mood_fields (
     
     name varchar not null,
     owner integer not null,
-    issued_by integer
+    issued_by integer,
 
     config json not null,
 
