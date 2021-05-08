@@ -11,6 +11,8 @@ import UserId from "./routes/users/user_id"
 import AccountView from "./routes/account"
 import SettingsView from "./routes/settings"
 import FieldIdView from "./routes/mood_fields/field_id"
+import AdminUserListView from "./routes/admin/users"
+import AdminUserIdView from "./routes/admin/users/users_id"
 
 const App = () => {
     const location = useLocation();
@@ -107,6 +109,18 @@ const App = () => {
                                     match ? <>
                                         <Users/>
                                         <Route path="/users/:user_id" exact component={UserId}/>
+                                    </> : null
+                                }/>
+                            </Switch> : null
+                        }/>
+                        <Route path="/admin" children={({match}) => 
+                            match ? <Switch>
+                                <Route path={["/admin/users", "/admin/users/:user_id"]} exact children={({match}) => 
+                                    match ? <>
+                                        <AdminUserListView/>
+                                        <Route path="/admin/users/:user_id" exact children={({match}) => 
+                                            match ? <AdminUserIdView/> : null
+                                        }/>
                                     </> : null
                                 }/>
                             </Switch> : null

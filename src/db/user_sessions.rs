@@ -11,7 +11,8 @@ pub async fn find_token_user(
         select users.id, 
                users.username,
                users.full_name,
-               users.email 
+               users.email,
+               users.level
         from user_sessions 
         join users on user_sessions.owner = users.id 
         where token = $1
@@ -22,12 +23,13 @@ pub async fn find_token_user(
     if result.len() == 0 {
         Ok(None)
     } else {
-        Ok(Some(users::User::create(
-            result[0].get(0),
-            result[0].get(1),
-            result[0].get(2),
-            result[0].get(3)
-        )))
+        Ok(Some(users::User {
+            id: result[0].get(0),
+            username: result[0].get(1),
+            full_name: result[0].get(2),
+            email: result[0].get(3),
+            level: result[0].get(4)
+        }))
     }
 }
 

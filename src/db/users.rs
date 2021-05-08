@@ -1,41 +1,17 @@
-use tokio_postgres::{Client, GenericClient, Error as PGError};
+use tokio_postgres::{GenericClient, Error as PGError};
 use serde::{Serialize, Deserialize};
 
 #[derive(Serialize, Deserialize)]
 pub struct User {
-    id: i32,
-    username: String,
-    full_name: Option<String>,
-    email: Option<String>
-}
-
-pub async fn insert(
-    client: &impl GenericClient,
-    username: &String,
-    hash: &String,
-    email: &String
-) -> Result<User, PGError> {
-    let result = client.query_one(
-        r#"
-        insert into users (level, username, hash, email) values
-        (2, $1, $2, $3)
-        returning id,
-                  username,
-                  email
-        "#,
-        &[&username, &hash, &email]
-    ).await?;
-
-    Ok(User {
-        id: result.get(0),
-        username: result.get(1),
-        full_name: None,
-        email: result.get(2)
-    })
+    pub id: i32,
+    pub username: String,
+    pub level: i32,
+    pub full_name: Option<String>,
+    pub email: String
 }
 
 pub async fn check_username_email(
-    client: &Client,
+    client: &impl GenericClient,
     username: &String,
     email: &String
 ) -> Result<(bool, bool), PGError> {
@@ -65,11 +41,11 @@ pub async fn check_username_email(
 }
 
 pub async fn get_via_id(
-    client: &Client,
+    client: &impl GenericClient,
     id: i32
 ) -> Result<Option<User>, PGError> {
     let result = client.query(
-        r#"select id, username, full_name, email from users where id = $1"#,
+        r#"select id, username, full_name, email, level from users where id = $1"#,
         &[&id]
     ).await?;
 
@@ -78,7 +54,8 @@ pub async fn get_via_id(
             id: result[0].get(0),
             username: result[0].get(1),
             full_name: result[0].get(2),
-            email: result[0].get(3)
+            email: result[0].get(3),
+            level: result[0].get(4)
         }))
     } else {
         Ok(None)
@@ -86,10 +63,6 @@ pub async fn get_via_id(
 }
 
 impl User {
-
-    pub fn create(id: i32, username: String, full_name: Option<String>, email: Option<String>) -> Self {
-        User { id, username, full_name, email }
-    }
 
     pub fn get_id(&self) -> i32 {
         self.id

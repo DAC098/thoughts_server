@@ -104,6 +104,7 @@ export interface UserListJson {
 export interface UserDataJson {
     id: number,
     username: string,
+    level: number,
     full_name?: string,
     email?: string
 }
@@ -223,6 +224,7 @@ export function makeUserDataJson(): UserDataJson {
     return {
         id: null,
         username: "",
+        level: 20,
         full_name: null,
         email: null
     }
@@ -232,6 +234,7 @@ export function cloneUserDataJson(user_data: UserDataJson): UserDataJson {
     return {
         id: optionalCloneInteger(user_data.id),
         username: cloneString(user_data.username),
+        level: cloneInteger(user_data.level),
         full_name: optionalCloneString(user_data.full_name),
         email: optionalCloneString(user_data.email)
     }

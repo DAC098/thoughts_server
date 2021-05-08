@@ -2,6 +2,8 @@ use argon2::{Config, ThreadMode, Variant, Version};
 
 use crate::error;
 
+pub mod assert;
+
 pub fn default_argon2_config() -> Config<'static> {
     Config {
         variant: Variant::Argon2i,

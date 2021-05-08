@@ -10,9 +10,9 @@ pub mod auth;
 pub mod entries;
 pub mod mood_fields;
 pub mod users;
-pub mod text_entries;
-pub mod mood_entries;
 pub mod account;
+pub mod backup;
+pub mod admin;
 
 pub async fn handle_get_root(
     session: Session,

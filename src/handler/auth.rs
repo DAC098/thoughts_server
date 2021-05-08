@@ -43,7 +43,7 @@ pub async fn handle_post_auth_login(
     session: Session, 
     posted: web::Json<LoginBodyJSON>
 ) -> error::Result<impl Responder> {
-    let conn = &mut app.get_conn().await?;
+    let conn = &mut *app.get_conn().await?;
     let result = conn.query(
         "select id, hash from users where username = $1 or email = $1",
         &[&posted.username]
@@ -94,51 +94,6 @@ pub async fn handle_post_auth_logout(
             "logout successful",
             None
         )
-    ))
-}
-
-#[derive(Deserialize)]
-pub struct NewLoginJSON {
-    username: String,
-    password: String,
-    email: String
-}
-
-/**
- * POST /auth/create
- */
-pub async fn handle_post_auth_create(
-    _initiator: from::Initiator,
-    app: web::Data<state::AppState>,
-    posted: web::Json<NewLoginJSON>,
-) -> error::Result<impl Responder> {
-    let conn = &mut app.get_conn().await?;
-    let (found_username, found_email) = users::check_username_email(
-        conn, &posted.username, &posted.email
-    ).await?;
-
-    if found_username {
-        return Err(error::ResponseError::UsernameExists(posted.username.clone()));
-    }
-
-    if found_email {
-        return Err(error::ResponseError::EmailExists(posted.email.clone()))
-    }
-
-    let hash = security::generate_new_hash(&posted.password)?;
-    let transaction = conn.transaction().await?;
-    let _user = users::insert(
-        &transaction, 
-        &posted.username,
-        &hash,
-        &posted.email
-    ).await?;
-
-    transaction.commit().await?;
-
-    Ok(response::json::respond_json(
-        http::StatusCode::OK,
-        response::json::MessageDataJSON::<Option<()>>::build("created account", None)
     ))
 }
 

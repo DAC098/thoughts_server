@@ -59,3 +59,13 @@ pub fn build_json_response(status: http::StatusCode) -> HttpResponseBuilder {
 pub fn respond_json<T: Serialize>(status: http::StatusCode, data: T) -> HttpResponse {
     build_json_response(status).json(data)
 }
+
+pub fn respond_okay() -> HttpResponse {
+    respond_json(
+        http::StatusCode::OK,
+        MessageDataJSON::<Option<()>>::build(
+            "okay",
+            None
+        )
+    )
+}

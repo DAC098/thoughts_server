@@ -59,7 +59,12 @@ create table entries (
 create table tags (
     id serial primary key,
 
-    title varchar not null
+    title varchar not null,
+    
+    owner integer not null,
+
+    constraint unique_title_owner unique (title, owner),
+    constraint owner_fk foreign key (owner) references users (id)
 );
 
 create table entries2tags (
@@ -79,7 +84,7 @@ create table text_entries (
 
     thought text not null,
 
-    private boolean default not null default false,
+    private boolean not null default false,
 
     entry integer not null,
 

@@ -2,7 +2,6 @@ use std::fmt::{Write};
 use std::collections::{HashMap};
 
 use tokio_postgres::{GenericClient};
-use chrono::{NaiveDate};
 use serde::{Serialize};
 
 use crate::db::mood_fields;
@@ -204,8 +203,8 @@ pub async fn search_mood_entries(
 
 pub struct SearchEntriesOptions {
     pub owner: i32,
-    pub from: Option<NaiveDate>,
-    pub to: Option<NaiveDate>
+    pub from: Option<chrono::DateTime<chrono::Utc>>,
+    pub to: Option<chrono::DateTime<chrono::Utc>>
 }
 
 pub async fn search_entries(

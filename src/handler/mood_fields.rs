@@ -1,6 +1,5 @@
 use actix_web::{web, http, HttpRequest, Responder};
 use actix_session::{Session};
-use tokio_postgres::{Client};
 use serde::{Deserialize};
 
 use crate::error::{Result, ResponseError};
@@ -9,29 +8,7 @@ use crate::response;
 use crate::state;
 use crate::json;
 use crate::db;
-
-async fn assert_is_owner_for_mood_field(
-    conn: &Client,
-    field_id: i32,
-    owner: i32
-) -> Result<()> {
-    let rows = conn.query(
-        "select owner from mood_fields where id = $1",
-        &[&field_id]
-    ).await?;
-
-    if rows.len() == 0 {
-        return Err(ResponseError::MoodFieldNotFound(field_id));
-    }
-
-    if rows[0].get::<usize, i32>(0) != owner {
-        return Err(ResponseError::PermissionDenied(
-            "you don't have permission to modify this users mood field".to_owned()
-        ));
-    }
-
-    Ok(())
-}
+use crate::security;
 
 pub async fn handle_get_mood_fields(
     req: HttpRequest,
@@ -176,7 +153,7 @@ pub async fn handle_put_mood_fields_id(
     posted: web::Json<PutMoodFieldJson>,
 ) -> Result<impl Responder> {
     let conn = &*app.get_conn().await?;
-    assert_is_owner_for_mood_field(conn, path.field_id, initiator.user.get_id()).await?;
+    security::assert::is_owner_for_mood_field(conn, path.field_id, initiator.user.get_id()).await?;
 
     let config_json = serde_json::to_value(posted.config.clone())?;
     let result = conn.query_one(
@@ -218,7 +195,7 @@ pub async fn handle_delete_mood_fields_id(
     path: web::Path<MoodFieldPath>,
 ) -> Result<impl Responder> {
     let conn = &*app.get_conn().await?;
-    assert_is_owner_for_mood_field(conn, path.field_id, initiator.user.get_id()).await?;
+    security::assert::is_owner_for_mood_field(conn, path.field_id, initiator.user.get_id()).await?;
 
     let _mood_entries_result = conn.execute(
         "delete from mood_entries where field = $1",

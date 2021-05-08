@@ -1,12 +1,12 @@
 import { IconButton, Persona, Stack } from "@fluentui/react";
 import React, { useEffect, useState } from "react"
 import { Link, useHistory } from "react-router-dom";
-import { UserDataJson } from "../api/types"
+import { UserListItemJson } from "../api/types"
 import * as api from "../api";
 
 const Users = () => {
-    let [allowed, setAllowed] = useState<UserDataJson[]>([]);
-    let [given, setGiven] = useState<UserDataJson[]>([]);
+    let [allowed, setAllowed] = useState<UserListItemJson[]>([]);
+    let [given, setGiven] = useState<UserListItemJson[]>([]);
     let [loading, setLoading] = useState(false);
 
     const history = useHistory();
@@ -33,7 +33,7 @@ const Users = () => {
     return <Stack horizontal tokens={{padding: 8, childrenGap: 8}}>
         <Stack tokens={{childrenGap: 8}}>
             <h4 style={{minWidth: 158}}>Allowed Access</h4>
-            {allowed.map(v => 
+            {allowed.map(v =>
                 <Stack key={v.id} horizontal verticalAlign="center" tokens={{childrenGap: 8}}>
                     <Persona
                         text={v.full_name ?? v.username}

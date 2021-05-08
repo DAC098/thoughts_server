@@ -1,6 +1,6 @@
 use actix_web::{web, http, HttpRequest, Responder};
 use actix_session::{Session};
-use tokio_postgres::{Client, GenericClient};
+use tokio_postgres::{GenericClient};
 use serde::{Deserialize};
 
 use crate::db;
@@ -9,6 +9,7 @@ use crate::{error as app_error};
 use crate::state;
 use crate::request::from;
 use crate::json;
+use crate::security;
 
 #[derive(Deserialize)]
 pub struct PostTextEntryJson {
@@ -103,29 +104,6 @@ async fn get_mood_field_via_mood_entry(
     }
 
     get_mood_field_via_id(conn, initiator, result[0].get(0)).await
-}
-
-async fn assert_is_owner_for_entry(
-    conn: &Client, 
-    entry_id: i32, 
-    initiator: i32
-) -> app_error::Result<()> {
-    let owner_result = conn.query(
-        "select owner from entries where id = $1", 
-        &[&entry_id]
-    ).await?;
-
-    if owner_result.len() == 0 {
-        return Err(app_error::ResponseError::EntryNotFound(entry_id));
-    }
-
-    if owner_result[0].get::<usize, i32>(0) != initiator {
-        return Err(app_error::ResponseError::PermissionDenied(
-            "you don't have permission to modify this users entry".to_owned()
-        ));
-    }
-    
-    Ok(())
 }
 
 /**
@@ -329,7 +307,7 @@ pub async fn handle_put_entries_id(
 ) -> app_error::Result<impl Responder> {
     let conn = &mut *app.get_conn().await?;
     let created = posted.created.clone();
-    assert_is_owner_for_entry(conn, path.entry_id, initiator.user.get_id()).await?;
+    security::assert::is_owner_for_entry(conn, path.entry_id, initiator.user.get_id()).await?;
 
     let transaction = conn.transaction().await?;
     let result = transaction.query_one(

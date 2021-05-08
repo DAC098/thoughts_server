@@ -13,7 +13,6 @@ pub type Result<R> = std::result::Result<R, ResponseError>;
 
 #[derive(Debug)]
 pub enum ResponseError {
-    Internal,
 
     Session,
     InvalidPassword,
@@ -56,7 +55,6 @@ impl ResponseError {
 
     fn error_type(&self) -> &str {
         match &*self {
-            ResponseError::Internal => "InternalError",
 
             ResponseError::Session => "SessionError",
             ResponseError::InvalidPassword => "InvalidPassword",
@@ -97,7 +95,6 @@ impl ResponseError {
 
     fn get_msg(&self) -> String {
         match &*self {
-            ResponseError::Internal => "internal server error".to_owned(),
         
             ResponseError::Session => "no session found for request".to_owned(),
             ResponseError::InvalidPassword => "invalid password given for account".to_owned(),
@@ -160,7 +157,6 @@ impl ActixResponseError for ResponseError {
     
     fn status_code(&self) -> StatusCode {
         match &*self {
-            ResponseError::Internal => StatusCode::INTERNAL_SERVER_ERROR,
 
             ResponseError::Session => StatusCode::UNAUTHORIZED,
             ResponseError::InvalidPassword => StatusCode::UNAUTHORIZED,

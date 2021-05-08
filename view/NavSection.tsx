@@ -80,6 +80,15 @@ const NavSection = () => {
                             url: "/settings"
                         }
                     ]
+                },
+                {
+                    name: "Admin",
+                    links: [
+                        {
+                            name: "Users",
+                            url: "/admin/users"
+                        }
+                    ]
                 }
             ]}
         />

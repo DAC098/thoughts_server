@@ -1,36 +1,9 @@
-import { DefaultButton, ISeparatorProps, IStackProps, Persona, PersonaSize, Separator, Stack, Text, TextField } from "@fluentui/react"
+import { DefaultButton, Persona, PersonaSize, Stack, TextField } from "@fluentui/react"
 import React, { useEffect, useState } from "react"
 import { useAppDispatch, useAppSelector } from "../hooks/useApp"
 import { json } from "../request"
 import { actions as active_user_actions } from "../redux/active_user"
-
-interface IndentSectionProps {
-    content: React.ReactNode
-    indent?: number
-
-    separator?: ISeparatorProps
-    stack?: IStackProps
-
-    children?: React.ReactNode
-}
-
-const IndentSection = ({
-    content,
-    indent = 12,
-    separator = {"alignContent": "start"}, 
-    stack = {},
-    children
-}: IndentSectionProps) => {
-    let tokens = {
-        childrenGap: 8,
-        ...(stack.tokens ?? {}),
-        padding: `0 0 0 ${indent}px`
-    };
-    return <>
-        <Separator {...separator} children={content}/>
-        <Stack {...stack} tokens={tokens} children={children}/>
-    </>
-}
+import IndentSection from "../components/IndentSection"
 
 const PasswordSection = () => {
     let [current, setCurrent] = useState("");
@@ -172,7 +145,6 @@ const AccountView = () => {
         }} 
         tokens={{childrenGap: 8, padding: 8}}
     >
-        <Text>Note: Some fields do something, others don't</Text>
         <UserInformation/>
         <IndentSection content="Authentication">
             <PasswordSection/>
