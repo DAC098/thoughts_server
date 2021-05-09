@@ -2,9 +2,9 @@ import { CommandBarButton, Nav, Persona, Stack } from "@fluentui/react";
 import React from "react"
 import { useHistory } from "react-router";
 import { useAppDispatch, useAppSelector } from "./hooks/useApp";
-import { actions as active_user_actions } from "./redux/active_user"
-import { actions as entries_actions } from "./redux/entries"
-import { actions as mood_fields_actions } from "./redux/mood_fields"
+import { actions as active_user_actions } from "./redux/slices/active_user"
+import { actions as entries_actions } from "./redux/slices/entries"
+import { actions as mood_fields_actions } from "./redux/slices/mood_fields"
 import {json} from "./request"
 
 const NavSection = () => {
@@ -29,6 +29,55 @@ const NavSection = () => {
         full_name = active_user_state.user.full_name;
     }
 
+    let nav_groups = [
+        {
+            name: "Home",
+            links: [
+                {
+                    name: "Entries",
+                    url: "/entries"
+                },
+                {
+                    name: "Fields",
+                    url: "/mood_fields"
+                },
+                {
+                    name: "Tags",
+                    url: "/tags"
+                }
+            ]
+        },
+        {
+            name: "Manage",
+            links: [
+                {
+                    name: "Users",
+                    url: "/users"
+                },
+                {
+                    name: "Account",
+                    url: "/account"
+                },
+                {
+                    name: "Settings",
+                    url: "/settings"
+                }
+            ]
+        }
+    ];
+
+    if (active_user_state.user.level === 1) {
+        nav_groups.push({
+            name: "Admin",
+            links: [
+                {
+                    name: "Users",
+                    url: "/admin/users"
+                }
+            ]
+        });
+    }
+
     return <Stack tokens={{padding: 4, childrenGap: 8}}>
         <Persona
             text={full_name ?? username}
@@ -46,51 +95,7 @@ const NavSection = () => {
                 e.preventDefault();
                 history.push(i.url);
             }}
-            groups={[
-                {
-                    name: "Home",
-                    links: [
-                        {
-                            name: "Entries",
-                            url: "/entries"
-                        },
-                        {
-                            name: "Fields",
-                            url: "/mood_fields"
-                        },
-                        {
-                            name: "Tags",
-                            url: "/tags"
-                        }
-                    ]
-                },
-                {
-                    name: "Manage",
-                    links: [
-                        {
-                            name: "Users",
-                            url: "/users"
-                        },
-                        {
-                            name: "Account",
-                            url: "/account"
-                        },
-                        {
-                            name: "Settings",
-                            url: "/settings"
-                        }
-                    ]
-                },
-                {
-                    name: "Admin",
-                    links: [
-                        {
-                            name: "Users",
-                            url: "/admin/users"
-                        }
-                    ]
-                }
-            ]}
+            groups={nav_groups}
         />
     </Stack>
 }

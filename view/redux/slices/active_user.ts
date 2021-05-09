@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit"
-import { makeUserDataJson, UserDataJson } from "../api/types"
+import { makeUserDataJson, UserDataJson } from "../../api/types"
 
 export const active_user = createSlice({
     name: "active_user",

@@ -3,6 +3,7 @@ name = "thoughts_server"
 version = "1.0.0"
 authors = ["DAC098 <dac098Git@gmail.com>"]
 edition = "2018"
+default-run = "thoughts_server"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

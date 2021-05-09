@@ -1,5 +1,5 @@
 import { useAppDispatch, useAppSelector } from "./useApp";
-import { actions, EntriesState } from "../redux/entries"
+import { actions, EntriesState } from "../redux/slices/entries"
 
 export function useLoadEntries(): [EntriesState, (owner: number | string, user_specific: boolean) => void] {
     const entries_state = useAppSelector(state => state.entries);

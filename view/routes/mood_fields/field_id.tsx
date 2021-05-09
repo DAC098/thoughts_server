@@ -7,7 +7,7 @@ import { useOwner } from "../../hooks/useOwner"
 import { makeMoodFieldType, MoodFieldType, MoodFieldTypeName } from "../../api/mood_field_types"
 import { MoodFieldTypeEditView } from "../../components/mood_fields"
 import { useAppDispatch } from "../../hooks/useApp"
-import { actions as mood_fields_actions } from "../../redux/mood_fields"
+import { actions as mood_fields_actions } from "../../redux/slices/mood_fields"
 
 interface FieldState {
     original?: MoodFieldJson

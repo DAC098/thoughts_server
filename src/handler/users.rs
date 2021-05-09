@@ -24,8 +24,6 @@ async fn assert_permission_to_read(
             let ability: String = row.get(0);
             let allowed_for: i32 = row.get(1);
 
-            log::info!("ability[{}] allowed[{}]", ability, allowed_for);
-
             if ability.eq("r") && initiator == allowed_for {
                 return Ok(());
             }

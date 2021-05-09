@@ -1,7 +1,7 @@
 import { configureStore } from "@reduxjs/toolkit"
-import { active_user } from "./active_user"
-import { entries } from "./entries"
-import { mood_fields } from "./mood_fields"
+import { active_user } from "./slices/active_user"
+import { entries } from "./slices/entries"
+import { mood_fields } from "./slices/mood_fields"
 
 export const store = configureStore({
     reducer: {

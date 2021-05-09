@@ -1,4 +1,4 @@
-import { Breadcrumb, IconButton, Stack } from "@fluentui/react"
+import { Breadcrumb, IconButton, ScrollablePane, Stack } from "@fluentui/react"
 import React from "react"
 import { Route, Switch, useHistory, useLocation } from "react-router-dom"
 
@@ -54,19 +54,9 @@ const App = () => {
         <Stack.Item grow>
             <Stack style={{position: "relative", width: "100%", height: "100%"}}>
                 <Stack.Item shrink={0} grow={0} style={{backgroundColor: "black"}}>
-                    <Stack horizontal tokens={{childrenGap: 8, padding: 8}}>
-                        <Stack.Item grow>
-                            <Breadcrumb items={breadcrumb_items}/>
-                        </Stack.Item>
-                        <Stack.Item>
-                            <IconButton
-                                iconProps={{iconName: "GlobalNavButton"}}
-                                menuProps={{items: []}}
-                            />
-                        </Stack.Item>
-                    </Stack>
+                    <Breadcrumb items={breadcrumb_items}/>
                 </Stack.Item>
-                <Stack.Item id="main_content" grow style={{position: "relative", overflow: "auto"}}>
+                <Stack.Item id="main_content" grow style={{position: "relative"}}>
                     <Switch>
                         <Route path="/account" exact component={AccountView}/>
                         <Route path="/settings" exact component={SettingsView}/>

@@ -2,7 +2,7 @@ import { DefaultButton, Persona, PersonaSize, Stack, TextField } from "@fluentui
 import React, { useEffect, useState } from "react"
 import { useAppDispatch, useAppSelector } from "../hooks/useApp"
 import { json } from "../request"
-import { actions as active_user_actions } from "../redux/active_user"
+import { actions as active_user_actions } from "../redux/slices/active_user"
 import IndentSection from "../components/IndentSection"
 
 const PasswordSection = () => {

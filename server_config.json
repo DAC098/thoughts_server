@@ -5,7 +5,8 @@
     "db": {
         "username": "postgres",
         "password": "password",
-        "_database": "thoughts_dev",
+        "port": 5434,
+        "database": "thoughts",
         "hostname": "truth.dac098.com"
     },
     "_key": "/etc/ssl/certs/STAR_dac098_com.key",

@@ -1,6 +1,6 @@
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
-import * as api from "../api"
-import { MoodFieldJson } from "../api/types"
+import * as api from "../../api"
+import { MoodFieldJson } from "../../api/types"
 
 const fetchMoodFields = createAsyncThunk<MoodFieldJson[], {owner: number | string, user_specific?: boolean}>(
     "mood_fields/fetch_mood_fields",

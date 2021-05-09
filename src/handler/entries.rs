@@ -13,7 +13,8 @@ use crate::security;
 
 #[derive(Deserialize)]
 pub struct PostTextEntryJson {
-    thought: String
+    thought: String,
+    private: bool
 }
 
 #[derive(Deserialize)]
@@ -33,7 +34,8 @@ pub struct PostEntryJson {
 #[derive(Deserialize)]
 pub struct PutTextEntryJson {
     id: Option<i32>,
-    thought: String
+    thought: String,
+    private: bool
 }
 
 #[derive(Deserialize)]
@@ -214,14 +216,15 @@ pub async fn handle_post_entries(
     if let Some(t) = &posted.text_entries {
         for text_entry in t {
             let result = transaction.query_one(
-                "insert into text_entries (thought, entry) values ($1, $2) returning id, thought",
-                &[&text_entry.thought, &entry_id]
+                "insert into text_entries (thought, private, entry) values ($1, $2, $3) returning id, thought, private",
+                &[&text_entry.thought, &text_entry.private, &entry_id]
             ).await?;
 
             text_entries.push(json::TextEntryJson {
                 id: result.get(0),
                 thought: result.get(1),
-                entry: entry_id
+                entry: entry_id,
+                private: result.get(2)
             });
         }
     }
@@ -437,27 +440,29 @@ pub async fn handle_put_entries_id(
                 }
 
                 let result = transaction.query_one(
-                    "update text_entries set thought = $1 where id = $2 returning id, thought",
-                    &[&text_entry.thought, &id]
+                    "update text_entries set thought = $1, private = $2 where id = $3 returning id, thought, private",
+                    &[&text_entry.thought, &text_entry.private, &id]
                 ).await?;
 
                 ids.push(id);
                 text_entries.push(json::TextEntryJson {
                     id: result.get(0),
                     thought: result.get(1),
-                    entry: path.entry_id
+                    entry: path.entry_id,
+                    private: result.get(2)
                 });
             } else {
                 let result = transaction.query_one(
-                    "insert into text_entries (thought, entry) values ($1, $2) returning id, thought",
-                    &[&text_entry.thought, &path.entry_id]
+                    "insert into text_entries (thought, private, entry) values ($1, $2, $2) returning id, thought, private",
+                    &[&text_entry.thought, &text_entry.private, &path.entry_id]
                 ).await?;
 
                 ids.push(result.get(0));
                 text_entries.push(json::TextEntryJson {
                     id: result.get(0),
                     thought: result.get(1),
-                    entry: path.entry_id
+                    entry: path.entry_id,
+                    private: result.get(2)
                 })
             }
         }

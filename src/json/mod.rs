@@ -22,6 +22,7 @@ pub struct MoodEntryJson {
 pub struct TextEntryJson {
     pub id: i32,
     pub thought: String,
+    pub private: bool,
     pub entry: i32
 }
 
@@ -111,7 +112,7 @@ pub async fn search_mood_field(
                users.full_name as full_name
         from mood_fields
         left join users on mood_fields.issued_by = users.id
-        where id = $1
+        where mood_fields.id = $1
         "#,
         &[&field_id]
     ).await?;
@@ -145,7 +146,8 @@ pub async fn search_text_entries(
         r#"
         select text_entries.id as id,
                text_entries.thought as thought,
-               text_entries.entry as entry
+               text_entries.entry as entry,
+               text_entries.private as private
         from text_entries
         where text_entries.entry = any($1)
         order by text_entries.entry asc
@@ -158,7 +160,8 @@ pub async fn search_text_entries(
         rtn.push(TextEntryJson{
             id: row.get(0),
             thought: row.get(1),
-            entry: row.get(2)
+            entry: row.get(2),
+            private: row.get(3)
         });
     }
 

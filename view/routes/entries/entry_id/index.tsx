@@ -1,4 +1,4 @@
-import { DatePicker, DefaultButton, Dialog, DialogFooter, DialogType, IconButton, Label, Separator, Stack, Text, TextField } from "@fluentui/react"
+import { DatePicker, DefaultButton, Dialog, DialogFooter, DialogType, IconButton, IContextualMenuItem, Label, ScrollablePane, Separator, Stack, Sticky, StickyPositionType, Text, TextField, Toggle } from "@fluentui/react"
 import React, { useContext, useEffect, useReducer } from "react"
 import { useHistory, useLocation, useParams } from "react-router-dom"
 import * as api from "../../../api"
@@ -6,27 +6,31 @@ import { MoodEntryType } from "../../../api/mood_entry_types"
 import { EntryJson, MoodEntryJson, MoodFieldJson, TextEntryJson } from "../../../api/types"
 import { MoodEntryTypeEditView, MoodEntryTypeReadView } from "../../../components/mood_entries"
 import { useAppDispatch, useAppSelector } from "../../../hooks/useApp"
-import { EntryStateContext, entryStateReducer } from "./reducer"
-import { actions as entries_actions } from "../../../redux/entries"
+import { entryIdViewSlice, EntryIdViewContext, initialState, TextEntryUI, entry_id_view_actions, EntryIdViewReducer } from "./reducer"
+import { actions as entries_actions } from "../../../redux/slices/entries"
 
 interface TextEntryEditViewProps {
-    text_entries: TextEntryJson[]
+    text_entries: TextEntryUI[]
 }
 
 const TextEntryEditView = ({text_entries}: TextEntryEditViewProps) => {
-    let dispatch = useContext(EntryStateContext);
+    let dispatch = useContext(EntryIdViewContext);
 
     return <Stack tokens={{childrenGap: 8}}>
         {text_entries.map((v, index) => {
-            return <Stack key={v.id} horizontal tokens={{childrenGap: 8}}>
-                <Stack.Item grow>
-                    <TextField key={v.id} multiline autoAdjustHeight value={v.thought} onChange={(e,t) => {
-                        dispatch({type: "update-text-entry", index, thought: t});
-                    }}/>
-                </Stack.Item>
-                <IconButton iconProps={{iconName: "Delete"}} onClick={() => {
-                    dispatch({type: "delete-text-entry", index});
+            console.log(v.key ?? v.id);
+            return <Stack key={v.key ?? v.id} tokens={{childrenGap: 8}}>
+                <TextField multiline autoAdjustHeight value={v.thought} onChange={(e, thought) => {
+                    dispatch(entry_id_view_actions.update_text_entry({index, thought, private: v.private}));
                 }}/>
+                <Stack horizontal tokens={{childrenGap: 8}}>
+                    <Toggle label="Private" inlineLabel onText="Yes" offText="No" checked={v.private} onChange={(e,checked) => {
+                        dispatch(entry_id_view_actions.update_text_entry({index, thought: v.thought, private: checked}))
+                    }}/>
+                    <IconButton iconProps={{iconName: "Delete"}} onClick={() => {
+                        dispatch(entry_id_view_actions.delete_text_entry(index));
+                    }}/>
+                </Stack>
             </Stack>
         })}
     </Stack>
@@ -91,7 +95,7 @@ interface MoodEntriesEditViewProps {
 }
 
 const MoodEntriesEditView = ({mood_fields, mood_entries}: MoodEntriesEditViewProps) => {
-    let dispatch = useContext(EntryStateContext);
+    let dispatch = useContext(EntryIdViewContext);
 
     return <Stack tokens={{childrenGap: 8}}>
         {mood_entries.map((mood_entry,index) =>
@@ -100,8 +104,8 @@ const MoodEntriesEditView = ({mood_fields, mood_entries}: MoodEntriesEditViewPro
                 field={mood_fields?.[mood_entry.field_id]}
                 entry={mood_entry}
         
-                onDelete={() => dispatch({type: "delete-mood-entry", index})}
-                onChange={(value) => dispatch({type:"update-mood-entry", index, value})}
+                onDelete={() => dispatch(entry_id_view_actions.delete_mood_entry(index))}
+                onChange={(value) => dispatch(entry_id_view_actions.update_mood_entry({index, ...value}))}
             />
         )}
     </Stack>
@@ -134,7 +138,6 @@ interface EntryIdProps {
 }
 
 const EntryId = ({user_specific = false}: EntryIdProps) => {
-    const width = 600;
     const location = useLocation<{entry?: EntryJson}>();
     const history = useHistory();
     const params = useParams<{entry_id: string, user_id?: string}>();
@@ -145,31 +148,22 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
 
     const allow_edit = params.user_id == null;
 
-    let [state, dispatch] = useReducer(entryStateReducer, {
-        current: null, original: null,
-        loading: false, sending: false,
-        existing_fields: {},
-        changes_made: false,
-        prep_delete: false,
-        deleting: false,
-        edit_view: allow_edit && params.entry_id === "0",
-        invalid: false
-    });
+    let [state, dispatch] = useReducer<EntryIdViewReducer>(entryIdViewSlice.reducer, initialState(allow_edit, params));
 
     const fetchEntry = () => {
         if (state.loading) {
             return;
         }
 
-        dispatch({type: "set-loading", value: true});
+        dispatch(entry_id_view_actions.set_loading(true));
 
         (user_specific ?
             api.users.id.entries.id.get(params.user_id, params.entry_id) :
             api.entries.id.get(params.entry_id)
         ).then(entry => {
-            dispatch({type: "set-entry", entry});
+            dispatch(entry_id_view_actions.set_entry(entry));
         }).catch(console.error).then(() => {
-            dispatch({type: "set-loading", value: false});
+            dispatch(entry_id_view_actions.set_loading(false));
         })
     }
 
@@ -183,7 +177,7 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
         if (state.sending)
             return;
 
-        dispatch({type:"set-sending", value: true});
+        dispatch(entry_id_view_actions.set_sending(true));
 
         let promise = null;
         
@@ -199,11 +193,11 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
                     }
                 }),
                 text_entries: state.current.text_entries.map(v => {
-                    return {id: v.id, thought: v.thought}
+                    return {id: v.id, thought: v.thought, private: v.private}
                 })
             }).then(entry => {
-                history.replace(`/entries/${entry.id}`, {entry});
-                dispatch({type: "set-entry", entry});
+                history.replace(`/entries/${entry.id}`);
+                dispatch(entryIdViewSlice.actions.set_entry(entry));
                 appDispatch(entries_actions.update_entry(entry));
             })
         } else {
@@ -217,17 +211,17 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
                     }
                 }),
                 text_entries: state.current.text_entries.map(v => {
-                    return {thought: v.thought}
+                    return {thought: v.thought, private: v.private}
                 })
             }).then(entry => {
-                history.push(`/entries/${entry.id}`, {entry});
-                dispatch({type: "set-entry", entry});
+                history.push(`/entries/${entry.id}`);
+                dispatch(entry_id_view_actions.set_entry(entry));
                 appDispatch(entries_actions.add_entry(entry));
             });
         }
 
         promise.catch(console.error).then(() => {
-            dispatch({type: "set-sending", value: false});
+            dispatch(entry_id_view_actions.set_sending(false));
         });
     }
 
@@ -244,19 +238,22 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
             return;
         }
 
-        dispatch({type: "set-deleting", value: true});
+        dispatch(entry_id_view_actions.set_deleting(true));
 
         api.entries.id.del(state.current.id).then(() => {
             appDispatch(entries_actions.delete_entry(state.current.id));
             history.push("/entries");
-        }).catch(console.error);
+        }).catch((e) => {
+            console.error(e);
+            dispatch(entry_id_view_actions.set_deleting(false));
+        });
     }
 
     useEffect(() => {
         let entry_id = parseInt(params.entry_id);
 
         if (isNaN(entry_id) || entry_id === 0) {
-            dispatch({type: "new-entry"});
+            dispatch(entry_id_view_actions.new_entry());
             return;
         }
         
@@ -265,7 +262,7 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
         } else {
             for (let entry of entries_state.entries) {
                 if (entry.id === entry_id) {
-                    dispatch({type:"set-entry", entry});
+                    dispatch(entry_id_view_actions.set_entry(entry));
                     return;
                 }
             }
@@ -274,28 +271,28 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
         }
     }, [params.entry_id]);
 
-    useEffect(() => {
-        dispatch({type: "set-mood-fields", fields: mood_fields_state.mood_fields});
-    }, [mood_fields_state.mood_fields]);
-
-    let mood_field_options = [];
+    let entry_options: IContextualMenuItem[] = [
+        {key: "new-text-entry", text: "Text Entry", onClick: () => {
+            dispatch(entry_id_view_actions.create_text_entry());
+        }}
+    ];
 
     for (let field_id in (mood_fields_state.mapping ?? {})) {
         if (field_id in state.existing_fields) {
             continue;
         }
 
-        mood_field_options.push({
+        entry_options.push({
             key: mood_fields_state.mapping[field_id].name,
             text: mood_fields_state.mapping[field_id].name,
             title: mood_fields_state.mapping[field_id].comment,
             onClick: () => {
-                dispatch({type: "create-mood-entry-action", field: field_id})
+                dispatch(entry_id_view_actions.create_mood_entry(field_id))
             }
         });
     }
 
-    return <EntryStateContext.Provider value={dispatch}>
+    return <EntryIdViewContext.Provider value={dispatch}>
         <Stack 
             horizontal 
             verticalAlign="center"
@@ -310,140 +307,119 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
         >
             <Stack 
                 style={{
-                    width: width, height: "100%",
+                    width: 600, height: "100%",
                     backgroundColor: "white",
                     position: "relative"
                 }}
             >
-                <Stack.Item grow={0} shrink={0} style={{
-                    position:"sticky", 
-                    top: 0, zIndex: 2, 
-                    backgroundColor: "white",
-                    paddingTop: 8,
-                    paddingBottom: 8,
-                    paddingLeft: 8
-                }}>
-                    {state.current != null ? 
-                        <Stack horizontal tokens={{childrenGap: 8}}>
-                            <DatePicker
-                                disabled={!state.edit_view}
-                                value={new Date(state.current.created)}
-                                onSelectDate={d => {
-                                    dispatch({type: "update-entry", created: d.toISOString()})
-                                }}
-                            />
-                            {allow_edit ?
-                                <IconButton 
-                                    iconProps={{iconName: "Edit"}} 
-                                    onClick={() => dispatch({type: "set-edit", value: !state.edit_view})}
+                <ScrollablePane>
+                    <Sticky stickyPosition={StickyPositionType.Header} stickyBackgroundColor="white">
+                        {state.current != null ? 
+                            <Stack horizontal tokens={{childrenGap: 8, padding: 8}}>
+                                <DatePicker
+                                    disabled={!state.edit_view}
+                                    value={new Date(state.current.created)}
+                                    onSelectDate={d => {
+                                        dispatch(entry_id_view_actions.update_entry(d.toISOString()))
+                                    }}
                                 />
+                                {allow_edit ?
+                                    <IconButton 
+                                        iconProps={{iconName: "Edit"}} 
+                                        onClick={() => dispatch(entry_id_view_actions.set_edit_view(!state.edit_view))}
+                                    />
+                                    :
+                                    null
+                                }
+                                {state.edit_view ?
+                                    <>
+                                        <DefaultButton
+                                            text="Add"
+                                            iconProps={{iconName: "Add"}}
+                                            menuProps={{items: entry_options}}
+                                        />
+                                        <DefaultButton
+                                            text="Save"
+                                            primaryDisabled={!state.changes_made}
+                                            split
+                                            iconProps={{iconName: "Save"}}
+                                            onClick={() => sendEntry()}
+                                            menuProps={{
+                                                items: [
+                                                    {
+                                                        key: "reset",
+                                                        text: "Reset",
+                                                        disabled: !state.changes_made,
+                                                        iconProps: {iconName: "Refresh"},
+                                                        onClick: () => dispatch(entry_id_view_actions.reset_entry())
+                                                    },
+                                                    {
+                                                        key: "delete",
+                                                        text: "Delete",
+                                                        iconProps: {iconName: "Delete"},
+                                                        onClick: () => dispatch(entry_id_view_actions.set_prep_delete(true))
+                                                    }
+                                                ]
+                                            }}
+                                        />
+                                    </>
+                                    :
+                                    null
+                                }
+                            </Stack>
+                            :
+                            state.loading ?
+                                <h4>Loading</h4>
                                 :
-                                null
-                            }
-                            {state.edit_view ?
+                                <h4>No Entry to Show</h4>
+                        }
+                        <IconButton 
+                            iconProps={{iconName: "Cancel"}} 
+                            style={{position: "absolute", top: 0, right: 0}}
+                            onClick={() => {
+                                let new_path = location.pathname.split("/");
+                                new_path.pop();
+
+                                history.push(new_path.join("/"));
+                            }}
+                        />
+                    </Sticky>
+                    <Stack tokens={{childrenGap: 8, padding: "0 8px 8px"}}>
+                        {state.current != null ?
+                            state.edit_view ?
                                 <>
-                                    <DefaultButton
-                                        text="Add"
-                                        iconProps={{iconName: "Add"}}
-                                        menuProps={{items: [
-                                            {key: "new-text-entry", text: "Text Entry", onClick: () => {
-                                                dispatch({type: "create-text-entry-action"});
-                                            }},
-                                            {
-                                                key: "new-mood-entry",
-                                                text: "Mood Entry",
-                                                disabled: mood_field_options.length === 0,
-                                                subMenuProps: {
-                                                    items: mood_field_options
-                                                }
-                                            }
-                                        ]}}
-                                    />
-                                    <DefaultButton
-                                        text="Save"
-                                        primaryDisabled={!state.changes_made}
-                                        split
-                                        iconProps={{iconName: "Save"}}
-                                        onClick={() => sendEntry()}
-                                        menuProps={{
-                                            items: [
-                                                {
-                                                    key: "reset",
-                                                    text: "Reset",
-                                                    disabled: !state.changes_made,
-                                                    iconProps: {iconName: "Refresh"},
-                                                    onClick: () => dispatch({type: "reset-entry"})
-                                                },
-                                                {
-                                                    key: "delete",
-                                                    text: "Delete",
-                                                    iconProps: {iconName: "Delete"},
-                                                    onClick: () => dispatch({type: "prep-delete", value: true})
-                                                }
-                                            ]
-                                        }}
-                                    />
+                                    <TextEntryEditView text_entries={state.current.text_entries}/>
+                                    {!mood_fields_state.loading ?
+                                        <MoodEntriesEditView 
+                                            mood_fields={mood_fields_state.mapping} 
+                                            mood_entries={state.current.mood_entries}
+                                        />
+                                        :
+                                        <h6>Loading</h6>
+                                    }
                                 </>
                                 :
-                                null
-                            }
-                        </Stack>
-                        :
-                        state.loading ?
-                            <h4>Loading</h4>
+                                <>
+                                    <TextEntryReadView text_entries={state.current.text_entries}/>
+                                    {!mood_fields_state.loading ?
+                                        <MoodEntriesReadView 
+                                            mood_fields={mood_fields_state.mapping}
+                                            mood_entries={state.current.mood_entries}
+                                        />
+                                        :
+                                        <h6>Loading</h6>
+                                    }
+                                </>
                             :
-                            <h4>No Entry to Show</h4>
-                    }
-                    <IconButton 
-                        iconProps={{iconName: "Cancel"}} 
-                        style={{position: "absolute", top: 0, right: 0}}
-                        onClick={() => {
-                            let new_path = location.pathname.split("/");
-                            new_path.pop();
-
-                            history.push(new_path.join("/"));
-                        }}
-                    />
-                </Stack.Item>
-                <Stack style={{overflowY: "auto"}} tokens={{childrenGap: 8, padding: 8}}>
-                {state.current != null ?
-                    state.edit_view ?
-                        <>
-                            <TextEntryEditView text_entries={state.current.text_entries}/>
-                            <div style={{width: width * (2/3)}}>
-                                {!mood_fields_state.loading ?
-                                    <MoodEntriesEditView 
-                                        mood_fields={mood_fields_state.mapping} 
-                                        mood_entries={state.current.mood_entries}
-                                    />
-                                    :
-                                    <h6>Loading</h6>
-                                }
-                            </div>
-                        </>
-                        :
-                        <>
-                            <TextEntryReadView text_entries={state.current.text_entries}/>
-                            <div style={{width: width * (2/3)}}>
-                                {!mood_fields_state.loading ?
-                                    <MoodEntriesReadView 
-                                        mood_fields={mood_fields_state.mapping}
-                                        mood_entries={state.current.mood_entries}
-                                    />
-                                    :
-                                    <h6>Loading</h6>
-                                }
-                            </div>
-                        </>
-                    :
-                    null
-                }
-                </Stack>
+                            null
+                        }
+                    </Stack>
+                </ScrollablePane>
             </Stack>
         </Stack>
         <Dialog
             hidden={!state.prep_delete}
-            onDismiss={() => dispatch({type: "prep-delete", value: false})}
+            onDismiss={() => dispatch(entry_id_view_actions.set_prep_delete(false))}
             dialogContentProps={{
                 type: DialogType.normal,
                 title: "Delete Entry",
@@ -455,17 +431,17 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
                     text="Yes"
                     primary
                     onClick={() => {
-                        dispatch({type: "prep-delete", value: false});
+                        dispatch(entry_id_view_actions.set_prep_delete(false));
                         deleteEntry();
                     }}
                 />
                 <DefaultButton
                     text="No"
-                    onClick={() => dispatch({type: "prep-delete", value: false})}
+                    onClick={() => dispatch(entry_id_view_actions.set_prep_delete(false))}
                 />
             </DialogFooter>
         </Dialog>
-    </EntryStateContext.Provider>
+    </EntryIdViewContext.Provider>
 }
 
 export default EntryId;

@@ -3,7 +3,7 @@ import React, { useEffect } from "react"
 import { useHistory, useParams } from "react-router";
 import { useAppDispatch, useAppSelector } from "../../hooks/useApp";
 import { MoodFieldJson } from "../../api/types";
-import { actions as mood_fields_actions } from "../../redux/mood_fields"
+import { actions as mood_fields_actions } from "../../redux/slices/mood_fields"
 import { Link } from "react-router-dom";
 import { useOwner } from "../../hooks/useOwner";
 

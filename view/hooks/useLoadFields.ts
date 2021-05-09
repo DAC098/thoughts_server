@@ -1,5 +1,5 @@
 import { useAppDispatch, useAppSelector } from "./useApp";
-import { MoodFieldsState, actions } from "../redux/mood_fields"
+import { MoodFieldsState, actions } from "../redux/slices/mood_fields"
 
 export function useLoadFields(): [MoodFieldsState, (owner: number | string, user_specific: boolean) => void] {
     const mood_fields_state = useAppSelector(state => state.mood_fields);

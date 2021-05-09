@@ -3,9 +3,8 @@ import React, { useState } from "react"
 import { useHistory } from "react-router";
 import { useAppDispatch } from "../../hooks/useApp";
 import { json } from "../../request";
-import { actions } from "../../redux/active_user"
+import { actions } from "../../redux/slices/active_user"
 import * as api from "../../api"
-import { UserDataJson } from "../../api/types";
 
 const Login = () => {
     const dispatch = useAppDispatch();

@@ -1,4 +1,4 @@
-import { optionalCloneInteger, cloneInteger, optionalCloneString, cloneString } from "../util/clone";
+import { optionalCloneInteger, cloneInteger, optionalCloneString, cloneString, cloneBoolean } from "../util/clone";
 import { cloneMoodEntryType, makeMoodEntryType, MoodEntryType } from "./mood_entry_types";
 import { cloneMoodFieldType, makeMoodFieldType, MoodFieldType, MoodFieldTypeName } from "./mood_field_types";
 
@@ -28,6 +28,7 @@ export interface MoodEntryJson {
 export interface TextEntryJson {
     id: number
     thought: string
+    private: boolean
 }
 
 export interface EntryJson {
@@ -137,14 +138,16 @@ export function cloneMoodEntryJson(mood_entry: MoodEntryJson): MoodEntryJson {
 export function makeTextEntry(): TextEntryJson {
     return {
         id: null,
-        thought: ""
+        thought: "",
+        private: false
     }
 }
 
 export function cloneTextEntry(text_entry: TextEntryJson): TextEntryJson {
     return {
         id: optionalCloneInteger(text_entry.id),
-        thought: cloneString(text_entry.thought)
+        thought: cloneString(text_entry.thought),
+        private: cloneBoolean(text_entry.private)
     };
 }
 
