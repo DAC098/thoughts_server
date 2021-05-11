@@ -5,7 +5,6 @@ use actix_session::{CookieSession};
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use tokio_postgres::{Config as PGConfig, NoTls};
 use bb8_postgres::{PostgresConnectionManager, bb8};
-use log::{warn, info, error};
 use env_logger;
 
 mod security;
