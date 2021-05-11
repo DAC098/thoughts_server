@@ -1,6 +1,6 @@
 use postgres::{Client, NoTls};
 
-#[path = "../config.rs"]
+#[path = "../config/mod.rs"]
 mod config;
 #[path = "../time.rs"]
 mod time;
@@ -14,8 +14,19 @@ mod error;
 mod security;
 
 fn main() {
-    let config_file = "./server_config.json".to_owned();
-    let config_check = config::load_server_config(config_file);
+    let mut config_files: Vec::<&std::path::Path> = Vec::with_capacity(2);
+    let config_file = std::path::Path::new("./server_config.json");
+    let config_override_file = std::path::Path::new("./server_config.override.json");
+    
+    if config_file.exists() {
+        config_files.push(config_file);
+    }
+
+    if config_override_file.exists() {
+        config_files.push(config_override_file);
+    }
+
+    let config_check = config::load_server_config(config_files);
 
     if config_check.is_err() {
         panic!("failed to load config file\n{:?}", config_check.unwrap_err());

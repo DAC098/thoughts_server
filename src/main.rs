@@ -25,18 +25,30 @@ async fn main() -> std::io::Result<()> {
     std::env::set_var("RUST_BACKTRACE", "full");
     env_logger::init();
 
-    let config_file = String::from("./server_config.json");
-    let config_check = config::load_server_config(config_file);
+    // configuration loading seems kind of janky
+    // planning on adding in the ability to specify your own
+    // config files via command line
+    let mut config_files: Vec<&std::path::Path> = Vec::with_capacity(2);
+    let config_file = std::path::Path::new("./server_config.json");
+    let config_override_file = std::path::Path::new("./server_config.override.json");
 
-    if config_check.is_err() {
-        println!("failed to load config file\n{:?}", config_check.unwrap_err());
-        return Ok(());
+    if config_file.exists() {
+        config_files.push(config_file);
     }
 
-    let config = config_check.unwrap();
+    if config_override_file.exists() {
+        config_files.push(config_override_file);
+    }
 
-    if config.host.len() == 0 {
-        println!("no hosts specified");
+    let config = match config::load_server_config(config_files) {
+        Ok(conf) => conf,
+        Err(e) => panic!("failed to load config file\n{:?}", e)
+    };
+
+    log::info!("config {:?}", config);
+
+    if config.bind.len() == 0 {
+        println!("no bind interfaces specified");
         return Ok(());
     }
 
@@ -55,7 +67,7 @@ async fn main() -> std::io::Result<()> {
     }
 
     let pool = pool_result.unwrap();
-    let session_domain = config.session_domain.unwrap_or("".to_owned());
+    let session_domain = config.session.domain;
     let mut static_dir = std::env::current_dir()?;
     static_dir.push("static");
 
@@ -128,20 +140,20 @@ async fn main() -> std::io::Result<()> {
         let cert_path = Path::new(&cert_file);
 
         if !key_path.exists() {
-            warn!("key file given does not exist: {}", key_file);
+            log::warn!("key file given does not exist: {}", key_file);
             return Ok(());
         }
 
         if !cert_path.exists() {
-            warn!("cert file given does not exist: {}", cert_file);
+            log::warn!("cert file given does not exist: {}", cert_file);
             return Ok(());
         }
 
         run_ssl = true;
     }
 
-    for host in config.host.iter() {
-        let bind_value = format!("{}:{}", host, config.port);
+    for interface in config.bind.iter() {
+        let bind_value = format!("{}:{}", interface.host, interface.port);
         let bind_check;
 
         if run_ssl {
@@ -154,20 +166,20 @@ async fn main() -> std::io::Result<()> {
         }
 
         if bind_check.is_err() {
-            warn!("failed to bind interface: {}", bind_value);
+            log::warn!("failed to bind interface: {}", bind_value);
             return Ok(());
         } else {
-            info!("bound to interface: {}", bind_value);
+            log::info!("bound to interface: {}", bind_value);
             server = bind_check.unwrap();
         }
     }
 
     let runner = server.workers(config.threads).run();
-    info!("server listening for requests");
+    log::info!("server listening for requests");
     let run_result = runner.await;
 
     if run_result.is_err() {
-        error!("server error: {}", run_result.unwrap_err());
+        log::error!("server error: {}", run_result.unwrap_err());
     }
 
     return Ok(());
