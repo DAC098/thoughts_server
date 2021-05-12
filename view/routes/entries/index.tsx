@@ -64,8 +64,7 @@ const Entries = ({user_specific = false}: EntriesProps) => {
                 maxWidth: 160,
                 onRender: (item: EntryJson) => {
                     return <Link to={{
-                        pathname: `${user_specific ? `/users/${params.user_id}` : ""}/entries/${item.id}`,
-                        state: {entry: item}
+                        pathname: `${user_specific ? `/users/${params.user_id}` : ""}/entries/${item.id}`
                     }}>
                         {(new Date(item.created)).toDateString()}
                     </Link>

@@ -141,7 +141,8 @@ pub async fn handle_get_entries(
                 json::search_entries(conn, json::SearchEntriesOptions {
                     owner: initiator.user.get_id(),
                     from: info.from,
-                    to: info.to
+                    to: info.to,
+                    is_private: None
                 }).await?
             )
         ))
@@ -278,7 +279,7 @@ pub async fn handle_get_entries_id(
     } else {
         let initiator = initiator_opt.unwrap();
 
-        if let Some(entry) = json::search_entry(conn, path.entry_id).await? {
+        if let Some(entry) = json::search_entry(conn, path.entry_id, None).await? {
             if entry.owner == initiator.user.get_id() {
                 Ok(response::json::respond_json(
                     http::StatusCode::OK, 
@@ -454,7 +455,7 @@ pub async fn handle_put_entries_id(
                 });
             } else {
                 let result = transaction.query_one(
-                    "insert into text_entries (thought, private, entry) values ($1, $2, $2) returning id, thought, private",
+                    "insert into text_entries (thought, private, entry) values ($1, $2, $3) returning id, thought, private",
                     &[&text_entry.thought, &text_entry.private, &path.entry_id]
                 ).await?;
 

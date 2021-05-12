@@ -140,20 +140,28 @@ pub async fn search_mood_field(
 
 pub async fn search_text_entries(
     conn: &impl GenericClient,
-    entry_ids: &Vec<i32>
+    entry_ids: &Vec<i32>,
+    is_private: Option<bool>,
 ) -> error::Result<Vec<TextEntryJson>> {
-    let rows = conn.query(
-        r#"
-        select text_entries.id as id,
-               text_entries.thought as thought,
-               text_entries.entry as entry,
-               text_entries.private as private
-        from text_entries
-        where text_entries.entry = any($1)
-        order by text_entries.entry asc
-        "#, 
-        &[entry_ids]
-    ).await?;
+    let arg_count: u32 = 2;
+    let mut query_str = r#"
+    select text_entries.id as id,
+           text_entries.thought as thought,
+           text_entries.entry as entry,
+           text_entries.private as private
+    from text_entries
+    where text_entries.entry = any($1)
+    "#.to_owned();
+    let mut query_slice: Vec<&(dyn tokio_postgres::types::ToSql + std::marker::Sync)> = vec![&entry_ids];
+
+    if let Some(private) = is_private.as_ref() {
+        write!(&mut query_str, " and text_entries.private = ${}", arg_count)?;
+        query_slice.push(private);
+    }
+
+    write!(&mut query_str, "\n    order by text_entries.entry asc")?;
+
+    let rows = conn.query(query_str.as_str(), &query_slice[..]).await?;
     let mut rtn = Vec::<TextEntryJson>::with_capacity(rows.len());
 
     for row in rows {
@@ -213,7 +221,8 @@ pub struct QueryEntries {
 pub struct SearchEntriesOptions {
     pub owner: i32,
     pub from: Option<chrono::DateTime<chrono::Utc>>,
-    pub to: Option<chrono::DateTime<chrono::Utc>>
+    pub to: Option<chrono::DateTime<chrono::Utc>>,
+    pub is_private: Option<bool>
 }
 
 pub async fn search_entries(
@@ -287,7 +296,7 @@ pub async fn search_entries(
     }
 
     {
-        let mut text_entries = search_text_entries(conn, &entry_ids).await?;
+        let mut text_entries = search_text_entries(conn, &entry_ids, options.is_private).await?;
         let mut current_set: Vec<TextEntryJson> = vec!();
         let mut current_entry_id = if text_entries.len() > 0 { 
             text_entries[text_entries.len() - 1].entry 
@@ -317,6 +326,7 @@ pub async fn search_entries(
 pub async fn search_entry(
     conn: &impl GenericClient,
     entry_id: i32,
+    is_private: Option<bool>,
 ) -> error::Result<Option<EntryJson>> {
     let rows = conn.query(
         "select id, day, owner from entries where id = $1",
@@ -331,7 +341,7 @@ pub async fn search_entry(
             created: rows[0].get(1),
             owner: rows[0].get(2),
             mood_entries: search_mood_entries(conn, &entry_ids).await?,
-            text_entries: search_text_entries(conn, &entry_ids).await?
+            text_entries: search_text_entries(conn, &entry_ids, is_private).await?
         }))
     } else {
         Ok(None)

@@ -164,7 +164,8 @@ pub async fn handle_get_users_id(
                 json::search_entries(conn, json::SearchEntriesOptions {
                     owner: path.user_id,
                     from: None,
-                    to: None
+                    to: None,
+                    is_private: Some(false)
                 }).await?
             )
         ))
@@ -201,7 +202,8 @@ pub async fn handle_get_users_id_entries(
                 json::search_entries(conn, json::SearchEntriesOptions {
                     owner: path.user_id,
                     from: info.from,
-                    to: info.to
+                    to: info.to,
+                    is_private: Some(false)
                 }).await?
             )
         ))
@@ -268,7 +270,7 @@ pub async fn handle_get_users_id_entries_id(
         let initiator = initiator_opt.unwrap();
         assert_permission_to_read(conn, initiator.user.get_id(), path.user_id).await?;
 
-        if let Some(entry) = json::search_entry(conn, path.entry_id).await? {
+        if let Some(entry) = json::search_entry(conn, path.entry_id, Some(false)).await? {
             if entry.owner != path.user_id {
                 Err(error::ResponseError::PermissionDenied(
                     format!("this user does not own the requested entry. user[{}] entry[{}]", path.user_id, path.entry_id)
