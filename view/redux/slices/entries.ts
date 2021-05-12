@@ -1,26 +1,30 @@
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
 import * as api from "../../api"
-import { EntryJson } from "../../api/types"
+import { EntryJson, GetEntriesQuery } from "../../api/types"
 
-const fetchEntries = createAsyncThunk<EntryJson[],{owner: number | string, user_specific?: boolean}>(
+const fetchEntries = createAsyncThunk<EntryJson[],{owner: number | string, user_specific?: boolean, query?: GetEntriesQuery}>(
     "entries/fetch_entries",
-    ({owner, user_specific}) => {
+    ({owner, user_specific = false, query = {}}) => {
         return user_specific ?
-            api.users.id.entries.get(owner) :
-            api.entries.get();
+            api.users.id.entries.get(owner, query) :
+            api.entries.get(query);
     }
 )
 
 export interface EntriesState {
     owner: number
     loading: boolean
-    entries?: EntryJson[]
+    entries?: EntryJson[],
+    from?: number,
+    to?: number
 }
 
 const initialState: EntriesState = {
     owner: 0,
     loading: false,
-    entries: []
+    entries: [],
+    from: null,
+    to: null
 };
 
 export const entries = createSlice({
@@ -30,6 +34,8 @@ export const entries = createSlice({
         clear_entries: (state) => {
             state.owner = 0;
             state.entries = [];
+            state.from = null;
+            state.to = null;
         },
         add_entry: (state, payload: PayloadAction<EntryJson>) => {
             let new_entry_date = new Date(payload.payload.created);
@@ -74,6 +80,8 @@ export const entries = createSlice({
             state.loading = false;
             state.entries = payload;
             state.owner = typeof meta.arg.owner === "string" ? parseInt(meta.arg.owner) : meta.arg.owner;
+            state.from = meta.arg.query?.from?.getTime();
+            state.to = meta.arg.query?.to?.getTime();
         }).addCase(fetchEntries.rejected, (state, {}) => {
             state.loading = false;
         });

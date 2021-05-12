@@ -1,5 +1,5 @@
-import { CommandBar, DatePicker, DetailsList, IColumn, Icon, ScrollablePane, Spinner, Stack, Sticky, StickyPositionType, Tooltip, TooltipHost, TooltipOverflowMode } from "@fluentui/react"
-import React, { useEffect, useMemo } from "react"
+import { CommandBar, DatePicker, DetailsList, IColumn, Icon, IconButton, ScrollablePane, Spinner, Stack, Sticky, StickyPositionType, Tooltip, TooltipHost, TooltipOverflowMode } from "@fluentui/react"
+import React, { useEffect, useMemo, useState } from "react"
 import { Link, useHistory, useParams } from "react-router-dom"
 import { useLoadEntries } from "../../hooks/useLoadEntries"
 import { useLoadFields } from "../../hooks/useLoadFields"
@@ -41,6 +41,19 @@ const Entries = ({user_specific = false}: EntriesProps) => {
     const owner = useOwner(user_specific);
     const [entries_state, loadEntries] = useLoadEntries();
     const [mood_fields_state, loadFields] = useLoadFields();
+
+    let [from_date, setFromDate] = useState<Date>(() => {
+        if (entries_state.owner != owner)
+            return null;
+        else
+            return entries_state.from != null ? new Date(entries_state.from) : null
+    });
+    let [to_date, setToDate] = useState<Date>(() => {
+        if (entries_state.owner != owner)
+            return null;
+        else
+            return entries_state.to != null ? new Date(entries_state.to) : null
+    });
 
     let columns = useMemo(() => {
         let rtn: IColumn[] = [
@@ -94,7 +107,7 @@ const Entries = ({user_specific = false}: EntriesProps) => {
     
     useEffect(() => {
         if (entries_state.owner !== owner) {
-            loadEntries(owner, user_specific);
+            loadEntries(owner, user_specific, {from: from_date, to: to_date});
         }
 
         if (mood_fields_state.owner !== owner) {
@@ -113,8 +126,22 @@ const Entries = ({user_specific = false}: EntriesProps) => {
             <Sticky stickyPosition={StickyPositionType.Header} stickyBackgroundColor={"white"}>
                 <Stack tokens={{padding: "8px 8px 0", childrenGap: 8}}>
                     <Stack horizontal tokens={{childrenGap: 8}}>
-                        <DatePicker label="From"/>
-                        <DatePicker label="To"/>
+                        <Stack horizontal  verticalAlign="end">
+                            <DatePicker label="From" value={from_date} onSelectDate={d => {
+                                setFromDate(d);
+                            }}/>
+                            <IconButton iconProps={{iconName: "Delete"}} onClick={() => {
+                                setFromDate(null);
+                            }}/>
+                        </Stack>
+                        <Stack horizontal verticalAlign="end">
+                            <DatePicker label="To" value={to_date} onSelectDate={d => {
+                                setToDate(d);
+                            }}/>
+                            <IconButton iconProps={{iconName: "Delete"}} onClick={() => {
+                                setToDate(null);
+                            }}/>
+                        </Stack>
                     </Stack>
                     <Stack horizontal verticalAlign="center" horizontalAlign="start">
                         <Stack.Item style={{minWidth: 230}}>
@@ -123,7 +150,7 @@ const Entries = ({user_specific = false}: EntriesProps) => {
                                     key: "search",
                                     text: "Search",
                                     iconProps: {iconName: "Search"},
-                                    onClick: () => loadEntries(owner, user_specific)
+                                    onClick: () => loadEntries(owner, user_specific, {from: from_date, to: to_date})
                                 },
                                 {
                                     key: "new_item",

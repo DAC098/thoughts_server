@@ -4,13 +4,13 @@ import { getCreatedDateToString } from "../time"
 import { EntryJson, GetEntriesQuery, PostEntry } from "./types";
 
 export async function get(query: GetEntriesQuery = {}) {
-    let url = new URL("/entries", window.location.origin);
+    let url = getURL("/entries");
 
     if (query.from != null) {
         if (typeof query.from === "string") {
             url.searchParams.append("from", query.from);
         } else {
-            url.searchParams.append("from", getCreatedDateToString(query.from));
+            url.searchParams.append("from", query.from.toISOString());
         }
     }
 
@@ -18,7 +18,7 @@ export async function get(query: GetEntriesQuery = {}) {
         if (typeof query.to === "string") {
             url.searchParams.append("to", query.to);
         } else {
-            url.searchParams.append("to", getCreatedDateToString(query.to));
+            url.searchParams.append("to", query.to.toISOString());
         }
     }
     

@@ -176,6 +176,7 @@ pub async fn handle_get_users_id_entries(
     session: Session,
     app: web::Data<state::AppState>,
     path: web::Path<UserPath>,
+    info: web::Query<json::QueryEntries>,
 ) -> error::Result<impl Responder> {
     let accept_html = response::check_if_html_req(&req, true)?;
     let conn = &*app.get_conn().await?;
@@ -199,8 +200,8 @@ pub async fn handle_get_users_id_entries(
                 "successful",
                 json::search_entries(conn, json::SearchEntriesOptions {
                     owner: path.user_id,
-                    from: None,
-                    to: None
+                    from: info.from,
+                    to: info.to
                 }).await?
             )
         ))

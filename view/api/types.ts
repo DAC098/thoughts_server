@@ -40,8 +40,8 @@ export interface EntryJson {
 }
 
 export interface GetEntriesQuery {
-    from?: Date | string
-    to?: Date | string
+    from?: Date
+    to?: Date
 }
 
 export interface PostMoodEntry {

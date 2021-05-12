@@ -116,7 +116,8 @@ async fn get_mood_field_via_mood_entry(
 pub async fn handle_get_entries(
     req: HttpRequest, 
     session: Session,
-    app: web::Data<state::AppState>
+    app: web::Data<state::AppState>,
+    info: web::Query<json::QueryEntries>,
 ) -> app_error::Result<impl Responder> {
     let conn = &*app.get_conn().await?;
     let accept_html = response::check_if_html_req(&req, true).unwrap();
@@ -139,8 +140,8 @@ pub async fn handle_get_entries(
                 "successful",
                 json::search_entries(conn, json::SearchEntriesOptions {
                     owner: initiator.user.get_id(),
-                    from: None,
-                    to: None
+                    from: info.from,
+                    to: info.to
                 }).await?
             )
         ))

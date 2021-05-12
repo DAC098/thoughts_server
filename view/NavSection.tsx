@@ -1,23 +1,16 @@
-import { CommandBarButton, Nav, Persona, Stack } from "@fluentui/react";
+import { CommandBarButton, Nav, Persona, Stack } from "@fluentui/react"
 import React from "react"
-import { useHistory } from "react-router";
-import { useAppDispatch, useAppSelector } from "./hooks/useApp";
-import { actions as active_user_actions } from "./redux/slices/active_user"
-import { actions as entries_actions } from "./redux/slices/entries"
-import { actions as mood_fields_actions } from "./redux/slices/mood_fields"
+import { useHistory } from "react-router"
+import { useAppSelector } from "./hooks/useApp"
 import {json} from "./request"
 
 const NavSection = () => {
     const history = useHistory();
     const active_user_state = useAppSelector(state => state.active_user);
-    const dispatch = useAppDispatch();
 
     const logout = () => {
         json.post("/auth/logout",{}).then(() => {
-            dispatch(active_user_actions.clear_user());
-            dispatch(entries_actions.clear_entries());
-            dispatch(mood_fields_actions.clear_mood_fields());
-            history.push("/auth/login");
+            window.location.pathname = "/auth/login";
         }).catch(console.error)
     }
 

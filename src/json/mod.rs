@@ -2,7 +2,7 @@ use std::fmt::{Write};
 use std::collections::{HashMap};
 
 use tokio_postgres::{GenericClient};
-use serde::{Serialize};
+use serde::{Deserialize, Serialize};
 
 use crate::db::mood_fields;
 use crate::db::mood_entries;
@@ -204,6 +204,12 @@ pub async fn search_mood_entries(
     Ok(rtn)
 }
 
+#[derive(Deserialize)]
+pub struct QueryEntries {
+    pub from: Option<chrono::DateTime<chrono::Utc>>,
+    pub to: Option<chrono::DateTime<chrono::Utc>>
+}
+
 pub struct SearchEntriesOptions {
     pub owner: i32,
     pub from: Option<chrono::DateTime<chrono::Utc>>,
@@ -273,7 +279,7 @@ pub async fn search_entries(
             current_set.push(mood);
         }
 
-        if entry_ids.len() > 0 {
+        if entry_ids.len() > 0 && current_entry_id != 0 {
             let borrow = entry_hash_map.get(&current_entry_id).unwrap();
             rtn[*borrow].mood_entries.reserve(current_set.len());
             rtn[*borrow].mood_entries.append(&mut current_set);
@@ -298,7 +304,7 @@ pub async fn search_entries(
             &current_set.push(text);
         }
 
-        if entry_ids.len() > 0 {
+        if entry_ids.len() > 0 && current_entry_id != 0 {
             let borrow = entry_hash_map.get(&current_entry_id).unwrap();
             rtn[*borrow].text_entries.reserve(current_set.len());
             rtn[*borrow].text_entries.append(&mut current_set);
