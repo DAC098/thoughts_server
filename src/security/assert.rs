@@ -47,3 +47,33 @@ pub async fn is_owner_for_mood_field(
 
     Ok(())
 }
+
+pub async fn permission_to_read(
+    conn: &impl GenericClient,
+    initiator: i32,
+    user: i32
+) -> error::Result<()> {
+    let result = conn.query(
+        "select ability, allowed_for from user_access where owner = $1",
+        &[&user]
+    ).await?;
+
+    if result.len() > 0 {
+        for row in result {
+            let ability: String = row.get(0);
+            let allowed_for: i32 = row.get(1);
+
+            if ability.eq("r") && initiator == allowed_for {
+                return Ok(());
+            }
+        }
+
+        Err(error::ResponseError::PermissionDenied(
+            "you do not have permission to read this users information".to_owned()
+        ))
+    } else {
+        Err(error::ResponseError::PermissionDenied(
+            "no ability was found for the requested user".to_owned()
+        ))
+    }
+}

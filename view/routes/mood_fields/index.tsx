@@ -1,4 +1,4 @@
-import { CommandBar, DetailsList, ScrollablePane, Spinner, Stack, Sticky, StickyPositionType } from "@fluentui/react";
+import { CommandBar, DetailsList, ScrollablePane, ShimmeredDetailsList, Stack, Sticky, StickyPositionType } from "@fluentui/react";
 import React, { useEffect } from "react"
 import { useHistory, useParams } from "react-router";
 import { useAppDispatch, useAppSelector } from "../../hooks/useApp";
@@ -46,29 +46,25 @@ const MoodFieldsView = ({user_specific = false}: MoodFieldsViewProps) => {
         <ScrollablePane>
             <Sticky stickyPosition={StickyPositionType.Header} stickyBackgroundColor={"white"}>
                 <Stack horizontal verticalAlign="center" horizontalAlign="start">
-                    <Stack.Item style={{minWidth: 230}}>
-                        <CommandBar items={[
-                            {
-                                key: "refresh",
-                                text: "Refresh",
-                                iconProps: {iconName: "Refresh"},
-                                onClick: loadFields
-                            },
-                            {
-                                key: "new_field",
-                                text: "New Field",
-                                iconProps: {iconName: "Add"},
-                                onClick: () => history.push("/mood_fields/0")
-                            }
-                        ]}/>
-                    </Stack.Item>
-                    <div style={{display: mood_fields_state.loading ? null : "none"}}>
-                        <Spinner label="loading" labelPosition="right"/>
-                    </div>
+                    <CommandBar items={[
+                        {
+                            key: "refresh",
+                            text: "Refresh",
+                            iconProps: {iconName: "Refresh"},
+                            onClick: loadFields
+                        },
+                        {
+                            key: "new_field",
+                            text: "New Field",
+                            iconProps: {iconName: "Add"},
+                            onClick: () => history.push("/mood_fields/0")
+                        }
+                    ]}/>
                 </Stack>
             </Sticky>
-            <DetailsList
+            <ShimmeredDetailsList
                 items={mood_fields_state.mood_fields}
+                enableShimmer={mood_fields_state.loading}
                 onRenderDetailsHeader={(p, d) => {
                     return <Sticky stickyPosition={StickyPositionType.Header}>
                         {d(p)}

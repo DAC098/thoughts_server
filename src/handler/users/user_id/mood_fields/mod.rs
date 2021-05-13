@@ -1,15 +1,21 @@
 use actix_web::{web, http, HttpRequest, Responder};
 use actix_session::{Session};
 
+pub mod field_id;
+
 use crate::error;
-use crate::response;
 use crate::request::from;
+use crate::response;
 use crate::state;
+use crate::json;
+use crate::parsing::url_paths;
+use crate::security;
 
 pub async fn handle_get(
     req: HttpRequest,
     session: Session,
-    app: web::Data<state::AppState>
+    app: web::Data<state::AppState>,
+    path: web::Path<url_paths::UserPath>,
 ) -> error::Result<impl Responder> {
     let accept_html = response::check_if_html_req(&req, true)?;
     let conn = &*app.get_conn().await?;
@@ -24,21 +30,15 @@ pub async fn handle_get(
     } else if initiator_opt.is_none() {
         Err(error::ResponseError::Session)
     } else {
-        let _initiator = initiator_opt.unwrap();
+        let initiator = initiator_opt.unwrap();
+        security::assert::permission_to_read(conn, initiator.user.get_id(), path.user_id).await?;
 
         Ok(response::json::respond_json(
             http::StatusCode::OK,
-            response::json::MessageDataJSON::<Option<()>>::build(
+            response::json::MessageDataJSON::build(
                 "successful",
-                None
+                json::search_mood_fields(conn, path.user_id).await?
             )
         ))
     }
-}
-
-pub async fn handle_post(
-    _initiator: from::Initiator,
-    _app: web::Data<state::AppState>
-) -> error::Result<impl Responder> {
-    Ok(response::json::respond_okay())
 }

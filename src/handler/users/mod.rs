@@ -1,0 +1,101 @@
+use actix_web::{web, http, HttpRequest, Responder};
+use actix_session::{Session};
+use serde::{Serialize};
+
+pub mod user_id;
+
+use crate::error;
+use crate::request::from;
+use crate::response;
+use crate::state;
+
+#[derive(Serialize)]
+pub struct UserJson {
+    id: i32,
+    full_name: Option<String>,
+    username: String,
+    ability: String
+}
+
+#[derive(Serialize)]
+pub struct UserListJson {
+    given: Vec<UserJson>,
+    allowed: Vec<UserJson>
+}
+
+pub async fn handle_get(
+    req: HttpRequest,
+    session: Session,
+    app: web::Data<state::AppState>,
+) -> error::Result<impl Responder> {
+    let accept_html = response::check_if_html_req(&req, true)?;
+    let conn = &*app.get_conn().await?;
+    let initiator_opt = from::get_initiator(conn, &session).await?;
+
+    if accept_html {
+        if initiator_opt.is_some() {
+            Ok(response::respond_index_html(Some(initiator_opt.unwrap().user)))
+        } else {
+            Ok(response::redirect_to_path("/auth/login"))
+        }
+    } else if initiator_opt.is_none() {
+        Err(error::ResponseError::Session)
+    } else {
+        let initiator = initiator_opt.unwrap();
+        let allowed_result = conn.query(
+            r#"
+            select user_access.owner as id,
+                   users.full_name as full_name,
+                   users.username as username,
+                   user_access.ability as ability
+            from user_access
+            join users on user_access.owner = users.id
+            where user_access.allowed_for = $1
+            order by user_access.owner
+            "#,
+            &[&initiator.user.get_id()]
+        ).await?;
+        let mut allowed = Vec::<UserJson>::with_capacity(allowed_result.len());
+
+        for user in allowed_result {
+            allowed.push(UserJson {
+                id: user.get(0),
+                full_name: user.get(1),
+                username: user.get(2),
+                ability: user.get(3)
+            });
+        }
+
+        let given_result = conn.query(
+            r#"
+            select user_access.allowed_for as id,
+                   users.full_name as full_name,
+                   users.username as username,
+                   user_access.ability as ability
+            from user_access
+            join users on user_access.allowed_for = users.id
+            where user_access.owner = $1
+            order by user_access.allowed_for
+            "#,
+            &[&initiator.user.get_id()]
+        ).await?;
+        let mut given = Vec::<UserJson>::with_capacity(given_result.len());
+
+        for user in given_result {
+            given.push(UserJson {
+                id: user.get(0),
+                full_name: user.get(1),
+                username: user.get(2),
+                ability: user.get(3)
+            });
+        }
+
+        Ok(response::json::respond_json(
+            http::StatusCode::OK,
+            response::json::MessageDataJSON::build(
+                "successful",
+                UserListJson {given, allowed}
+            )
+        ))
+    }
+}

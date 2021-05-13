@@ -7,7 +7,7 @@ import Entries from "./routes/entries"
 import MoodFieldsView from "./routes/mood_fields"
 import EntryId from "./routes/entries/entry_id"
 import Users from "./routes/users"
-import UserId from "./routes/users/user_id"
+import UserIdView from "./routes/users/user_id"
 import AccountView from "./routes/account"
 import SettingsView from "./routes/settings"
 import FieldIdView from "./routes/mood_fields/field_id"
@@ -98,7 +98,7 @@ const App = () => {
                                 <Route path={["/users", "/users/:user_id"]} exact children={({match}) => 
                                     match ? <>
                                         <Users/>
-                                        <Route path="/users/:user_id" exact component={UserId}/>
+                                        <Route path="/users/:user_id" exact component={UserIdView}/>
                                     </> : null
                                 }/>
                             </Switch> : null

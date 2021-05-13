@@ -160,7 +160,7 @@ pub async fn handle_post_entries(
     posted: web::Json<PostEntryJson>
 ) -> app_error::Result<impl Responder> {
     let app = app_data.into_inner();
-    let mut conn = app.get_conn().await?;
+    let conn = &mut *app.get_conn().await?;
     let created = match &posted.created {
         Some(s) => s.clone(),
         None => chrono::Utc::now()

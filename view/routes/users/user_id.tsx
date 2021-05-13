@@ -1,7 +1,68 @@
-import { Persona, Stack } from "@fluentui/react"
-import React from "react"
+import { DefaultButton, IconButton, Persona, PersonaSize, Stack } from "@fluentui/react"
+import React, { useEffect, useState } from "react"
+import { useHistory, useLocation, useParams } from "react-router"
+import { Link } from "react-router-dom"
+import * as api from "../../api"
+import { UserDataJson } from "../../api/types"
 
-const UserId = () => {
+interface UserInformationViewProps {
+    user: UserDataJson
+}
+
+const UserInformationView = ({user}: UserInformationViewProps) => {
+    return <Stack>
+        <Stack horizontal>
+            <Persona
+                size={PersonaSize.size120}
+                text={user.full_name ?? user.username}
+                secondaryText={user.full_name != null ? user.username : null}
+            />
+            <Stack.Item>
+                <Stack horizontal tokens={{childrenGap: 8}}>
+                    <Link to={`/users/${user.id}/entries`}>
+                        <DefaultButton text="Entries"/>
+                    </Link>
+                    <Link to={`/users/${user.id}/mood_fields`}>
+                        <DefaultButton text="Fields"/>
+                    </Link>
+                </Stack>
+            </Stack.Item>
+        </Stack>
+    </Stack>
+}
+
+const UserIdView = () => {
+    const params = useParams<{user_id: string}>();
+    const history = useHistory();
+    const location = useLocation();
+
+    let [loading, setLoading] = useState(false);
+    let [user, setUser] = useState<UserDataJson>(null);
+    
+    const fetchUser = () => {
+        if (loading) {
+            return;
+        }
+
+        setLoading(true);
+
+        api.users.id.get(params.user_id).then(data => {
+            setUser(data);
+        }).catch(console.error).then(() => {
+            setLoading(false);
+        });
+    }
+
+    useEffect(() => {
+        let user_id = parseInt(params.user_id);
+
+        if (isNaN(user_id)) {
+            return;
+        }
+
+        fetchUser();
+    }, [params.user_id]);
+
     return <Stack
         horizontal
         verticalAlign="center"
@@ -17,16 +78,31 @@ const UserId = () => {
         <Stack
             style={{
                 position: "relative",
-                width: 450, height: "100%",
+                width: 600, height: "100%",
                 backgroundColor: "white"
             }}
+            tokens={{padding: 8}}
         >
-            <Persona
-                text=""
-                secondaryText={""}
+            <IconButton 
+                iconProps={{iconName: "Cancel"}} 
+                style={{position: "absolute", top: 0, right: 0}}
+                onClick={() => {
+                    let new_path = location.pathname.split("/");
+                    new_path.pop();
+
+                    history.push(new_path.join("/"));
+                }}
             />
+            {loading ?
+                <h4>Loading</h4>
+                :
+                user != null ?
+                    <UserInformationView user={user}/>
+                    :
+                    <h4>No user information to show</h4>
+            }
         </Stack>
     </Stack>
 }
 
-export default UserId;
+export default UserIdView;

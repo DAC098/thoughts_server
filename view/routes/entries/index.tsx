@@ -1,4 +1,4 @@
-import { CommandBar, DatePicker, DetailsList, IColumn, Icon, IconButton, ScrollablePane, Spinner, Stack, Sticky, StickyPositionType, Tooltip, TooltipHost, TooltipOverflowMode } from "@fluentui/react"
+import { CommandBar, DatePicker, DetailsList, IColumn, Icon, IconButton, ScrollablePane, ShimmeredDetailsList, Spinner, Stack, Sticky, StickyPositionType, Tooltip, TooltipHost, TooltipOverflowMode } from "@fluentui/react"
 import React, { useEffect, useMemo, useState } from "react"
 import { Link, useHistory, useParams } from "react-router-dom"
 import { useLoadEntries } from "../../hooks/useLoadEntries"
@@ -7,6 +7,7 @@ import { useOwner } from "../../hooks/useOwner"
 import { EntryJson } from "../../api/types"
 import { MoodEntryType } from "../../api/mood_entry_types"
 import { displayDate, get24hrStr, sameDate } from "../../time"
+import { useAppSelector } from "../../hooks/useApp"
 
 interface EntriesProps {
     user_specific?: boolean
@@ -39,6 +40,7 @@ const Entries = ({user_specific = false}: EntriesProps) => {
     const params = useParams<{user_id?: string}>();
 
     const owner = useOwner(user_specific);
+    const active_user_state = useAppSelector(state => state.active_user);
     const [entries_state, loadEntries] = useLoadEntries();
     const [mood_fields_state, loadFields] = useLoadFields();
 
@@ -115,13 +117,30 @@ const Entries = ({user_specific = false}: EntriesProps) => {
     },[owner]);
 
     let loading_state = mood_fields_state.loading || entries_state.loading;
+    let command_bar_actions = [
+        {
+            key: "search",
+            text: "Search",
+            iconProps: {iconName: "Search"},
+            onClick: () => loadEntries(owner, user_specific, {from: from_date, to: to_date})
+        }
+    ];
+
+    if (active_user_state.user.id === owner) {
+        command_bar_actions.push({
+            key: "new_item",
+            text: "New Entry",
+            iconProps: {iconName: "Add"},
+            onClick: () => history.push("/entries/0")
+        });
+    }
 
     return <Stack style={{
         position: "relative",
         width: "100%",
         height: "100%"
     }}>
-        <ScrollablePane>
+        <ScrollablePane styles={{"root": {}}}>
             <Sticky stickyPosition={StickyPositionType.Header} stickyBackgroundColor={"white"}>
                 <Stack tokens={{padding: "8px 8px 0", childrenGap: 8}}>
                     <Stack horizontal tokens={{childrenGap: 8}}>
@@ -142,33 +161,14 @@ const Entries = ({user_specific = false}: EntriesProps) => {
                             }}/>
                         </Stack>
                     </Stack>
-                    <Stack horizontal verticalAlign="center" horizontalAlign="start">
-                        <Stack.Item style={{minWidth: 230}}>
-                            <CommandBar items={[
-                                {
-                                    key: "search",
-                                    text: "Search",
-                                    iconProps: {iconName: "Search"},
-                                    onClick: () => loadEntries(owner, user_specific, {from: from_date, to: to_date})
-                                },
-                                {
-                                    key: "new_item",
-                                    text: "New Entry",
-                                    iconProps: {iconName: "Add"},
-                                    onClick: () => history.push("/entries/0")
-                                }
-                            ]}/>
-                        </Stack.Item>
-                        <div style={{display: loading_state ? null : "none"}}>
-                            <Spinner label="loading" labelPosition="right"/>
-                        </div>
-                    </Stack>
+                    <CommandBar items={command_bar_actions}/>
                 </Stack>
             </Sticky>
-            <DetailsList
+            <ShimmeredDetailsList
                 items={entries_state.entries}
                 columns={columns}
                 compact={true}
+                enableShimmer={loading_state}
                 onRenderDetailsHeader={(p,d) => {
                     return <Sticky stickyPosition={StickyPositionType.Header}>
                         {d(p)}

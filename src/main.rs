@@ -17,6 +17,7 @@ mod handler;
 mod response;
 mod request;
 mod json;
+mod parsing;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -58,15 +59,12 @@ async fn main() -> std::io::Result<()> {
     db_config.port(config.db.port);
     db_config.dbname(config.db.database.as_ref());
 
-    let manager = PostgresConnectionManager::new(db_config, NoTls);
-    let pool_result = bb8::Pool::builder().build(manager).await;
-
-    if pool_result.is_err() {
-        panic!("failed to create database connection pool. error: {}", pool_result.unwrap_err());
-    }
-
-    let pool = pool_result.unwrap();
     let session_domain = config.session.domain;
+    let manager = PostgresConnectionManager::new(db_config, NoTls);
+    let pool = match bb8::Pool::builder().build(manager).await {
+        Ok(p) => p,
+        Err(e) => panic!("failed to create database connection pool. error: {}", e)
+    };
     let mut static_dir = std::env::current_dir()?;
     static_dir.push("static");
 
@@ -107,19 +105,38 @@ async fn main() -> std::io::Result<()> {
             .route("/mood_fields/{field_id}", web::delete().to(handler::mood_fields::handle_delete_mood_fields_id))
             .route("/tags", web::get().to(handler::okay))
             .route("/tags", web::post().to(handler::okay))
-            .route("/users", web::get().to(handler::users::handle_get_users))
-            .route("/users/{user_id}", web::get().to(handler::users::handle_get_users_id))
-            .route("/users/{user_id}/entries", web::get().to(handler::users::handle_get_users_id_entries))
-            .route("/users/{user_id}/entries/{entry_id}", web::get().to(handler::users::handle_get_users_id_entries_id))
-            .route("/users/{user_id}/mood_fields", web::get().to(handler::users::handle_get_users_id_mood_fields))
-            .route("/users/{user_id}/mood_fields/{field_id}", web::get().to(handler::users::handle_get_users_id_mood_fields_id))
+            .route("/users", web::get().to(handler::users::handle_get))
+            .route(
+                "/users/{user_id}",
+                web::get().to(handler::users::user_id::handle_get)
+            )
+            .route(
+                "/users/{user_id}",
+                web::put().to(handler::okay)
+            )
+            .route(
+                "/users/{user_id}/entries",
+                web::get().to(handler::users::user_id::entries::handle_get)
+            )
+            .route(
+                "/users/{user_id}/entries/{entry_id}",
+                web::get().to(handler::users::user_id::entries::entry_id::handle_get)
+            )
+            .route(
+                "/users/{user_id}/mood_fields",
+                web::get().to(handler::users::user_id::mood_fields::handle_get)
+            )
+            .route(
+                "/users/{user_id}/mood_fields/{field_id}",
+                web::get().to(handler::users::user_id::mood_fields::field_id::handle_get)
+            )
             .route("/data", web::get().to(handler::handle_get_data))
             .route("/account", web::get().to(handler::account::handle_get_account))
             .route("/account", web::put().to(handler::account::handle_put_account))
             .route("/settings", web::get().to(handler::okay))
             .route("/settings", web::put().to(handler::okay))
-            .route("/backup", web::get().to(handler::backup::handle_get_backup))
-            .route("/backup", web::post().to(handler::backup::handle_post_backup))
+            .route("/backup", web::get().to(handler::backup::handle_get))
+            .route("/backup", web::post().to(handler::backup::handle_post))
             .service(
                 actix_files::Files::new("/static", &static_dir)
                     .show_files_listing()
@@ -139,13 +156,11 @@ async fn main() -> std::io::Result<()> {
         let cert_path = Path::new(&cert_file);
 
         if !key_path.exists() {
-            log::warn!("key file given does not exist: {}", key_file);
-            return Ok(());
+            panic!("key file given does not exist: {}", key_file);
         }
 
         if !cert_path.exists() {
-            log::warn!("cert file given does not exist: {}", cert_file);
-            return Ok(());
+            panic!("cert file given does not exist: {}", cert_file);
         }
 
         run_ssl = true;
@@ -164,13 +179,10 @@ async fn main() -> std::io::Result<()> {
             bind_check = server.bind(bind_value.clone());
         }
 
-        if bind_check.is_err() {
-            log::warn!("failed to bind interface: {}", bind_value);
-            return Ok(());
-        } else {
-            log::info!("bound to interface: {}", bind_value);
-            server = bind_check.unwrap();
-        }
+        server = match bind_check {
+            Ok(s) => s,
+            Err(e) => panic!("failed to bind interface: {}\n{:?}", bind_value, e)
+        };
     }
 
     let runner = server.workers(config.threads).run();

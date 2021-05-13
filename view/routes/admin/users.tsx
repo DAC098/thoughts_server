@@ -1,4 +1,4 @@
-import { Stack, ScrollablePane, Sticky, StickyPositionType, CommandBar, Spinner, DetailsList } from "@fluentui/react";
+import { Stack, ScrollablePane, Sticky, StickyPositionType, CommandBar, Spinner, DetailsList, ShimmeredDetailsList } from "@fluentui/react";
 import React, { useEffect, useState } from "react"
 import { Link, useHistory } from "react-router-dom";
 import { json } from "../../request";
@@ -40,32 +40,28 @@ const AdminUserListView = () => {
                     horizontalAlign="start" 
                     tokens={{padding: "8px 8px 0", childrenGap: 8}}
                 >
-                    <Stack.Item style={{minWidth: 230}}>
-                        <CommandBar items={[
-                            {
-                                key: "refresh",
-                                text: "Refresh",
-                                iconProps: {iconName: "Refresh"},
-                                onClick: fetchUserList
-                            },
-                            {
-                                key: "new_user",
-                                text: "New User",
-                                iconProps: {iconName: "Add"},
-                                onClick: () => {
-                                    history.push("/admin/users/0");
-                                }
+                    <CommandBar items={[
+                        {
+                            key: "refresh",
+                            text: "Refresh",
+                            iconProps: {iconName: "Refresh"},
+                            onClick: fetchUserList
+                        },
+                        {
+                            key: "new_user",
+                            text: "New User",
+                            iconProps: {iconName: "Add"},
+                            onClick: () => {
+                                history.push("/admin/users/0");
                             }
-                        ]}/>
-                    </Stack.Item>
-                    <div style={{display: loading ? null : "none"}}>
-                        <Spinner label="loading" labelPosition="right"/>
-                    </div>
+                        }
+                    ]}/>
                 </Stack>
             </Sticky>
-            <DetailsList
+            <ShimmeredDetailsList
                 items={user_list}
                 compact
+                enableShimmer={loading}
                 columns={[
                     {key: "id", name: "ID", minWidth: 80, maxWidth: 80, onRender: (item: any) => {
                         return <Link to={`/admin/users/${item.id}`}>{item.id}</Link>
