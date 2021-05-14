@@ -1,4 +1,4 @@
-import { CommandBar, DatePicker, DetailsList, IColumn, Icon, IconButton, ScrollablePane, ShimmeredDetailsList, Spinner, Stack, Sticky, StickyPositionType, Tooltip, TooltipHost, TooltipOverflowMode } from "@fluentui/react"
+import { CommandBar, DatePicker, IColumn, Icon, IconButton, ScrollablePane, ShimmeredDetailsList, Spinner, Stack, Sticky, StickyPositionType, Tooltip, TooltipHost, TooltipOverflowMode } from "@fluentui/react"
 import React, { useEffect, useMemo, useState } from "react"
 import { Link, useHistory, useParams } from "react-router-dom"
 import { useLoadEntries } from "../../hooks/useLoadEntries"
@@ -8,10 +8,6 @@ import { EntryJson } from "../../api/types"
 import { MoodEntryType } from "../../api/mood_entry_types"
 import { displayDate, get24hrStr, sameDate } from "../../time"
 import { useAppSelector } from "../../hooks/useApp"
-
-interface EntriesProps {
-    user_specific?: boolean
-}
 
 function renderMoodFieldType(value: MoodEntryType) {
     switch (value.type) {
@@ -35,7 +31,11 @@ function renderMoodFieldType(value: MoodEntryType) {
     }
 }
 
-const Entries = ({user_specific = false}: EntriesProps) => {
+interface EntriesViewProps {
+    user_specific?: boolean
+}
+
+const EntriesView = ({user_specific = false}: EntriesViewProps) => {
     const history = useHistory();
     const params = useParams<{user_id?: string}>();
 
@@ -179,4 +179,4 @@ const Entries = ({user_specific = false}: EntriesProps) => {
     </Stack>
 }
 
-export default Entries;
+export default EntriesView;

@@ -110,6 +110,22 @@ export interface UserDataJson {
     email?: string
 }
 
+export interface UserAccessInfoJson {
+    id: number
+    username: string
+    full_name?: string
+    ability: string
+}
+
+export interface UserInfoJson {
+    id: number
+    username: string
+    level: number
+    full_name?: string
+    email?: string
+    user_access: UserAccessInfoJson[]
+}
+
 export interface PostLogin {
     username: string
     password: string
@@ -241,4 +257,50 @@ export function cloneUserDataJson(user_data: UserDataJson): UserDataJson {
         full_name: optionalCloneString(user_data.full_name),
         email: optionalCloneString(user_data.email)
     }
+}
+
+export function makeUserAccessInfoJson(): UserAccessInfoJson {
+    return {
+        id: 0,
+        username: "",
+        full_name: null,
+        ability: null
+    }
+}
+
+export function cloneUserAccessInfoJson(info: UserAccessInfoJson): UserAccessInfoJson {
+    return {
+        id: cloneInteger(info.id),
+        username: cloneString(info.username),
+        full_name: optionalCloneString(info.full_name),
+        ability: cloneString(info.ability)
+    }
+}
+
+export function makeUserInfoJson(): UserInfoJson {
+    return {
+        id: 0,
+        username: "",
+        level: 20,
+        full_name: null,
+        email: null,
+        user_access: []
+    }
+}
+
+export function cloneUserInfoJson(info: UserInfoJson): UserInfoJson {
+    let rtn: UserInfoJson = {
+        id: cloneInteger(info.id),
+        username: cloneString(info.username),
+        level: cloneInteger(info.level),
+        full_name: optionalCloneString(info.full_name),
+        email: optionalCloneString(info.email),
+        user_access: []
+    };
+
+    for (let item of info.user_access) {
+        rtn.user_access.push(cloneUserAccessInfoJson(item));
+    }
+
+    return rtn;
 }

@@ -52,6 +52,24 @@ pub struct MoodFieldJson {
     pub issued_by: Option<IssuedByJson>
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct UserAccessInfoJson {
+    pub id: i32,
+    pub username: String,
+    pub full_name: Option<String>,
+    pub ability: String
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct UserInfoJson {
+    pub id: i32,
+    pub username: String,
+    pub level: i32,
+    pub full_name: Option<String>,
+    pub email: String,
+    pub user_access: Vec<UserAccessInfoJson>
+}
+
 pub async fn search_mood_fields(
     conn: &impl GenericClient,
     owner: i32,

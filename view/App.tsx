@@ -3,7 +3,7 @@ import React from "react"
 import { Route, Switch, useHistory, useLocation } from "react-router-dom"
 
 import NavSection from "./NavSection"
-import Entries from "./routes/entries"
+import EntriesView from "./routes/entries"
 import MoodFieldsView from "./routes/mood_fields"
 import EntryId from "./routes/entries/entry_id"
 import Users from "./routes/users"
@@ -71,7 +71,7 @@ const App = () => {
                         }/>
                         <Route path={["/entries", "/entries/:entry_id"]} exact children={({match}) => 
                             match ? <>
-                                <Entries/>
+                                <EntriesView/>
                                 <Route path="/entries/:entry_id" exact children={({match}) =>
                                     match ? <EntryId/> : null
                                 }/>
@@ -89,7 +89,7 @@ const App = () => {
                                 }/>
                                 <Route path={["/users/:user_id/entries", "/users/:user_id/entries/:entry_id"]} exact children={({match}) => 
                                     match ? <>
-                                        <Entries user_specific/>
+                                        <EntriesView user_specific/>
                                         <Route path="/users/:user_id/entries/:entry_id" exact children={({match}) =>
                                             match ? <EntryId user_specific/> : null
                                         }/>

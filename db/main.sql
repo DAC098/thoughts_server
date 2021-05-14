@@ -16,18 +16,6 @@ create table users (
     email varchar unique not null
 );
 
-create table user_access_requests (
-    owner integer not null,
-    ability char(1) not null,
-    allowed_for integer not null,
-    expire timestamp with time zone default null,
-
-    constraint owner_fk foreign key (owner) references users (id),
-    constraint allowed_for_fk foreign key (allowed_for) references users (id),
-    constraint unique_requests_per_user unique (owner, allowed_for),
-    constraint not_same_user check (owner != allowed_for)
-);
-
 create table user_access (
     owner integer not null,
     ability char(1) not null,

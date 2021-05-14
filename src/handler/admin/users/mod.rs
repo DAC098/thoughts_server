@@ -1,3 +1,5 @@
+use std::fmt::{Write};
+
 use actix_web::{web, http, HttpRequest, Responder};
 use actix_session::{Session};
 use serde::{Deserialize};
@@ -10,11 +12,20 @@ use crate::response;
 use crate::state;
 use crate::security;
 use crate::db;
+use crate::json;
+
+#[derive(Deserialize)]
+pub struct UserSearchQuery {
+    level: Option<i32>,
+    full_name: Option<String>,
+    username: Option<String>
+}
 
 pub async fn handle_get(
     req: HttpRequest,
     session: Session,
-    app: web::Data<state::AppState>
+    app: web::Data<state::AppState>,
+    info: web::Query<UserSearchQuery>,
 ) -> error::Result<impl Responder> {
     let accept_html = response::check_if_html_req(&req, true)?;
     let conn = &*app.get_conn().await?;
@@ -36,10 +47,28 @@ pub async fn handle_get(
                 format!("you do not have permission to view all users")
             ))
         } else {
-            let result = conn.query(
-                "select id, username, level, full_name, email from users where id != $1",
-                &[&initiator.user.id]
-            ).await?;
+            let mut arg_count: usize = 2;
+            let mut query_str = "select id, username, level, full_name, email from users where id != $1".to_owned();
+            let mut query_slice: Vec<&(dyn tokio_postgres::types::ToSql + std::marker::Sync)> = vec![&initiator.user.id];
+
+            if let Some(level) = info.level.as_ref() {
+                write!(&mut query_str, " and level = ${}", arg_count)?;
+                query_slice.push(level);
+                arg_count += 1;
+            }
+
+            if let Some(full_name) = info.full_name.as_ref() {
+                write!(&mut query_str, " and full_name ilike ${}", arg_count)?;
+                query_slice.push(full_name);
+                arg_count += 1;
+            }
+
+            if let Some(username) = info.username.as_ref() {
+                write!(&mut query_str, " and username ilike ${}", arg_count)?;
+                query_slice.push(username);
+            }
+
+            let result = conn.query(query_str.as_str(), &query_slice[..]).await?;
             let mut rtn: Vec<db::users::User> = Vec::with_capacity(result.len());
 
             for row in result {
@@ -113,12 +142,13 @@ pub async fn handle_post(
         http::StatusCode::OK,
         response::json::MessageDataJSON::build(
             "created account",
-            db::users::User {
+            json::UserInfoJson {
                 id: result.get(0),
                 username: posted.username.clone(),
                 level: posted.level,
                 full_name: posted.full_name.clone(),
-                email: posted.email.clone()
+                email: posted.email.clone(),
+                user_access: vec!()
             }
         )
     ))
