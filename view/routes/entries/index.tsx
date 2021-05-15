@@ -6,10 +6,11 @@ import { useLoadFields } from "../../hooks/useLoadFields"
 import { useOwner } from "../../hooks/useOwner"
 import { EntryJson } from "../../api/types"
 import { MoodEntryType } from "../../api/mood_entry_types"
-import { displayDate, get24hrStr, sameDate } from "../../time"
+import { diffDates, displayDate, get12hrStr, get24hrStr, sameDate } from "../../time"
 import { useAppSelector } from "../../hooks/useApp"
+import { MoodFieldType, Time, TimeRange } from "../../api/mood_field_types"
 
-function renderMoodFieldType(value: MoodEntryType) {
+function renderMoodFieldType(value: MoodEntryType, config: MoodFieldType) {
     switch (value.type) {
         case "Integer":
             return `${value.value}`
@@ -19,14 +20,21 @@ function renderMoodFieldType(value: MoodEntryType) {
             return `${value.value.toFixed(2)}`
         case "FloatRange":
             return `${value.low.toFixed(2)} - ${value.high.toFixed(2)}`
-        case "Time":
-            return `${displayDate(new Date(value.value))}`;
+        case "Time": {
+            return `${displayDate(new Date(value.value), !(config as Time).as_12hr)}`;
+        }
         case "TimeRange": {
+            let conf = config as TimeRange;
             let low = new Date(value.low);
             let high = new Date(value.high);
-            return sameDate(low, high) ? 
-                   `${displayDate(low)} - ${get24hrStr(high)}` :
-                   `${displayDate(low)} - ${displayDate(high)}`;
+
+            if (conf.show_diff) {
+                return diffDates(high, low);
+            } else {
+                return sameDate(low, high) ? 
+                       `${displayDate(low, !conf.as_12hr)} - ${conf.as_12hr ? get12hrStr(high) : get24hrStr(high)}` :
+                       `${displayDate(low, !conf.as_12hr)} - ${displayDate(high, !conf.as_12hr)}`;
+            }
         }
     }
 }
@@ -84,7 +92,7 @@ const EntriesView = ({user_specific = false}: EntriesViewProps) => {
                     for (let m of item.mood_entries) {
                         if (m.field_id === field.id) {
                             let content = <>
-                                {renderMoodFieldType(m.value)}
+                                {renderMoodFieldType(m.value, mood_fields_state.mapping[m.field_id].config)}
                                 {m.comment && m.comment.length > 0 ?
                                     <Icon style={{paddingLeft: 4}} iconName="Info"/>
                                     :
@@ -165,7 +173,7 @@ const EntriesView = ({user_specific = false}: EntriesViewProps) => {
                 </Stack>
             </Sticky>
             <ShimmeredDetailsList
-                items={entries_state.entries}
+                items={loading_state ? [] : entries_state.entries}
                 columns={columns}
                 compact={true}
                 enableShimmer={loading_state}

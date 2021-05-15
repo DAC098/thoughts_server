@@ -53,8 +53,8 @@ const App = () => {
         </Stack.Item>
         <Stack.Item grow>
             <Stack style={{position: "relative", width: "100%", height: "100%"}}>
-                <Stack.Item shrink={0} grow={0} style={{backgroundColor: "black"}}>
-                    <Breadcrumb items={breadcrumb_items}/>
+                <Stack.Item shrink={0} grow={0} styles={{root: {backgroundColor: "black"}}}>
+                    <Breadcrumb items={breadcrumb_items} styles={{root: {marginBottom: 0, marginTop: 10}}}/>
                 </Stack.Item>
                 <Stack.Item id="main_content" grow style={{position: "relative"}}>
                     <Switch>

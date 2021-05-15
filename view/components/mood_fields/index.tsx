@@ -4,6 +4,8 @@ import { FloatRangeEditView } from "./FloatRangeView"
 import { FloatEditView } from "./FloatView"
 import { IntegerRangeEditView } from "./IntegerRangeView"
 import { IntegerEditView } from "./IntegerView"
+import { TimeRangeEditView } from "./TimeRangeView"
+import { TimeEditView } from "./TimeView"
 
 interface MoodFieldTypeEditViewProps {
     config: MoodFieldType
@@ -21,6 +23,10 @@ export const MoodFieldTypeEditView = ({config, onChange}: MoodFieldTypeEditViewP
             return <FloatEditView config={config} onChange={onChange}/>
         case MoodFieldTypeName.FloatRange:
             return <FloatRangeEditView config={config} onChange={onChange}/>
+        case MoodFieldTypeName.Time:
+            return <TimeEditView config={config} onChange={onChange}/>
+        case MoodFieldTypeName.TimeRange:
+            return <TimeRangeEditView config={config} onChange={onChange}/>
     }
 
     return null;

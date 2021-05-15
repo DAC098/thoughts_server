@@ -1,4 +1,4 @@
-import { cloneString, optionalCloneInteger } from "../util/clone";
+import { cloneBoolean, cloneString, optionalCloneInteger } from "../util/clone";
 
 export enum MoodFieldTypeName {
     Integer = "Integer",
@@ -33,9 +33,14 @@ export interface FloatRange extends MoodFieldTypeBase<MoodFieldTypeName.FloatRan
     maximum?: number
 }
 
-export interface Time extends MoodFieldTypeBase<MoodFieldTypeName.Time> {}
+export interface Time extends MoodFieldTypeBase<MoodFieldTypeName.Time> {
+    as_12hr: boolean
+}
 
-export interface TimeRange extends MoodFieldTypeBase<MoodFieldTypeName.TimeRange> {}
+export interface TimeRange extends MoodFieldTypeBase<MoodFieldTypeName.TimeRange> {
+    show_diff: boolean
+    as_12hr: boolean
+}
 
 export type MoodFieldType = Integer | IntegerRange |
     Float | FloatRange |
@@ -53,10 +58,17 @@ export function cloneMoodFieldType(field: MoodFieldType): MoodFieldType {
                 maximum: optionalCloneInteger(field.maximum)
             }
         }
-        case "Time":
+        case "Time": {
+            return {
+                type: MoodFieldTypeName.Time,
+                as_12hr: cloneBoolean(field.as_12hr)
+            }
+        }
         case "TimeRange": {
             return {
-                type: <typeof field.type>cloneString(field.type)
+                type: <typeof field.type>cloneString(field.type),
+                show_diff: cloneBoolean(field.show_diff),
+                as_12hr: cloneBoolean(field.as_12hr)
             }
         }
     }
@@ -73,8 +85,8 @@ export function makeMoodFieldType(type: MoodFieldTypeName): MoodFieldType {
         case "FloatRange":
             return {type, minimum: null, maximum: null};
         case "Time":
-            return {type};
+            return {type, as_12hr: false};
         case "TimeRange":
-            return {type};
+            return {type, show_diff: false, as_12hr: false};
     }
 }

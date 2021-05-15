@@ -57,6 +57,14 @@ impl MoodField {
     }
 }
 
+fn default_time_range_show_diff() -> bool {
+    false
+}
+
+fn default_as_12hr() -> bool {
+    false
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(tag = "type")]
 pub enum MoodFieldType {
@@ -78,8 +86,17 @@ pub enum MoodFieldType {
         maximum: Option<f32>
     },
 
-    Time {},
-    TimeRange {},
+    Time {
+        #[serde(default = "default_as_12hr")]
+        as_12hr: bool
+    },
+    TimeRange {
+        #[serde(default = "default_time_range_show_diff")]
+        show_diff: bool,
+
+        #[serde(default = "default_as_12hr")]
+        as_12hr: bool
+    },
 }
 
 fn verify_range<T>(value: &T, minimum: &Option<T>, maximum: &Option<T>) -> error::Result<()>
@@ -176,7 +193,7 @@ pub fn verifiy(config: &MoodFieldType, value: &MoodEntryType) -> error::Result<(
                 ))
             }
         },
-        MoodFieldType::Time {} => {
+        MoodFieldType::Time {as_12hr: _} => {
             match value {
                 MoodEntryType::Time {value: _} => Ok(()),
                 _ => Err(error::ResponseError::Validation(
@@ -184,7 +201,7 @@ pub fn verifiy(config: &MoodFieldType, value: &MoodEntryType) -> error::Result<(
                 ))
             }
         },
-        MoodFieldType::TimeRange {} => {
+        MoodFieldType::TimeRange {show_diff: _, as_12hr: _} => {
             match value {
                 MoodEntryType::TimeRange {low, high} => {
                     let none_opt = None;
