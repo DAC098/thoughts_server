@@ -35,7 +35,21 @@ The main server is written in Rust and uses the Actix framework to handle the se
 
 React front-end using the Fluent UI as a framework. React-Router for page navigation and rendering. Redux Toolkit for global state management.
 
+ - Rust `1.51.0`
+ - OpenSSL `1.1.1f`
+ - PostgreSQL `13`
+ - NodeJS `15.14.0`
+
+Rust package versions can be found in the `Cargo.toml`
+NodeJS package version can be found in the `package.json`
+
+currently been building on Ubuntu Server `20.04` so no testing has been done on Windows or MacOS. Over versions of various packages and software may work but no testing has been done to determine those versions.
+
 No official server version as I am unsure about what to set it currently.
+
+## Contributions
+
+No idea. If you are interested in helping out with this then sweet!
 
 ### THIS IS A WORK IN PROGRESS, PLEASE DO NOT USE THIS FOR PRODUCTION PURPOSES YET
 
