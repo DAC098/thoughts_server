@@ -3,7 +3,7 @@ import React, { Reducer, useEffect, useReducer, useState } from "react"
 import { useHistory, useLocation, useParams } from "react-router"
 import { cloneUserInfoJson, makeUserInfoJson, UserDataJson, UserInfoJson } from "../../../api/types"
 import IndentSection from "../../../components/IndentSection"
-import * as api from "../../../api"
+import api from "../../../api"
 import { json } from "../../../request"
 import { createSlice, PayloadAction } from "@reduxjs/toolkit"
 import { SliceActionTypes } from "../../../redux/types"
@@ -206,8 +206,6 @@ const UserInformation = () => {
         }
 
         dispatch(reducer_actions.set_loading_available_users(true));
-
-        console.log(current_level);
 
         api.admin.users.get({level: current_level == 20 ? 10 : 20}).then(list => {
             dispatch(reducer_actions.set_available_users(list));

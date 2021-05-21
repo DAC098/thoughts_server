@@ -2,7 +2,7 @@ import { DefaultButton, Dialog, DialogFooter, DialogType, Dropdown, IconButton, 
 import React, { createContext, Dispatch, useContext, useEffect, useReducer } from "react"
 import { useHistory, useLocation, useParams } from "react-router"
 import { cloneMoodFieldJson, makeMoodFieldJson, MoodFieldJson } from "../../api/types"
-import * as api from "../../api"
+import api from "../../api"
 import { useOwner } from "../../hooks/useOwner"
 import { makeMoodFieldType, MoodFieldType, MoodFieldTypeName } from "../../api/mood_field_types"
 import { MoodFieldTypeEditView } from "../../components/mood_fields"

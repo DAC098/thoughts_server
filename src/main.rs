@@ -5,7 +5,6 @@ use actix_session::{CookieSession};
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use tokio_postgres::{Config as PGConfig, NoTls};
 use bb8_postgres::{PostgresConnectionManager, bb8};
-use env_logger;
 
 mod security;
 mod error;
@@ -103,8 +102,11 @@ async fn main() -> std::io::Result<()> {
             .route("/mood_fields/{field_id}", web::get().to(handler::mood_fields::handle_get_mood_fields_id))
             .route("/mood_fields/{field_id}", web::put().to(handler::mood_fields::handle_put_mood_fields_id))
             .route("/mood_fields/{field_id}", web::delete().to(handler::mood_fields::handle_delete_mood_fields_id))
-            .route("/tags", web::get().to(handler::okay))
-            .route("/tags", web::post().to(handler::okay))
+            .route("/tags", web::get().to(handler::tags::handle_get))
+            .route("/tags", web::post().to(handler::tags::handle_post))
+            .route("/tags/{tag_id}", web::get().to(handler::tags::tag_id::handle_get))
+            .route("/tags/{tag_id}", web::put().to(handler::tags::tag_id::handle_put))
+            .route("/tags/{tag_id}", web::delete().to(handler::tags::tag_id::handle_delete))
             .route("/users", web::get().to(handler::users::handle_get))
             .route(
                 "/users/{user_id}",
@@ -129,6 +131,10 @@ async fn main() -> std::io::Result<()> {
             .route(
                 "/users/{user_id}/mood_fields/{field_id}",
                 web::get().to(handler::users::user_id::mood_fields::field_id::handle_get)
+            )
+            .route(
+                "/users/{user_id}/tags",
+                web::get().to(handler::users::user_id::tags::handle_get)
             )
             .route("/data", web::get().to(handler::handle_get_data))
             .route("/account", web::get().to(handler::account::handle_get_account))

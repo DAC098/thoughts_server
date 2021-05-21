@@ -4,7 +4,7 @@ import { useHistory } from "react-router";
 import { useAppDispatch } from "../../hooks/useApp";
 import { json } from "../../request";
 import { actions } from "../../redux/slices/active_user"
-import * as api from "../../api"
+import api from "../../api"
 
 const Login = () => {
     const dispatch = useAppDispatch();

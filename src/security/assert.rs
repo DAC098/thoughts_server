@@ -48,6 +48,29 @@ pub async fn is_owner_for_mood_field(
     Ok(())
 }
 
+pub async fn is_owner_for_tag(
+    conn: &impl GenericClient,
+    tag_id: i32,
+    owner: i32
+) -> error::Result<()> {
+    let rows = conn.query(
+        "select owner from tags where id = $1",
+        &[&tag_id]
+    ).await?;
+
+    if rows.len() == 0 {
+        Err(error::ResponseError::TagNotFound(tag_id))
+    } else {
+        if rows[0].get::<usize, i32>(0) != owner {
+            Err(error::ResponseError::PermissionDenied(
+                "you don't have permission to modify this users tag".to_owned()
+            ))
+        } else {
+            Ok(())
+        }
+    }
+}
+
 pub async fn permission_to_read(
     conn: &impl GenericClient,
     initiator: i32,

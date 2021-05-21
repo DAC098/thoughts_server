@@ -26,6 +26,7 @@ pub enum ResponseError {
     TextEntryNotFound(i32),
     MoodEntryNotFound(i32),
     MoodFieldNotFound(i32),
+    TagNotFound(i32),
 
     UsernameExists(String),
     EmailExists(String),
@@ -68,6 +69,7 @@ impl ResponseError {
             ResponseError::TextEntryNotFound(_) => "TextEntryNotFound",
             ResponseError::MoodEntryNotFound(_) => "MoodEntryNotFound",
             ResponseError::MoodFieldNotFound(_) => "MoodFieldNotFound",
+            ResponseError::TagNotFound(_) => "TagNotFound",
 
             ResponseError::UsernameExists(_) => "UsernameExists",
             ResponseError::EmailExists(_) => "EmailExists",
@@ -108,6 +110,7 @@ impl ResponseError {
             ResponseError::TextEntryNotFound(id) => format!("failed to find the requested text entry id: {}", id),
             ResponseError::MoodEntryNotFound(id) => format!("failed to find the requested mood entry id: {}", id),
             ResponseError::MoodFieldNotFound(id) => format!("failed to find the requested mood field id: {}", id),
+            ResponseError::TagNotFound(id) => format!("failed to find the requested tag id: {}", id),
 
             ResponseError::UsernameExists(_) => format!("given username already exist"),
             ResponseError::EmailExists(_) => format!("given email already exists"),
@@ -170,6 +173,7 @@ impl ActixResponseError for ResponseError {
             ResponseError::TextEntryNotFound(_) => StatusCode::NOT_FOUND,
             ResponseError::MoodEntryNotFound(_) => StatusCode::NOT_FOUND,
             ResponseError::MoodFieldNotFound(_) => StatusCode::NOT_FOUND,
+            ResponseError::TagNotFound(_) => StatusCode::NOT_FOUND,
 
             ResponseError::UsernameExists(_) => StatusCode::BAD_REQUEST,
             ResponseError::EmailExists(_) => StatusCode::BAD_REQUEST,

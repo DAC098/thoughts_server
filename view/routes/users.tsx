@@ -2,7 +2,7 @@ import { IconButton, Persona, Stack } from "@fluentui/react";
 import React, { useEffect, useState } from "react"
 import { Link, useHistory } from "react-router-dom";
 import { UserListItemJson } from "../api/types"
-import * as api from "../api";
+import api from "../api";
 
 const Users = () => {
     let [allowed, setAllowed] = useState<UserListItemJson[]>([]);

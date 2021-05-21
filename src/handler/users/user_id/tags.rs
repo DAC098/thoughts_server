@@ -1,23 +1,19 @@
 use actix_web::{web, http, HttpRequest, Responder};
 use actix_session::{Session};
 
-pub mod entries;
-pub mod mood_fields;
-pub mod tags;
-
 use crate::error;
 use crate::request::from;
 use crate::response;
 use crate::state;
-use crate::parsing::url_paths;
-use crate::security;
 use crate::db;
+use crate::security;
+use crate::parsing;
 
 pub async fn handle_get(
     req: HttpRequest,
     session: Session,
     app: web::Data<state::AppState>,
-    path: web::Path<url_paths::UserPath>,
+    path: web::Path<parsing::url_paths::UserPath>
 ) -> error::Result<impl Responder> {
     let accept_html = response::check_if_html_req(&req, true)?;
     let conn = &*app.get_conn().await?;
@@ -33,14 +29,13 @@ pub async fn handle_get(
         Err(error::ResponseError::Session)
     } else {
         let initiator = initiator_opt.unwrap();
-        security::assert::permission_to_read(conn, initiator.user.get_id(), path.user_id).await?;
-        let user_opt = db::users::get_via_id(conn, path.user_id).await?;
+        security::assert::permission_to_read(conn, initiator.user.id, path.user_id).await?;
 
         Ok(response::json::respond_json(
             http::StatusCode::OK,
             response::json::MessageDataJSON::build(
-                "successful",
-                user_opt.unwrap()
+                "successful", 
+                db::tags::get_via_owner(conn, path.user_id).await?
             )
         ))
     }

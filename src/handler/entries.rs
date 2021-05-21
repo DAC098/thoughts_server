@@ -27,6 +27,7 @@ pub struct PostMoodEntryJson {
 #[derive(Deserialize)]
 pub struct PostEntryJson {
     created: Option<chrono::DateTime<chrono::Utc>>,
+    tags: Option<Vec<i32>>,
     mood_entries: Option<Vec<PostMoodEntryJson>>,
     text_entries: Option<Vec<PostTextEntryJson>>
 }
@@ -49,6 +50,7 @@ pub struct PutMoodEntryJson {
 #[derive(Deserialize)]
 pub struct PutEntryJson {
     created: chrono::DateTime<chrono::Utc>,
+    tags: Option<Vec<i32>>,
     mood_entries: Option<Vec<PutMoodEntryJson>>,
     text_entries: Option<Vec<PutTextEntryJson>>
 }
@@ -65,18 +67,19 @@ async fn get_mood_field_via_id(
     initiator: i32,
     field_id: i32,
 ) -> app_error::Result<db::mood_fields::MoodField> {
-    let field = match db::mood_fields::find_id(conn, field_id).await? {
-        Some(field) => field,
-        None => Err(app_error::ResponseError::MoodFieldNotFound(field_id))?
-    };
+    let field_opt = db::mood_fields::find_id(conn, field_id).await?;
 
-    if field.get_owner() != initiator {
-        return Err(app_error::ResponseError::PermissionDenied(
-            format!("you do not haver permission to create a mood entry using this field id: {}", field.get_owner())
-        ));
+    if let Some(field) = field_opt {
+        if field.get_owner() != initiator {
+            Err(app_error::ResponseError::PermissionDenied(
+                format!("you do not haver permission to create a mood entry using this field id: {}", field.get_owner())
+            ))
+        } else {
+            Ok(field)
+        }
+    } else {
+        Err(app_error::ResponseError::MoodFieldNotFound(field_id))
     }
-
-    Ok(field)
 }
 
 async fn get_mood_field_via_mood_entry(
@@ -231,6 +234,19 @@ pub async fn handle_post_entries(
         }
     }
 
+    let mut entry_tags: Vec<i32> = vec!();
+
+    if let Some(tags) = &posted.tags {
+        for tag_id in tags {
+            let _result = transaction.execute(
+                "insert into entries2tags (tag, entry) values ($1, $2)",
+                &[&tag_id, &entry_id]
+            ).await?;
+
+            entry_tags.push(*tag_id);
+        }
+    }
+
     transaction.commit().await?;
 
     Ok(response::json::respond_json(
@@ -241,6 +257,7 @@ pub async fn handle_post_entries(
                 id: result.get(0),
                 created: result.get(1),
                 owner: initiator.user.get_id(),
+                tags: entry_tags,
                 mood_entries,
                 text_entries
             }
@@ -322,11 +339,11 @@ pub async fn handle_put_entries_id(
     let mut rtn = json::EntryJson {
         id: path.entry_id,
         created: result.get(0),
+        tags: vec!(),
         mood_entries: vec!(),
         text_entries: vec!(),
         owner: initiator.user.get_id()
     };
-    let entry_id_list = vec!(path.entry_id);
 
     if let Some(m) = &posted.mood_entries {
         let mut ids: Vec<i32> = vec!();
@@ -412,7 +429,7 @@ pub async fn handle_put_entries_id(
             ).await?;
         }
     } else {
-        rtn.mood_entries = json::search_mood_entries(&transaction, &entry_id_list).await?;
+        rtn.mood_entries = json::search_mood_entries(&transaction, &path.entry_id).await?;
     }
 
     if let Some(t) = &posted.text_entries {
@@ -488,6 +505,51 @@ pub async fn handle_put_entries_id(
                 &[&to_delete]
             ).await?;
         }
+    } else {
+        rtn.text_entries = json::search_text_entries(&transaction, &path.entry_id, None).await?;
+    }
+
+    if let Some(tags) = &posted.tags {
+        let mut ids: Vec<i32> = vec!();
+        let mut entry_tags: Vec<i32> = vec!();
+
+        for tag_id in tags {
+            let result = transaction.query_one(
+                r#"
+                insert into entries2tags (tag, entry) 
+                values ($1, $2)
+                on conflict on constraint unique_entry_tag do update
+                set tag = excluded.tag
+                returning id
+                "#,
+                &[&tag_id, &path.entry_id]
+            ).await?;
+
+            ids.push(result.get(0));
+            entry_tags.push(*tag_id);
+        }
+
+        rtn.tags.append(&mut entry_tags);
+
+        let left_over = transaction.query(
+            "select id from entries2tags where entry = $1 and not (id = any ($2))",
+            &[&path.entry_id, &ids]
+        ).await?;
+
+        if left_over.len() > 0 {
+            let mut to_delete: Vec<i32> = Vec::with_capacity(left_over.len());
+
+            for row in left_over {
+                to_delete.push(row.get(0));
+            }
+
+            let _result = transaction.execute(
+                "delete from entries2tags where id = any($1)",
+                &[&to_delete]
+            ).await?;
+        }
+    } else {
+        rtn.tags = json::search_tag_entries(&transaction, &path.entry_id).await?;
     }
 
     transaction.commit().await?;
@@ -548,11 +610,5 @@ pub async fn handle_delete_entries_id(
 
     transaction.commit().await?;
 
-    Ok(response::json::respond_json(
-        http::StatusCode::OK,
-        response::json::MessageDataJSON::<Option<()>>::build(
-            "successful",
-            None
-        )
-    ))
+    Ok(response::json::respond_okay())
 }

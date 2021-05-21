@@ -2,12 +2,14 @@ import { configureStore } from "@reduxjs/toolkit"
 import { active_user } from "./slices/active_user"
 import { entries } from "./slices/entries"
 import { mood_fields } from "./slices/mood_fields"
+import { tags } from "./slices/tags";
 
 export const store = configureStore({
     reducer: {
         active_user: active_user.reducer,
         entries: entries.reducer,
-        mood_fields: mood_fields.reducer
+        mood_fields: mood_fields.reducer,
+        tags: tags.reducer
     }
 });
 

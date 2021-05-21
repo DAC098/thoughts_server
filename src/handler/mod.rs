@@ -13,6 +13,7 @@ pub mod users;
 pub mod account;
 pub mod backup;
 pub mod admin;
+pub mod tags;
 
 pub async fn handle_get_root(
     session: Session,

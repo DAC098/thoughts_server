@@ -23,6 +23,7 @@ export interface EntryUIState extends EntryJson {
 export interface EntryIdViewState {
     original?: EntryUIState
     current?: EntryUIState
+    tag_mapping: {[id: string]: boolean}
     existing_fields: {[id: string]: number}
     changes_made: boolean
     prep_delete: boolean
@@ -38,6 +39,7 @@ export interface EntryIdViewState {
 export function initialState(allow_edit: boolean, params: {entry_id: string, user_id?: string}): EntryIdViewState {
     return {
         current: null, original: null,
+        tag_mapping: {},
         existing_fields: {},
         changes_made: false,
         prep_delete: false,
@@ -55,15 +57,30 @@ export const entryIdViewSlice = createSlice({
             state.original = action.payload;
             state.current = cloneEntryJson(action.payload);
             state.existing_fields = {};
+            state.tag_mapping = {};
             state.changes_made = false;
 
             for (let field of state.current.mood_entries) {
                 state.existing_fields[field.field_id] = field.id;
             }
+
+            for (let tag of state.current.tags) {
+                state.tag_mapping[tag] = true;
+            }
         },
         reset_entry: (state) => {
             state.current = cloneEntryJson(state.original);
+            state.existing_fields = {};
+            state.tag_mapping = {};
             state.changes_made = false;
+
+            for (let field of state.current.mood_entries) {
+                state.existing_fields[field.field_id] = field.id;
+            }
+
+            for (let tag of state.current.tags) {
+                state.tag_mapping[tag] = true;
+            }
         },
         new_entry: (state) => {
             state.original = makeEntryJson();
@@ -125,6 +142,16 @@ export const entryIdViewSlice = createSlice({
         delete_text_entry: (state, action: PayloadAction<number>) => {
             state.current.text_entries.splice(action.payload, 1);
             state.changes_made = true;
+        },
+
+        set_tags: (state, action: PayloadAction<number[]>) => {
+            state.changes_made = true;
+            state.tag_mapping = {};
+            state.current.tags = action.payload;
+
+            for (let tag of state.current.tags) {
+                state.tag_mapping[tag] = true;
+            }
         },
 
         set_prep_delete: (state, action: PayloadAction<boolean>) => {

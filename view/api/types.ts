@@ -35,8 +35,17 @@ export interface EntryJson {
     id: number
     created: string
     owner: number
+    tags: number[]
     mood_entries: MoodEntryJson[]
     text_entries: TextEntryJson[]
+}
+
+export interface TagJson {
+    id: number
+    title: string
+    color: string
+    comment?: string
+    owner: number
 }
 
 export interface GetEntriesQuery {
@@ -56,6 +65,7 @@ export interface PostTextEntry {
 
 export interface PostEntry {
     created?: string
+    tags?: number[]
     mood_entries?: PostMoodEntry[]
     text_entries?: PostTextEntry[]
 }
@@ -74,6 +84,7 @@ export interface PutMoodEntry {
 
 export interface PutEntry {
     created: string,
+    tags: number[]
     mood_entries?: PutMoodEntry[]
     text_entries?: PutTextEntry[]
 }
@@ -172,6 +183,7 @@ export function makeEntryJson(): EntryJson {
         id: null,
         created: "",
         owner: 0,
+        tags: [],
         mood_entries: [],
         text_entries: []
     }
@@ -182,6 +194,7 @@ export function cloneEntryJson(entry: EntryJson) {
         id: optionalCloneInteger(entry.id),
         created: cloneString(entry.created),
         owner: cloneInteger(entry.owner),
+        tags: [],
         mood_entries: [],
         text_entries: []
     };
@@ -195,6 +208,12 @@ export function cloneEntryJson(entry: EntryJson) {
     for (let t of (entry.text_entries ?? [])) {
         rtn.text_entries.push(
             cloneTextEntry(t)
+        );
+    }
+
+    for (let t of (entry.tags ?? [])) {
+        rtn.tags.push(
+            cloneInteger(t)
         );
     }
 
@@ -303,4 +322,24 @@ export function cloneUserInfoJson(info: UserInfoJson): UserInfoJson {
     }
 
     return rtn;
+}
+
+export function makeTagJson(): TagJson {
+    return {
+        id: 0,
+        title: "",
+        color: "#ffffff",
+        comment: null,
+        owner: 0
+    }
+}
+
+export function cloneTagJson(tag: TagJson): TagJson {
+    return {
+        id: cloneInteger(tag.id),
+        title: cloneString(tag.title),
+        color: cloneString(tag.color),
+        comment: optionalCloneString(tag.comment),
+        owner: cloneInteger(tag.owner)
+    }
 }

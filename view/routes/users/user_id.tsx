@@ -2,7 +2,7 @@ import { DefaultButton, IconButton, Persona, PersonaSize, Stack } from "@fluentu
 import React, { useEffect, useState } from "react"
 import { useHistory, useLocation, useParams } from "react-router"
 import { Link } from "react-router-dom"
-import * as api from "../../api"
+import api from "../../api"
 import { UserDataJson } from "../../api/types"
 
 interface UserInformationViewProps {

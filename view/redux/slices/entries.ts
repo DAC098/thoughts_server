@@ -1,5 +1,5 @@
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
-import * as api from "../../api"
+import api from "../../api"
 import { EntryJson, GetEntriesQuery } from "../../api/types"
 
 const fetchEntries = createAsyncThunk<EntryJson[],{owner: number | string, user_specific?: boolean, query?: GetEntriesQuery}>(

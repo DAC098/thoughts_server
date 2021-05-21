@@ -13,6 +13,8 @@ import SettingsView from "./routes/settings"
 import FieldIdView from "./routes/mood_fields/field_id"
 import AdminUserListView from "./routes/admin/users"
 import AdminUserIdView from "./routes/admin/users/users_id"
+import TagsView from "./routes/tags"
+import TagsIDView from "./routes/tags/tag_id"
 
 const App = () => {
     const location = useLocation();
@@ -60,7 +62,14 @@ const App = () => {
                     <Switch>
                         <Route path="/account" exact component={AccountView}/>
                         <Route path="/settings" exact component={SettingsView}/>
-                        <Route path="/tags" exact component={() => <div>Tags</div>}/>
+                        <Route path={["/tags", "/tags/:tag_id"]} exact children={({match}) => 
+                            match ? <>
+                                <TagsView/>
+                                <Route path="/tags/:tag_id" exact children={({match}) => 
+                                    match ? <TagsIDView/> : null
+                                }/>
+                            </> : null
+                        }/>
                         <Route path={["/mood_fields","/mood_fields/:field_id"]} exact children={({match}) => 
                             match ? <>
                                 <MoodFieldsView/>
@@ -83,7 +92,7 @@ const App = () => {
                                     match ? <>
                                         <MoodFieldsView user_specific/>
                                         <Route path="/users/:user_id/mood_fields/:field_id" exact children={({match}) => 
-                                            match ? <FieldIdView/> : null
+                                            match ? <FieldIdView user_specific/> : null
                                         }/>
                                     </> : null
                                 }/>
@@ -92,6 +101,14 @@ const App = () => {
                                         <EntriesView user_specific/>
                                         <Route path="/users/:user_id/entries/:entry_id" exact children={({match}) =>
                                             match ? <EntryId user_specific/> : null
+                                        }/>
+                                    </> : null
+                                }/>
+                                <Route path={["/users/:user_id/tags", "/users/:user_id/tags/:tag_id"]} exact children={({match}) => 
+                                    match ? <>
+                                        <TagsView user_specific/>
+                                        <Route path="/tags/:tag_id" exact children={({match}) => 
+                                            match ? <TagsIDView/> : null
                                         }/>
                                     </> : null
                                 }/>
