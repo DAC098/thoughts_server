@@ -14,7 +14,7 @@ use crate::security;
  * GET /auth/login
  * currently will only serve the html
  */
-pub async fn handle_get_auth_login(
+pub async fn handle_get(
     app: web::Data<state::AppState>,
     session: Session
 ) -> error::Result<impl Responder> {
@@ -38,7 +38,7 @@ pub struct LoginBodyJSON {
  * receives the login information from a user request. if accepted then it will
  * send back a successful message with a login session
  */
-pub async fn handle_post_auth_login(
+pub async fn handle_post(
     app: web::Data<state::AppState>,
     session: Session, 
     posted: web::Json<LoginBodyJSON>
@@ -70,63 +70,5 @@ pub async fn handle_post_auth_login(
             "login successful",
             users::get_via_id(conn, result[0].get(0)).await?
         )
-    ))
-}
-
-pub async fn handle_post_auth_logout(
-    session: Session,
-    app: web::Data<state::AppState>,
-) -> error::Result<impl Responder> {
-    let conn = &mut app.get_conn().await?;
-    let token_opt = from::get_session_token(&session)?;
-    session.purge();
-    
-    if let Some(token) = token_opt {
-        let transaction = conn.transaction().await?;
-        user_sessions::delete(&transaction, token).await?;
-
-        transaction.commit().await?;
-    }
-
-    Ok(response::json::respond_json(
-        http::StatusCode::OK,
-        response::json::MessageDataJSON::<Option<()>>::build(
-            "logout successful",
-            None
-        )
-    ))
-}
-
-#[derive(Deserialize)]
-pub struct ChangePasswordJson {
-    current_password: String,
-    new_password: String
-}
-
-pub async fn handle_post_auth_change(
-    initiator: from::Initiator,
-    app: web::Data<state::AppState>,
-    posted: web::Json<ChangePasswordJson>,
-) -> error::Result<impl Responder> {
-    let conn = &mut app.get_conn().await?;
-    let result = conn.query_one(
-        "select id, hash from users where id = $1",
-        &[&initiator.user.get_id()]
-    ).await?;
-
-    security::verify_password(result.get(1), &posted.current_password)?;
-
-    let hash = security::generate_new_hash(&posted.new_password)?;
-    let transaction = conn.transaction().await?;
-    let _insert_result = transaction.execute(
-        "update users set hash = $1 where id = $2",
-        &[&hash, &initiator.user.get_id()]
-    ).await?;
-
-    transaction.commit().await?;
-
-    Ok(response::json::respond_json(
-        http::StatusCode::OK,
-        response::json::MessageDataJSON::<Option<()>>::build("password changed", None)
     ))
 }

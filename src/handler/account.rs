@@ -7,7 +7,7 @@ use crate::state;
 use crate::request::from;
 use crate::response;
 
-pub async fn handle_get_account(
+pub async fn handle_get(
     req: HttpRequest,
     session: Session,
     app: web::Data<state::AppState>
@@ -20,7 +20,7 @@ pub async fn handle_get_account(
         if initiator_opt.is_some() {
             Ok(response::respond_index_html(Some(initiator_opt.unwrap().user)))
         } else {
-            Ok(response::redirect_to_path("/auth/login"))
+            Ok(response::redirect_to_path("/auth/login?jump_to=/account"))
         }
     } else if initiator_opt.is_none() {
         Err(error::ResponseError::Session)
@@ -44,7 +44,7 @@ pub struct PutAccountJson {
     email: Option<String>
 }
 
-pub async fn handle_put_account(
+pub async fn handle_put(
     initiator: from::Initiator,
     app: web::Data<state::AppState>,
     posted: web::Json<PutAccountJson>,

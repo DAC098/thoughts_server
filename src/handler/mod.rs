@@ -1,4 +1,4 @@
-use actix_web::{web, http, HttpRequest, HttpResponse, Responder, error};
+use actix_web::{web, http, HttpRequest, Responder, error};
 use actix_session::{Session};
 
 use crate::response;
@@ -15,14 +15,13 @@ pub mod backup;
 pub mod admin;
 pub mod tags;
 
-pub async fn handle_get_root(
+pub async fn handle_get(
     session: Session,
     app: web::Data<state::AppState>,
 ) -> app_error::Result<impl Responder> {
-    let conn = &app.get_conn().await?;
-    let initiator = from::get_initiator(conn, &session).await?;
+    let conn = &*app.get_conn().await?;
 
-    match initiator {
+    match from::get_initiator(conn, &session).await? {
         Some(_) => Ok(response::redirect_to_path("/entries")),
         None => Ok(response::redirect_to_path("/auth/login"))
     }
@@ -30,19 +29,7 @@ pub async fn handle_get_root(
 
 #[allow(dead_code)]
 pub async fn okay() -> impl Responder {
-    HttpResponse::Ok().body("okay")
-}
-
-pub async fn handle_get_data(
-    initiator: from::Initiator
-) -> app_error::Result<impl Responder> {
-    Ok(response::json::respond_json(
-        http::StatusCode::OK,
-        response::json::MessageDataJSON::build(
-            "successful",
-            initiator.user
-        )
-    ))
+    response::okay().await
 }
 
 pub fn handle_json_error(

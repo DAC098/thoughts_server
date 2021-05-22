@@ -36,7 +36,7 @@ pub async fn handle_get(
         if initiator_opt.is_some() {
             Ok(response::respond_index_html(Some(initiator_opt.unwrap().user)))
         } else {
-            Ok(response::redirect_to_path("/auth/login"))
+            Ok(response::redirect_to_path("/auth/login?jump_to=/users"))
         }
     } else if initiator_opt.is_none() {
         Err(error::ResponseError::Session)

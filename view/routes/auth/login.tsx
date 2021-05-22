@@ -1,18 +1,16 @@
 import { DefaultButton, Stack, TextField } from "@fluentui/react"
 import React, { useState } from "react"
-import { useHistory } from "react-router";
+import { useHistory, useLocation } from "react-router";
 import { useAppDispatch } from "../../hooks/useApp";
-import { json } from "../../request";
 import { actions } from "../../redux/slices/active_user"
 import api from "../../api"
 
 const Login = () => {
+    const location = useLocation();
     const dispatch = useAppDispatch();
 
     let [username, setUsername] = useState("");
     let [password, setPassword] = useState("");
-    let [confirm_password, setConfirmPassword] = useState("");
-    let [email, setEmail] = useState("");
 
     let [sending, setSending] = useState(false);
     let [view_create, setViewCreate] = useState(false);
@@ -32,7 +30,9 @@ const Login = () => {
 
         api.login.post({username,password}).then((user) => {
             dispatch(actions.set_user(user));
-            history.push("/entries");
+            let url = new URL(location.pathname + location.search, window.location.origin);
+
+            history.push(url.searchParams.get("jump_to") ?? "/entries");
         }).catch(err => {
             if (err.type === "UsernameNotFound") {
                 setUsernameError(err.message);
@@ -42,29 +42,6 @@ const Login = () => {
         }).then(() => {setSending(false)});
     }
 
-    const createLogin = () => {
-        if (sending) {
-            return;
-        }
-
-        if (password !== confirm_password) {
-            setPasswordError("confirmation password is not the same");
-            return;
-        }
-
-        setSending(true);
-        setUsernameError("");
-        setPasswordError("");
-
-        json.post("/auth/create", {username,password,email}).then(() => {
-            history.push("/entries")
-        }).catch(err => {
-            if (err.type === "UsernameExists") {
-                setUsernameError(err.message);
-            }
-        }).then(() => setSending(false));
-    }
-
     return <Stack verticalAlign="center" horizontalAlign="center" style={{
         width: "100vw",
         height: "100vh"
@@ -72,11 +49,7 @@ const Login = () => {
         <form
             onSubmit={e => {
                 e.preventDefault();
-
-                if (view_create)
-                    createLogin();
-                else
-                    login();
+                login();
             }}
         >
             <Stack tokens={{childrenGap: 8}}>
@@ -99,46 +72,12 @@ const Login = () => {
                     errorMessage={password_error}
                     onChange={(e,v) => setPassword(v)}
                 />
-                {view_create ?
-                    <>
-                        <TextField
-                            label="Confirm Password"
-                            required
-                            type="password"
-                            name="confirm_password"
-                            canRevealPassword
-                            value={confirm_password}
-                            onChange={(e,v) => setConfirmPassword(v)}
-                        />
-                        <TextField
-                            label="Email"
-                            required
-                            type="email"
-                            name="email"
-                            value={email}
-                            onChange={(e,v) => setEmail(v)}
-                        />
-                    </>
-                    :
-                    null
-                }
-                <Stack horizontal tokens={{childrenGap: 8}}>
-                    <Stack.Item>
-                        <DefaultButton 
-                            primary 
-                            text={view_create ? "Create" : "Login"}
-                            type="submit" 
-                            disabled={sending}
-                        />
-                    </Stack.Item>
-                    <Stack.Item>
-                        <DefaultButton
-                            text={view_create ? "Cancel" : "Create"}
-                            disabled={sending}
-                            onClick={() => setViewCreate(!view_create)}
-                        />
-                    </Stack.Item>
-                </Stack>
+                <DefaultButton 
+                    primary 
+                    text={view_create ? "Create" : "Login"}
+                    type="submit" 
+                    disabled={sending}
+                />
             </Stack>
         </form>
     </Stack>

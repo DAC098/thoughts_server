@@ -30,6 +30,9 @@ pub struct ServerConfigShape {
     pub port: Option<u16>,
 
     pub threads: Option<usize>,
+    pub backlog: Option<u32>,
+    pub max_connections: Option<usize>,
+    pub max_connection_rate: Option<usize>,
 
     pub db: Option<DBConfigShape>,
     pub session: Option<SessionConfigShape>,
@@ -77,6 +80,18 @@ fn map_server_config_shape(lhs: &mut ServerConfigShape, rhs: ServerConfigShape) 
 
     if rhs.threads.is_some() {
         lhs.threads = rhs.threads;
+    }
+
+    if rhs.backlog.is_some() {
+        lhs.backlog = rhs.backlog;
+    }
+
+    if rhs.max_connections.is_some() {
+        lhs.max_connections = rhs.max_connections;
+    }
+
+    if rhs.max_connection_rate.is_some() {
+        lhs.max_connection_rate = rhs.max_connection_rate;
     }
 
     if rhs.key.is_some() {
@@ -187,11 +202,26 @@ fn default_bind() -> Vec<BindInterface> {
     ]
 }
 
+fn default_backlog() -> u32 {
+    2048
+}
+
+fn default_max_connections() -> usize {
+    25000
+}
+
+fn default_max_connection_rate() -> usize {
+    256
+}
+
 #[derive(Debug, Clone)]
 pub struct ServerConfig {
     pub bind: Vec<BindInterface>,
 
     pub threads: usize,
+    pub backlog: u32,
+    pub max_connections: usize,
+    pub max_connection_rate: usize,
 
     pub db: DBConfig,
 
@@ -205,6 +235,9 @@ pub fn load_server_config(files: Vec<&std::path::Path>) -> error::Result<ServerC
     let mut base_shape = ServerConfigShape {
         bind: None, port: None,
         threads: None,
+        backlog: None,
+        max_connections: None,
+        max_connection_rate: None,
         db: None,
         session: None,
         key: None, cert: None
@@ -264,6 +297,9 @@ pub fn load_server_config(files: Vec<&std::path::Path>) -> error::Result<ServerC
     Ok(ServerConfig {
         bind: bind_list,
         threads: base_shape.threads.unwrap_or(num_cpus::get()),
+        backlog: base_shape.backlog.unwrap_or(default_backlog()),
+        max_connections: base_shape.max_connections.unwrap_or(default_max_connections()),
+        max_connection_rate: base_shape.max_connection_rate.unwrap_or(default_max_connection_rate()),
         db: db_config,
         session: session_config,
         key: base_shape.key,

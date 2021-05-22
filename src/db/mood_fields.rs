@@ -5,10 +5,10 @@ use crate::db::mood_entries::MoodEntryType;
 use crate::error;
 
 pub struct MoodField {
-    id: i32,
-    name: String,
-    owner: i32,
-    config: MoodFieldType
+    pub id: i32,
+    pub name: String,
+    pub owner: i32,
+    pub config: MoodFieldType
 }
 
 pub async fn find_id(
@@ -21,7 +21,8 @@ pub async fn find_id(
                name, owner,
                config,
                comment
-        from mood_fields where id = $1
+        from mood_fields 
+        where id = $1
         "#,
         &[&id]
     ).await?;
@@ -33,27 +34,65 @@ pub async fn find_id(
             id: result[0].get(0),
             name: result[0].get(1),
             owner: result[0].get(2),
-            config: serde_json::from_value(result[0].get(3))?
+            config: serde_json::from_value(result[0].get(3)).unwrap()
         }))
     }
 }
 
-impl MoodField {
+pub async fn get_via_id(
+    conn: &impl GenericClient,
+    id: i32,
+    initiator_opt: Option<i32>,
+) -> error::Result<MoodField> {
+    if let Some(field) = find_id(conn, id).await? {
+        if let Some(initiator) = initiator_opt {
+            if field.owner != initiator {
+                return Err(error::ResponseError::PermissionDenied(
+                    format!("you do not haver permission to create a mood entry using this field id: {}", field.owner)
+                ))
+            }
+        }
 
-    pub fn get_id(&self) -> i32 {
-        self.id
+        Ok(field)
+    } else {
+        Err(error::ResponseError::MoodFieldNotFound(id))
     }
+}
 
-    pub fn get_name(&self) -> String {
-        self.name.clone()
-    }
-    
-    pub fn get_owner(&self) -> i32 {
-        self.owner
-    }
+pub async fn get_via_mood_entry(
+    conn: &impl GenericClient,
+    mood_entry_id: i32,
+    initiator_opt: Option<i32>
+) -> error::Result<MoodField> {
+    let result = conn.query(
+        r#"
+        select mood_entries.field,
+               entries.owner 
+        from mood_entries 
+        join entries on mood_entries.entry = entries.id
+        where mood_entries.id = $1
+        "#, 
+        &[&mood_entry_id]
+    ).await?;
 
-    pub fn get_config(&self) -> MoodFieldType {
-        self.config.clone()
+    if result.is_empty() {
+        Err(error::ResponseError::MoodEntryNotFound(mood_entry_id))
+    } else {
+        if let Some(initiator) = initiator_opt {
+            if initiator != result[0].get::<usize, i32>(1) {
+                return Err(error::ResponseError::PermissionDenied(
+                    format!("you do not own this mood entry. mood entry: {}", mood_entry_id)
+                ));
+            }
+        }
+
+        let field_id: i32 = result[0].get(0);
+
+        if let Some(field) = find_id(conn, field_id).await? {
+            Ok(field)
+        } else {
+            Err(error::ResponseError::MoodFieldNotFound(field_id))
+        }
     }
 }
 

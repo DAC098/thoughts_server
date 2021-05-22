@@ -17,6 +17,7 @@ mod response;
 mod request;
 mod json;
 mod parsing;
+mod util;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -44,7 +45,7 @@ async fn main() -> std::io::Result<()> {
         Err(e) => panic!("failed to load config file\n{:?}", e)
     };
 
-    log::info!("config {:?}", config);
+    log::info!("config {:#?}", config);
 
     if config.bind.len() == 0 {
         println!("no bind interfaces specified");
@@ -74,7 +75,7 @@ async fn main() -> std::io::Result<()> {
                 .error_handler(handler::handle_json_error)
             )
             .data(state::AppState::new(&pool))
-            .wrap(Logger::new("%a %t \"%r\" %s %b \"%{Referer}i\" %T"))
+            .wrap(Logger::new("%a XF-%{X-Forwarded-For}i:%{X-Forwarded-Port}i %t \"%r\" %s %b \"%{Referer}i\" %T"))
             .wrap(
                 CookieSession::signed(&[0; 32])
                     .secure(true)
@@ -82,26 +83,26 @@ async fn main() -> std::io::Result<()> {
                     .name("thoughts_session")
                     .path("/")
             )
-            .route("/", web::get().to(handler::handle_get_root))
-            .route("/auth/login", web::get().to(handler::auth::handle_get_auth_login))
-            .route("/auth/login", web::post().to(handler::auth::handle_post_auth_login))
-            .route("/auth/logout", web::post().to(handler::auth::handle_post_auth_logout))
-            .route("/auth/change", web::post().to(handler::auth::handle_post_auth_change))
+            .route("/", web::get().to(handler::handle_get))
+            .route("/auth/login", web::get().to(handler::auth::login::handle_get))
+            .route("/auth/login", web::post().to(handler::auth::login::handle_post))
+            .route("/auth/logout", web::post().to(handler::auth::logout::handle_post))
+            .route("/auth/change", web::post().to(handler::auth::change::handle_post))
             .route("/admin/users", web::get().to(handler::admin::users::handle_get))
             .route("/admin/users", web::post().to(handler::admin::users::handle_post))
             .route("/admin/users/{user_id}", web::get().to(handler::admin::users::user_id::handle_get))
             .route("/admin/users/{user_id}", web::put().to(handler::admin::users::user_id::handle_put))
             .route("/admin/users/{user_id}", web::delete().to(handler::admin::users::user_id::handle_delete))
-            .route("/entries", web::get().to(handler::entries::handle_get_entries))
-            .route("/entries", web::post().to(handler::entries::handle_post_entries))
-            .route("/entries/{entry_id}", web::get().to(handler::entries::handle_get_entries_id))
-            .route("/entries/{entry_id}", web::put().to(handler::entries::handle_put_entries_id))
-            .route("/entries/{entry_id}", web::delete().to(handler::entries::handle_delete_entries_id))
-            .route("/mood_fields", web::get().to(handler::mood_fields::handle_get_mood_fields))
-            .route("/mood_fields", web::post().to(handler::mood_fields::handle_post_mood_fields))
-            .route("/mood_fields/{field_id}", web::get().to(handler::mood_fields::handle_get_mood_fields_id))
-            .route("/mood_fields/{field_id}", web::put().to(handler::mood_fields::handle_put_mood_fields_id))
-            .route("/mood_fields/{field_id}", web::delete().to(handler::mood_fields::handle_delete_mood_fields_id))
+            .route("/entries", web::get().to(handler::entries::handle_get))
+            .route("/entries", web::post().to(handler::entries::handle_post))
+            .route("/entries/{entry_id}", web::get().to(handler::entries::entry_id::handle_get))
+            .route("/entries/{entry_id}", web::put().to(handler::entries::entry_id::handle_put))
+            .route("/entries/{entry_id}", web::delete().to(handler::entries::entry_id::handle_delete))
+            .route("/mood_fields", web::get().to(handler::mood_fields::handle_get))
+            .route("/mood_fields", web::post().to(handler::mood_fields::handle_post))
+            .route("/mood_fields/{field_id}", web::get().to(handler::mood_fields::field_id::handle_get))
+            .route("/mood_fields/{field_id}", web::put().to(handler::mood_fields::field_id::handle_put))
+            .route("/mood_fields/{field_id}", web::delete().to(handler::mood_fields::field_id::handle_delete))
             .route("/tags", web::get().to(handler::tags::handle_get))
             .route("/tags", web::post().to(handler::tags::handle_post))
             .route("/tags/{tag_id}", web::get().to(handler::tags::tag_id::handle_get))
@@ -136,9 +137,8 @@ async fn main() -> std::io::Result<()> {
                 "/users/{user_id}/tags",
                 web::get().to(handler::users::user_id::tags::handle_get)
             )
-            .route("/data", web::get().to(handler::handle_get_data))
-            .route("/account", web::get().to(handler::account::handle_get_account))
-            .route("/account", web::put().to(handler::account::handle_put_account))
+            .route("/account", web::get().to(handler::account::handle_get))
+            .route("/account", web::put().to(handler::account::handle_put))
             .route("/settings", web::get().to(handler::okay))
             .route("/settings", web::put().to(handler::okay))
             .route("/backup", web::get().to(handler::backup::handle_get))
@@ -148,7 +148,10 @@ async fn main() -> std::io::Result<()> {
                     .show_files_listing()
                     .redirect_to_slash_directory()
             )
-    });
+    })
+        .backlog(config.backlog)
+        .max_connections(config.max_connections)
+        .max_connection_rate(config.max_connection_rate);
 
     let mut run_ssl = false;
     let mut cert_file = String::from("");
@@ -191,13 +194,11 @@ async fn main() -> std::io::Result<()> {
         };
     }
 
-    let runner = server.workers(config.threads).run();
     log::info!("server listening for requests");
-    let run_result = runner.await;
 
-    if run_result.is_err() {
-        log::error!("server error: {}", run_result.unwrap_err());
+    if let Err(e) = server.workers(config.threads).run().await {
+        log::error!("server error: {}", e);
     }
 
-    return Ok(());
+    Ok(())
 }
