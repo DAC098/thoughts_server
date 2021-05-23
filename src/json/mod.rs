@@ -377,7 +377,7 @@ pub async fn search_entries(
         let mut current_entry_id: i32 = 0;
 
         for row in custom_field_entries {
-            let entry_id: i32 = row.get(5);
+            let entry_id: i32 = row.get(4);
 
             if current_entry_id == 0 {
                 current_entry_id = entry_id;
