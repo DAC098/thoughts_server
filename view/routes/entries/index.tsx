@@ -56,19 +56,19 @@ const EntriesView = ({user_specific = false}: EntriesViewProps) => {
     const [entries_state, loadEntries] = useLoadEntries();
     const [custom_fields_state, loadFields] = useLoadFields();
 
-    let [from_date, setFromDate] = useState<Date>(() => {
+    const [from_date, setFromDate] = useState<Date>(() => {
         if (entries_state.owner != owner)
             return null;
         else
             return entries_state.from != null ? new Date(entries_state.from) : null
     });
-    let [to_date, setToDate] = useState<Date>(() => {
+    const [to_date, setToDate] = useState<Date>(() => {
         if (entries_state.owner != owner)
             return null;
         else
             return entries_state.to != null ? new Date(entries_state.to) : null
     });
-    let [visible_fields, setVisibleFields] = useState<Record<string, boolean>>(() => {
+    const [visible_fields, setVisibleFields] = useState<Record<string, boolean>>(() => {
         let rtn = {};
 
         for (let field of custom_fields_state.custom_fields) {
@@ -77,6 +77,8 @@ const EntriesView = ({user_specific = false}: EntriesViewProps) => {
 
         return rtn;
     });
+
+    const loading_state = custom_fields_state.loading || entries_state.loading || tags_state.loading;
 
     let columns = useMemo(() => {
         let rtn: IColumn[] = [
@@ -153,7 +155,7 @@ const EntriesView = ({user_specific = false}: EntriesViewProps) => {
         }
 
         return rtn;
-    }, [custom_fields_state.custom_fields, tags_state.tags, visible_fields]);
+    }, [loading_state, visible_fields]);
 
     useEffect(() => {
         let rtn = {};
@@ -179,7 +181,6 @@ const EntriesView = ({user_specific = false}: EntriesViewProps) => {
         }
     }, [owner]);
 
-    let loading_state = custom_fields_state.loading || entries_state.loading;
     let command_bar_actions = [
         {
             key: "search",
