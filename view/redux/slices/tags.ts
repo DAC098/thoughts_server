@@ -1,6 +1,7 @@
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit"
 import api from "../../api";
 import { TagJson } from "../../api/types";
+import { compareStrings } from "../../util/compare";
 
 const fetchTags = createAsyncThunk<any, {owner: number | string, user_specific?: boolean}>(
     "tags/fetch_tags",
@@ -35,14 +36,40 @@ export const tags = createSlice({
             state.loading = false;
             state.mapping = {};
         },
-        add_tag: (state, payload: PayloadAction<any>) => {
+        add_tag: (state, action: PayloadAction<TagJson>) => {
+            state.tags.push(action.payload);
+            state.mapping[action.payload.id] = action.payload;
 
+            state.tags.sort((a, b) => {
+                return compareStrings(a.title, b.title);
+            });
         },
-        update_tag: (state, payload: PayloadAction<any>) => {
+        update_tag: (state, action: PayloadAction<TagJson>) => {
+            for (let i = 0; i < state.tags.length; ++i) {
+                if (state.tags[i].id === action.payload.id) {
+                    state.tags[i] = action.payload;
+                    state.mapping[action.payload.id] = action.payload;
+                    break;
+                }
+            }
 
+            state.tags.sort((a, b) => {
+                return compareStrings(a.title, b.title);
+            });
         },
-        delete_tag: (state, payload: PayloadAction<any>) => {
+        delete_tag: (state, action: PayloadAction<number>) => {
+            let i = 0; 
 
+            for (; i < state.tags.length; ++i) {
+                if (state.tags[i].id === action.payload) {
+                    break;
+                }
+            }
+
+            if (i !== state.tags.length) {
+                state.tags.splice(i, 1);
+                delete state.mapping[action.payload];
+            }
         }
     },
     extraReducers: builder => {

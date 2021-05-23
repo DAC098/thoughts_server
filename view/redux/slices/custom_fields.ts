@@ -1,6 +1,7 @@
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
 import api from "../../api"
 import { CustomFieldJson } from "../../api/types"
+import { compareNumbers, compareStrings } from "../../util/compare";
 
 const fetchCustomFields = createAsyncThunk<CustomFieldJson[], {owner: number | string, user_specific?: boolean}>(
     "custom_fields/fetch_custom_fields",
@@ -36,6 +37,16 @@ export const custom_fields = createSlice({
         add_field: (state, action: PayloadAction<CustomFieldJson>) => {
             state.custom_fields.push(action.payload);
             state.mapping[action.payload.id] = action.payload;
+
+            state.custom_fields.sort((a, b) => {
+                let order_sort = compareNumbers(a.order, b.order);
+
+                if (order_sort === 0) {
+                    return compareStrings(a.name, b.name);
+                } else {
+                    return -order_sort;
+                }
+            })
         },
         update_field: (state, action: PayloadAction<CustomFieldJson>) => {
             for (let i = 0; i < state.custom_fields.length; ++i) {
@@ -45,6 +56,16 @@ export const custom_fields = createSlice({
                     break;
                 }
             }
+
+            state.custom_fields.sort((a, b) => {
+                let order_sort = compareNumbers(a.order, b.order);
+
+                if (order_sort === 0) {
+                    return compareStrings(a.name, b.name);
+                } else {
+                    return -order_sort;
+                }
+            })
         },
         delete_field: (state, action: PayloadAction<number>) => {
             let i = 0;

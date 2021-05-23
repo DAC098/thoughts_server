@@ -60,6 +60,7 @@ pub struct CustomFieldJson {
     pub comment: Option<String>,
     pub config: custom_fields::CustomFieldType,
     pub owner: i32,
+    pub order: i32,
     pub issued_by: Option<IssuedByJson>
 }
 
@@ -100,23 +101,24 @@ pub async fn search_custom_fields(
                custom_fields.name as name, 
                custom_fields.config as config,
                custom_fields.comment as comment,
-               custom_fields.owner as owner,
+               custom_fields."owner" as owner,
+               custom_fields.order as order,
                custom_fields.issued_by as issued_by,
                users.username as username,
                users.full_name as full_name
         from custom_fields
         left join users on custom_fields.issued_by = users.id
         where owner = $1
-        order by id asc
+        order by custom_fields."order", custom_fields.name
         "#,
         &[&owner]
     ).await?;
     let mut rtn = Vec::<CustomFieldJson>::with_capacity(rows.len());
 
     for row in rows {
-        let issued_by = match row.get::<usize, Option<i32>>(5) {
+        let issued_by = match row.get::<usize, Option<i32>>(6) {
             Some(id) => Some(IssuedByJson {
-                id, username: row.get(6), full_name: row.get(7)
+                id, username: row.get(7), full_name: row.get(8)
             }),
             None => None
         };
@@ -127,6 +129,7 @@ pub async fn search_custom_fields(
             comment: row.get(3),
             config: serde_json::from_value(row.get(2)).unwrap(),
             owner: row.get(4),
+            order: row.get(5),
             issued_by
         });
     }
@@ -145,6 +148,7 @@ pub async fn search_custom_field(
                custom_fields.config as config,
                custom_fields.comment as comment,
                custom_fields.owner as owner,
+               custom_fields."order" as order,
                custom_fields.issued_by as issued_by,
                users.username as username,
                users.full_name as full_name
@@ -156,9 +160,9 @@ pub async fn search_custom_field(
     ).await?;
 
     if rows.len() == 1 {
-        let issued_by = match rows[0].get::<usize, Option<i32>>(5) {
+        let issued_by = match rows[0].get::<usize, Option<i32>>(6) {
             Some(id) => Some(IssuedByJson {
-                id, username: rows[0].get(6), full_name: rows[0].get(7)
+                id, username: rows[0].get(7), full_name: rows[0].get(8)
             }),
             None => None
         };
@@ -169,6 +173,7 @@ pub async fn search_custom_field(
             config: serde_json::from_value(rows[0].get(2)).unwrap(),
             comment: rows[0].get(3),
             owner: rows[0].get(4),
+            order: rows[0].get(5),
             issued_by
         }))
     } else {
@@ -230,7 +235,7 @@ fn search_custom_field_entries_query_slice<'a>(
         query_slice.push(entry_ids);
     }
 
-    write!(&mut query_str, "    order by custom_field_entries.entry asc, custom_field_entries.field asc")?;
+    write!(&mut query_str, "    order by custom_field_entries.entry asc, custom_fields.\"order\", custom_fields.name")?;
 
     Ok((query_str, query_slice))
 }

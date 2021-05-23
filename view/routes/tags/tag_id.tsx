@@ -195,6 +195,7 @@ const TagsIDView = ({}: TagsIDViewProps) => {
                 color: state.current.color,
                 comment: state.current.comment?.length !== 0 ? state.current.comment : null ?? null
             }).then(tag => {
+                app_dispatch(tags_actions.update_tag(tag));
                 dispatch(reducer_actions.set_tag(tag));
             })
         } else {

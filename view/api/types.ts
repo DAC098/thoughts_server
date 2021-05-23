@@ -14,6 +14,7 @@ export interface CustomFieldJson {
     config: CustomFieldType
     comment?: string
     owner: number
+    order: number
     issued_by?: IssuedByJson
 }
 
@@ -91,12 +92,14 @@ export interface PostCustomField {
     name: string
     config: CustomFieldType
     comment?: string
+    order: number
 }
 
 export interface PutCustomField {
     name: string
     config: CustomFieldType
     comment?: string
+    order: number
 }
 
 export interface UserListItemJson {
@@ -239,18 +242,20 @@ export function makeCustomFieldJson(): CustomFieldJson {
         config: makeCustomFieldType(CustomFieldTypeName.Integer),
         comment: null,
         owner: null,
+        order: 0,
         issued_by: null
     }
 }
 
-export function cloneCustomFieldJson(mood_field: CustomFieldJson): CustomFieldJson {
+export function cloneCustomFieldJson(custom_field: CustomFieldJson): CustomFieldJson {
     return {
-        id: cloneInteger(mood_field.id),
-        name: cloneString(mood_field.name),
-        config: cloneCustomFieldType(mood_field.config),
-        comment: optionalCloneString(mood_field.comment),
-        owner: cloneInteger(mood_field.owner),
-        issued_by: mood_field.issued_by != null ? cloneIssuedByJson(mood_field.issued_by) : null
+        id: cloneInteger(custom_field.id),
+        name: cloneString(custom_field.name),
+        config: cloneCustomFieldType(custom_field.config),
+        comment: optionalCloneString(custom_field.comment),
+        owner: cloneInteger(custom_field.owner),
+        order: cloneInteger(custom_field.order),
+        issued_by: custom_field.issued_by != null ? cloneIssuedByJson(custom_field.issued_by) : null
     }
 }
 

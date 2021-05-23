@@ -83,12 +83,27 @@ export const entryIdViewSlice = createSlice({
             }
         },
         new_entry: (state) => {
+            const store_state = store.getState();
+            let today = new Date();
+            today.setHours(0);
+            today.setMinutes(0);
+            today.setSeconds(0);
+            today.setMilliseconds(0);
+
             state.original = makeEntryJson();
-            state.original.created = (new Date()).toISOString();
+            state.original.created = today.toISOString();
             state.current = makeEntryJson();
             state.current.created = state.original.created.slice(0);
-            state.changes_made = false;
+            state.changes_made = true;
             state.existing_fields = {};
+
+            for (let field of store_state.custom_fields.custom_fields) {
+                let custom_field_entry = makeCustomFieldEntryJson(field.config.type);
+                custom_field_entry.field = field.id;
+                custom_field_entry.name = field.name;
+                state.current.custom_field_entries.push(custom_field_entry);
+                state.existing_fields[field.id] = true;
+            }
         },
         update_entry: (state, action: PayloadAction<string>) => {
             state.current.created = action.payload;

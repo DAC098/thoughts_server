@@ -45,22 +45,20 @@ const CustomFieldsView = ({user_specific = false}: CustomFieldsViewProps) => {
     >
         <ScrollablePane>
             <Sticky stickyPosition={StickyPositionType.Header} stickyBackgroundColor={"white"}>
-                <Stack horizontal verticalAlign="center" horizontalAlign="start">
-                    <CommandBar items={[
-                        {
-                            key: "refresh",
-                            text: "Refresh",
-                            iconProps: {iconName: "Refresh"},
-                            onClick: loadFields
-                        },
-                        {
-                            key: "new_field",
-                            text: "New Field",
-                            iconProps: {iconName: "Add"},
-                            onClick: () => history.push("/custom_fields/0")
-                        }
-                    ]}/>
-                </Stack>
+                <CommandBar items={[
+                    {
+                        key: "refresh",
+                        text: "Refresh",
+                        iconProps: {iconName: "Refresh"},
+                        onClick: loadFields
+                    },
+                    {
+                        key: "new_field",
+                        text: "New Field",
+                        iconProps: {iconName: "Add"},
+                        onClick: () => history.push("/custom_fields/0")
+                    }
+                ]}/>
             </Sticky>
             <ShimmeredDetailsList
                 items={custom_fields_state.custom_fields}
@@ -83,6 +81,15 @@ const CustomFieldsView = ({user_specific = false}: CustomFieldsViewProps) => {
                             }}>
                                 {item.name}
                             </Link>
+                        }
+                    },
+                    {
+                        key: "order",
+                        name: "Order",
+                        minWidth: 40,
+                        maxWidth: 60,
+                        onRender: (item: CustomFieldJson) => {
+                            return item.order;
                         }
                     },
                     {

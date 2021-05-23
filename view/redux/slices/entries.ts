@@ -1,6 +1,7 @@
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
 import api from "../../api"
 import { EntryJson, GetEntriesQuery } from "../../api/types"
+import { compareDates } from "../../util/compare";
 
 const fetchEntries = createAsyncThunk<EntryJson[],{owner: number | string, user_specific?: boolean, query?: GetEntriesQuery}>(
     "entries/fetch_entries",
@@ -58,6 +59,10 @@ export const entries = createSlice({
                     break;
                 }
             }
+
+            state.entries.sort((a, b) => {
+                return compareDates(new Date(a.created), new Date(b.created));
+            })
         },
         delete_entry: (state, action: PayloadAction<number>) => {
             let i = 0;

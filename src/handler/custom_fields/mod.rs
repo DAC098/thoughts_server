@@ -46,7 +46,8 @@ pub async fn handle_get(
 pub struct PostCustomFieldJson {
     name: String,
     config: db::custom_fields::CustomFieldType,
-    comment: Option<String>
+    comment: Option<String>,
+    order: i32
 }
 
 pub async fn handle_post(
@@ -67,14 +68,16 @@ pub async fn handle_post(
 
     let config_json = serde_json::to_value(posted.config.clone())?;
     let result = conn.query_one(
-        "insert into custom_fields (name, config, comment, owner) values 
-        ($1, $2, $3, $4) 
-        returning id, name, config, comment",
+        r#"
+        insert into custom_fields (name, config, comment, owner, "order") values 
+        ($1, $2, $3, $4, $5)
+        returning id, name, config, comment"#,
         &[
             &posted.name, 
             &config_json,
             &posted.comment, 
-            &initiator.user.get_id()
+            &initiator.user.get_id(),
+            &posted.order
         ]
     ).await?;
 
@@ -88,6 +91,7 @@ pub async fn handle_post(
                 config: serde_json::from_value(result.get(2))?,
                 comment: result.get(3),
                 owner: initiator.user.get_id(),
+                order: posted.order,
                 issued_by: None
             }
         )

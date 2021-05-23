@@ -61,7 +61,8 @@ pub async fn handle_get(
 pub struct PutCustomFieldJson {
     name: String,
     config: db::custom_fields::CustomFieldType,
-    comment: Option<String>
+    comment: Option<String>,
+    order: i32
 }
 
 pub async fn handle_put(
@@ -79,14 +80,16 @@ pub async fn handle_put(
         update custom_fields
         set name = $1,
             config = $2,
-            comment = $3
-        where id = $4
+            comment = $3,
+            "order" = $4
+        where id = $5
         returning name, comment
         "#,
         &[
             &posted.name,
             &config_json,
             &posted.comment,
+            &posted.order,
             &path.field_id
         ]
     ).await?;
@@ -101,6 +104,7 @@ pub async fn handle_put(
                 config: posted.config.clone(),
                 comment: result.get(1),
                 owner: initiator.user.get_id(),
+                order: posted.order,
                 issued_by: None
             }
         )

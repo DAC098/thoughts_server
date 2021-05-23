@@ -1,13 +1,15 @@
-import { DefaultButton, Dialog, DialogFooter, DialogType, Dropdown, IconButton, IDropdownOption, Stack, TextField } from "@fluentui/react"
-import React, { createContext, Dispatch, useContext, useEffect, useReducer } from "react"
+import { DefaultButton, Dialog, DialogFooter, DialogType, Dropdown, IconButton, IDropdownOption, Position, SpinButton, Stack, TextField } from "@fluentui/react"
+import React, { createContext, Dispatch, Reducer, useContext, useEffect, useReducer } from "react"
 import { useHistory, useLocation, useParams } from "react-router"
 import { cloneCustomFieldJson, makeCustomFieldJson, CustomFieldJson } from "../../api/types"
 import api from "../../api"
 import { useOwner } from "../../hooks/useOwner"
 import { makeCustomFieldType, CustomFieldType, CustomFieldTypeName } from "../../api/custom_field_types"
 import { CustomFieldTypeEditView } from "../../components/custom_fields"
-import { useAppDispatch } from "../../hooks/useApp"
+import { useAppDispatch, useAppSelector } from "../../hooks/useApp"
 import { custom_field_actions } from "../../redux/slices/custom_fields"
+import { createSlice, PayloadAction } from "@reduxjs/toolkit"
+import { SliceActionTypes } from "../../redux/types"
 
 interface FieldState {
     original?: CustomFieldJson
@@ -86,110 +88,83 @@ type FieldStateActions = SetLoading | SetSending |
     ChangeConfigType | UpdateConfig |
     UpdateComment | UpdateName;
 
-function fieldStateReducer(state: FieldState, action: FieldStateActions): FieldState {
-    switch (action.type) {
-        case "set-loading": {
-            return {
-                ...state,
-                loading: action.value
-            }
-        }
-        case "set-sending": {
-            return {
-                ...state,
-                sending: action.value
-            }
-        }
-        case "prep-delete": {
-            return {
-                ...state,
-                prep_delete: action.value
-            }
-        }
-        case "set-deleting": {
-            return {
-                ...state,
-                deleting: action.value
-            }
-        }
-        case "set-edit": {
-            return {
-                ...state,
-                edit_view: action.value
-            }
-        }
-        case "set-field": {
-            return {
-                ...state,
-                changes_made: false,
-                current: cloneCustomFieldJson(action.value),
-                original: cloneCustomFieldJson(action.value)
-            }
-        }
-        case "reset-field": {
-            return {
-                ...state,
-                changes_made: false,
-                current: cloneCustomFieldJson(state.original)
-            }
-        }
-        case "new-field": {
-            return {
-                ...state,
-                changes_made: false,
-                current: makeCustomFieldJson(),
-                original: makeCustomFieldJson()
-            }
-        }
-        case "change-config-type": {
-            let current = cloneCustomFieldJson(state.current);
-            current.config = makeCustomFieldType((action.value as CustomFieldTypeName));
-
-            return {
-                ...state,
-                current,
-                changes_made: true
-            }
-        }
-        case "update-config": {
-            let current = cloneCustomFieldJson(state.current);
-            current.config = action.value;
-
-            return {
-                ...state,
-                current,
-                changes_made: true
-            }
-        }
-        case "update-comment": {
-            let current = cloneCustomFieldJson(state.current);
-            current.comment = action.value.length !== 0 ? action.value : null;
-
-            return {
-                ...state,
-                current,
-                changes_made: true
-            }
-        }
-        case "update-name": {
-            let current = cloneCustomFieldJson(state.current);
-            current.name = action.value;
-
-            return {
-                ...state,
-                current,
-                changes_made: true
-            }
-        }
-        default: {
-            return {
-                ...state
-            }
-        }
+function makeInitialState(edit_view: boolean): FieldState {
+    return {
+        current: null, original: null,
+        changes_made: false,
+        loading: false,
+        sending: false,
+        prep_delete: false,
+        deleting: false,
+        edit_view
     }
 }
 
-const FieldStateContext = createContext<Dispatch<FieldStateActions>>(null);
+const fieldStateSlice = createSlice({
+    name: "field_state",
+    initialState: makeInitialState(false),
+    reducers: {
+        set_loading: (state, action: PayloadAction<boolean>) => {
+            state.loading = action.payload;
+        },
+        set_sending: (state, action: PayloadAction<boolean>) => {
+            state.sending = action.payload;
+        },
+        set_prep_delete: (state, action: PayloadAction<boolean>) => {
+            state.prep_delete = action.payload;
+        },
+        set_deleting: (state, action: PayloadAction<boolean>) => {
+            state.deleting = action.payload;
+        },
+        set_edit_view: (state, action: PayloadAction<boolean>) => {
+            state.edit_view = action.payload;
+        },
+
+        set_field: (state, action: PayloadAction<CustomFieldJson>) => {
+            state.original = action.payload;
+            state.current = cloneCustomFieldJson(action.payload);
+            state.changes_made = false;
+        },
+        reset_field: (state) => {
+            state.current = cloneCustomFieldJson(state.original);
+            state.changes_made = false;
+        },
+        new_field: (state) => {
+            state.original = makeCustomFieldJson();
+            state.current = makeCustomFieldJson();
+            state.changes_made = false;
+        },
+
+        change_config_type: (state, action: PayloadAction<CustomFieldTypeName>) => {
+            state.current.config = makeCustomFieldType(action.payload);
+            state.changes_made = true;
+        },
+        update_config: (state, action: PayloadAction<CustomFieldType>) => {
+            state.current.config = action.payload;
+            state.changes_made = true;
+        },
+
+        update_comment: (state,action: PayloadAction<string>) => {
+            state.current.comment = action.payload.length !== 0 ? action.payload : null;
+            state.changes_made = true;
+        },
+        update_name: (state,action: PayloadAction<string>) => {
+            state.current.name = action.payload;
+            state.changes_made = true;
+        },
+        update_order: (state, action: PayloadAction<number>) => {
+            state.current.order = action.payload;
+            state.changes_made = true;
+        }
+    }
+});
+
+const reducer_actions = {
+    ...fieldStateSlice.actions
+}
+
+type FieldStateActionsTypes = SliceActionTypes<typeof reducer_actions>;
+type FieldStateReducer = Reducer<FieldState, FieldStateActionsTypes>;
 
 interface FieldIdViewProps {
     user_specific?: boolean
@@ -200,34 +175,30 @@ const FieldIdView = ({user_specific = false}: FieldIdViewProps) => {
     const history = useHistory();
     const params = useParams<{field_id: string, user_id?: string}>();
     const owner = useOwner(user_specific);
+    const custom_fields_state = useAppSelector(state => state.custom_fields);
     const appDispatch = useAppDispatch();
 
     const allow_edit = params.user_id == null;
 
-    const [state,dispatch] = useReducer(fieldStateReducer, {
-        current: null, original: null,
-        changes_made: false,
-        loading: false,
-        sending: false,
-        prep_delete: false,
-        deleting: false,
-        edit_view: allow_edit && params.field_id === "0"
-    })
+    const [state,dispatch] = useReducer<FieldStateReducer>(
+        fieldStateSlice.reducer, 
+        makeInitialState(allow_edit && params.field_id === "0")
+    );
 
     const fetchField = () => {
         if (state.loading) {
             return;
         }
 
-        dispatch({type:"set-loading", value: true});
+        dispatch(reducer_actions.set_loading(true));
 
         (user_specific ?
             api.users.id.custom_fields.id.get(owner, params.field_id) :
             api.custom_fields.id.get(params.field_id)
         ).then((field) => {
-            dispatch({type: "set-field", value: field});
+            dispatch(reducer_actions.set_field(field));
         }).catch(console.error).then(() => {
-            dispatch({type:"set-loading", value: false});
+            dispatch(reducer_actions.set_loading(false));
         });
     }
 
@@ -244,26 +215,26 @@ const FieldIdView = ({user_specific = false}: FieldIdViewProps) => {
             return;
         }
 
-        dispatch({type: "set-sending", value: true});
+        dispatch(reducer_actions.set_sending(true));
 
         let promise = null;
 
         if (state.current.id) {
             promise = api.custom_fields.id.put(state.current.id, state.current).then(field => {
-                history.replace(`/custom_fields/${field.id}`, {field});
-                dispatch({type: "set-field", value: field});
+                history.replace(`/custom_fields/${field.id}`);
+                dispatch(reducer_actions.set_field(field));
                 appDispatch(custom_field_actions.update_field(field))
             });
         } else {
             promise = api.custom_fields.post(state.current).then(field => {
-                history.push(`/custom_fields/${field.id}`, {field});
-                dispatch({type: "set-field", value: field});
+                history.push(`/custom_fields/${field.id}`);
+                dispatch(reducer_actions.set_field(field));
                 appDispatch(custom_field_actions.add_field(field));
             });
         }
 
         promise.catch(console.error).then(() => {
-            dispatch({type: "set-sending", value: false});
+            dispatch(reducer_actions.set_sending(false));
         })
     }
 
@@ -280,23 +251,37 @@ const FieldIdView = ({user_specific = false}: FieldIdViewProps) => {
             return;
         }
 
-        dispatch({type: "set-deleting", value: true});
+        dispatch(reducer_actions.set_deleting(true));
 
         api.custom_fields.id.del(state.current.id).then(() => {
             appDispatch(custom_field_actions.delete_field(state.current.id));
             history.push("/custom_fields");
-        }).catch(console.error);
+        }).catch((e) => {
+            console.error(e);
+            dispatch(reducer_actions.set_deleting(false));
+        });
     }
 
     useEffect(() => {
         let field_id = parseInt(params.field_id);
 
         if (isNaN(field_id) || field_id === 0) {
-            dispatch({type: "new-field"});
+            dispatch(reducer_actions.new_field());
             return;
         }
         
-        fetchField();
+        if (custom_fields_state.loading) {
+            fetchField();
+        } else {
+            for (let field of custom_fields_state.custom_fields) {
+                if (field.id === field_id) {
+                    dispatch(reducer_actions.set_field(cloneCustomFieldJson(field)));
+                    return;
+                }
+            }
+
+            fetchField();
+        }
     }, [params.field_id]);
 
     let options: IDropdownOption[] = [];
@@ -309,7 +294,7 @@ const FieldIdView = ({user_specific = false}: FieldIdViewProps) => {
         });
     }
 
-    return <FieldStateContext.Provider value={dispatch}>
+    return <>
         <Stack
             horizontal
             verticalAlign="center"
@@ -334,20 +319,20 @@ const FieldIdView = ({user_specific = false}: FieldIdViewProps) => {
                                 placeholder="Name"
                                 value={state.current.name}
                                 disabled={!state.edit_view}
-                                onChange={(e,v) => dispatch({type: "update-name", value: v})}
+                                onChange={(e,v) => dispatch(reducer_actions.update_name(v))}
                             />
                             <Dropdown
                                 style={{minWidth: 130}}
                                 options={options}
                                 disabled={!state.edit_view}
                                 onChange={(e, o, i) => {
-                                    dispatch({type: "change-config-type", value: (o.key as string)})
+                                    dispatch(reducer_actions.change_config_type(o.key as CustomFieldTypeName))
                                 }}
                             />
                             {allow_edit ?
                                 <IconButton 
                                     iconProps={{iconName: "Edit"}} 
-                                    onClick={() => dispatch({type: "set-edit", value: !state.edit_view})}
+                                    onClick={() => dispatch(reducer_actions.set_edit_view(!state.edit_view))}
                                 />
                                 :
                                 null
@@ -366,13 +351,13 @@ const FieldIdView = ({user_specific = false}: FieldIdViewProps) => {
                                                 text: "Reset",
                                                 disabled:  !state.changes_made,
                                                 iconProps: {iconName: "Refresh"},
-                                                onClick: () => dispatch({type: "reset-field"})
+                                                onClick: () => dispatch(reducer_actions.reset_field())
                                             },
                                             {
                                                 key: "delete",
                                                 text: "Delete",
                                                 iconProps: {iconName: "Delete"},
-                                                onClick: () => dispatch({type: "prep-delete", value: true})
+                                                onClick: () => dispatch(reducer_actions.set_prep_delete(true))
                                             }
                                         ]
                                     }}
@@ -381,11 +366,27 @@ const FieldIdView = ({user_specific = false}: FieldIdViewProps) => {
                                 null
                             }
                         </Stack>
-                        <CustomFieldTypeEditView config={state.current.config} onChange={conf => dispatch({type: "update-config", value: conf})}/>
+                        <CustomFieldTypeEditView 
+                            config={state.current.config} 
+                            onChange={conf => dispatch(reducer_actions.update_config(conf))}
+                        />
+                        <SpinButton
+                            label="Order"
+                            labelPosition={Position.top}
+                            value={state.current.order.toString()}
+                            styles={{root: {width: 200}}}
+                            onChange={(e,v) => {
+                                let int = parseInt(v);
+
+                                if (!isNaN(int)) {
+                                    dispatch(reducer_actions.update_order(int));
+                                }
+                            }}
+                        />
                         <TextField
                             label="Comment"
                             value={state.current.comment ?? ""}
-                            onChange={(e,v) => dispatch({type: "update-comment", value: v})}
+                            onChange={(e,v) => dispatch(reducer_actions.update_comment(v))}
                         />
                     </>
                     :
@@ -408,7 +409,7 @@ const FieldIdView = ({user_specific = false}: FieldIdViewProps) => {
         </Stack>
         <Dialog
             hidden={!state.prep_delete}
-            onDismiss={() => dispatch({type: "prep-delete", value: false})}
+            onDismiss={() => dispatch(reducer_actions.set_prep_delete(false))}
             dialogContentProps={{
                 type: DialogType.normal,
                 title: "Delete Field",
@@ -420,17 +421,17 @@ const FieldIdView = ({user_specific = false}: FieldIdViewProps) => {
                     text="Yes"
                     primary
                     onClick={() => {
-                        dispatch({type: "prep-delete", value: false});
+                        dispatch(reducer_actions.set_prep_delete(false));
                         deleteField();
                     }}
                 />
                 <DefaultButton
                     text="No"
-                    onClick={() => dispatch({type: "prep-delete", value: false})}
+                    onClick={() => dispatch(reducer_actions.set_prep_delete(false))}
                 />
             </DialogFooter>
         </Dialog>
-    </FieldStateContext.Provider>
+    </>
 }
 
 export default FieldIdView;

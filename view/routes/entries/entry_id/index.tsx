@@ -1,4 +1,4 @@
-import { DatePicker, DefaultButton, Dialog, DialogFooter, DialogType, IBasePicker, IconButton, IContextualMenuItem, ITag, Label, ScrollablePane, Separator, Stack, Sticky, StickyPositionType, TagItem, TagItemSuggestion, TagPicker, Text, TextField, Toggle } from "@fluentui/react"
+import { ContextualMenuItemType, DatePicker, DefaultButton, Dialog, DialogFooter, DialogType, IBasePicker, IconButton, IContextualMenuItem, ITag, Label, ScrollablePane, Separator, Stack, Sticky, StickyPositionType, TagItem, TagItemSuggestion, TagPicker, Text, TextField, Toggle } from "@fluentui/react"
 import React, { useContext, useEffect, useReducer, useRef } from "react"
 import { useHistory, useLocation, useParams } from "react-router-dom"
 import api from "../../../api"
@@ -123,7 +123,7 @@ const CustomFieldEntriesReadView = ({custom_fields, custom_field_entries}: Custo
         {custom_field_entries.map((custom_field_entry, index) => 
             <Stack key={custom_field_entry.field} tokens={{childrenGap: 8}}>
                 <Stack tokens={{childrenGap: 8}}>
-                    <Separator alignContent="start">{custom_field_entry.field}</Separator>
+                    <Separator alignContent="start">{custom_field_entry.name}</Separator>
                     <CustomFieldEntryTypeReadView 
                         value={custom_field_entry.value} 
                         config={custom_fields?.[custom_field_entry.field]?.config}
@@ -275,26 +275,63 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
         }
     }, [params.entry_id]);
 
-    let entry_options: IContextualMenuItem[] = [
-        {key: "new-text-entry", text: "Text Entry", onClick: () => {
-            dispatch(entry_id_view_actions.create_text_entry());
-        }}
-    ];
+    let fields_section = [];
+    let issued_fields_section = [];
 
     for (let field_id in (custom_fields_state.mapping ?? {})) {
         if (field_id in state.existing_fields) {
             continue;
         }
 
-        entry_options.push({
-            key: custom_fields_state.mapping[field_id].name,
-            text: custom_fields_state.mapping[field_id].name,
-            title: custom_fields_state.mapping[field_id].comment,
-            onClick: () => {
-                dispatch(entry_id_view_actions.create_mood_entry(field_id))
-            }
-        });
+        if (custom_fields_state.mapping[field_id].issued_by != null) {
+            issued_fields_section.push({
+                key: custom_fields_state[field_id].name,
+                text: custom_fields_state[field_id].name,
+                title: custom_fields_state[field_id].comment,
+                onClick: () => {
+                    dispatch(entry_id_view_actions.create_mood_entry(field_id))
+                }
+            });
+        } else {
+            fields_section.push({
+                key: custom_fields_state.mapping[field_id].name,
+                text: custom_fields_state.mapping[field_id].name,
+                title: custom_fields_state.mapping[field_id].comment,
+                onClick: () => {
+                    dispatch(entry_id_view_actions.create_mood_entry(field_id))
+                }
+            });
+        }
     }
+
+    let entry_options: IContextualMenuItem[] = [
+        {
+            key: "new-text-entry", 
+            text: "Text Entry", 
+            onClick: () => {
+                dispatch(entry_id_view_actions.create_text_entry());
+            }
+        },
+        {
+            key: "possible_fields", 
+            itemType: ContextualMenuItemType.Section,
+            sectionProps: {
+                topDivider: true,
+                bottomDivider: true,
+                title: "Custom Fields",
+                items: fields_section
+            }
+        },
+        {
+            key: "issued_fields",
+            itemType: ContextualMenuItemType.Section,
+            sectionProps: {
+                topDivider: true,
+                title: "Issued Fields",
+                items: []
+            }
+        }
+    ];
 
     console.log(state);
 
