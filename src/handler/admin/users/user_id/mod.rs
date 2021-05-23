@@ -286,13 +286,13 @@ pub async fn handle_delete(
         &[&path.user_id]
     ).await?;
 
-    let _mood_entries = transaction.execute(
-        "delete from mood_entries where entry in (select id from entries where owner = $1)",
+    let _custom_field_entries = transaction.execute(
+        "delete from custom_field_entries where entry in (select id from entries where owner = $1)",
         &[&path.user_id]
     ).await?;
 
-    let _mood_fields = transaction.execute(
-        "delete from mood_fields where owner = $1",
+    let _custom_fields = transaction.execute(
+        "delete from custom_fields where owner = $1",
         &[&path.user_id]
     ).await?;
 

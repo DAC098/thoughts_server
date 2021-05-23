@@ -1,6 +1,5 @@
 import { getURL } from ".";
 import { json } from "../request";
-import { getCreatedDateToString } from "../time"
 import { EntryJson, GetEntriesQuery, PostEntry } from "./types";
 
 export async function get(query: GetEntriesQuery = {}) {

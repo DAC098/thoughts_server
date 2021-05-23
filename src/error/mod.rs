@@ -24,14 +24,13 @@ pub enum ResponseError {
     UserIDNotFound(i32),
     EntryNotFound(i32),
     TextEntryNotFound(i32),
-    MoodEntryNotFound(i32),
-    MoodFieldNotFound(i32),
+    CustomFieldNotFound(i32),
     TagNotFound(i32),
 
     UsernameExists(String),
     EmailExists(String),
     EntryExists(String),
-    MoodFieldExists(String),
+    CustomFieldExists(String),
 
     // specific module errors
 
@@ -67,14 +66,13 @@ impl ResponseError {
             ResponseError::UserIDNotFound(_) => "UserIDNotFound",
             ResponseError::EntryNotFound(_) => "EntryNotFound",
             ResponseError::TextEntryNotFound(_) => "TextEntryNotFound",
-            ResponseError::MoodEntryNotFound(_) => "MoodEntryNotFound",
-            ResponseError::MoodFieldNotFound(_) => "MoodFieldNotFound",
+            ResponseError::CustomFieldNotFound(_) => "CustomFieldNotFound",
             ResponseError::TagNotFound(_) => "TagNotFound",
 
             ResponseError::UsernameExists(_) => "UsernameExists",
             ResponseError::EmailExists(_) => "EmailExists",
             ResponseError::EntryExists(_) => "EntryExists",
-            ResponseError::MoodFieldExists(_) => "MoodFieldExists",
+            ResponseError::CustomFieldExists(_) => "MoodFieldExists",
 
             ResponseError::RustFMTError(_) => "InternalError",
             ResponseError::RustIOError(_) => "InternalError",
@@ -108,14 +106,13 @@ impl ResponseError {
             ResponseError::UserIDNotFound(id) => format!("failed to find the requested user id: {}", id),
             ResponseError::EntryNotFound(id) => format!("failed to find the requested entry id: {}", id),
             ResponseError::TextEntryNotFound(id) => format!("failed to find the requested text entry id: {}", id),
-            ResponseError::MoodEntryNotFound(id) => format!("failed to find the requested mood entry id: {}", id),
-            ResponseError::MoodFieldNotFound(id) => format!("failed to find the requested mood field id: {}", id),
+            ResponseError::CustomFieldNotFound(id) => format!("failed to find the requested custom field id: {}", id),
             ResponseError::TagNotFound(id) => format!("failed to find the requested tag id: {}", id),
 
             ResponseError::UsernameExists(_) => format!("given username already exist"),
             ResponseError::EmailExists(_) => format!("given email already exists"),
             ResponseError::EntryExists(created) => format!("given entry date already exists. date: {}", created),
-            ResponseError::MoodFieldExists(name) => format!("given mood field already exists. name: {}", name),
+            ResponseError::CustomFieldExists(name) => format!("given mood field already exists. name: {}", name),
 
             ResponseError::RustFMTError(_) => "internal server error".to_owned(),
             ResponseError::RustIOError(_) => "internal server error".to_owned(),
@@ -171,14 +168,13 @@ impl ActixResponseError for ResponseError {
             ResponseError::UserIDNotFound(_) => StatusCode::NOT_FOUND,
             ResponseError::EntryNotFound(_) => StatusCode::NOT_FOUND,
             ResponseError::TextEntryNotFound(_) => StatusCode::NOT_FOUND,
-            ResponseError::MoodEntryNotFound(_) => StatusCode::NOT_FOUND,
-            ResponseError::MoodFieldNotFound(_) => StatusCode::NOT_FOUND,
+            ResponseError::CustomFieldNotFound(_) => StatusCode::NOT_FOUND,
             ResponseError::TagNotFound(_) => StatusCode::NOT_FOUND,
 
             ResponseError::UsernameExists(_) => StatusCode::BAD_REQUEST,
             ResponseError::EmailExists(_) => StatusCode::BAD_REQUEST,
             ResponseError::EntryExists(_) => StatusCode::BAD_REQUEST,
-            ResponseError::MoodFieldExists(_) => StatusCode::BAD_REQUEST,
+            ResponseError::CustomFieldExists(_) => StatusCode::BAD_REQUEST,
 
             ResponseError::RustFMTError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             ResponseError::RustIOError(_) => StatusCode::INTERNAL_SERVER_ERROR,

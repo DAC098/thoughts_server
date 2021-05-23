@@ -1,6 +1,6 @@
 import { optionalCloneInteger, cloneInteger, optionalCloneString, cloneString, cloneBoolean } from "../util/clone";
-import { cloneMoodEntryType, makeMoodEntryType, MoodEntryType } from "./mood_entry_types";
-import { cloneMoodFieldType, makeMoodFieldType, MoodFieldType, MoodFieldTypeName } from "./mood_field_types";
+import { cloneMoodEntryType, makeMoodEntryType, CustomFieldEntryType } from "./custom_field_entry_types";
+import { cloneCustomFieldType, makeCustomFieldType, CustomFieldType, CustomFieldTypeName } from "./custom_field_types";
 
 export interface IssuedByJson {
     id: number
@@ -8,20 +8,19 @@ export interface IssuedByJson {
     full_name?: string
 }
 
-export interface MoodFieldJson {
+export interface CustomFieldJson {
     id: number
     name: string
-    config: MoodFieldType
+    config: CustomFieldType
     comment?: string
     owner: number
     issued_by?: IssuedByJson
 }
 
-export interface MoodEntryJson {
-    id: number
-    field: string
-    field_id: number
-    value: MoodEntryType
+export interface CustomFieldEntryJson {
+    field: number
+    name: string
+    value: CustomFieldEntryType
     comment?: string
 }
 
@@ -36,7 +35,7 @@ export interface EntryJson {
     created: string
     owner: number
     tags: number[]
-    mood_entries: MoodEntryJson[]
+    custom_field_entries: CustomFieldEntryJson[]
     text_entries: TextEntryJson[]
 }
 
@@ -53,9 +52,9 @@ export interface GetEntriesQuery {
     to?: Date
 }
 
-export interface PostMoodEntry {
-    field_id: number
-    value: MoodEntryType,
+export interface PostCustomFieldEntry {
+    field: number
+    value: CustomFieldEntryType,
     comment?: string
 }
 
@@ -64,9 +63,9 @@ export interface PostTextEntry {
 }
 
 export interface PostEntry {
-    created?: string
+    created: string
     tags?: number[]
-    mood_entries?: PostMoodEntry[]
+    custom_field_entries?: PostCustomFieldEntry[]
     text_entries?: PostTextEntry[]
 }
 
@@ -75,29 +74,28 @@ export interface PutTextEntry {
     thought: string
 }
 
-export interface PutMoodEntry {
-    id?: number
-    field_id?: number
-    value: MoodEntryType
+export interface PutCustomFieldEntry {
+    field: number
+    value: CustomFieldEntryType
     comment?: string
 }
 
 export interface PutEntry {
     created: string,
     tags: number[]
-    mood_entries?: PutMoodEntry[]
+    custom_field_entries?: PutCustomFieldEntry[]
     text_entries?: PutTextEntry[]
 }
 
-export interface PostMoodField {
+export interface PostCustomField {
     name: string
-    config: MoodFieldType
+    config: CustomFieldType
     comment?: string
 }
 
-export interface PutMoodField {
+export interface PutCustomField {
     name: string
-    config: MoodFieldType
+    config: CustomFieldType
     comment?: string
 }
 
@@ -142,23 +140,21 @@ export interface PostLogin {
     password: string
 }
 
-export function makeMoodEntryJson(type: MoodFieldTypeName = MoodFieldTypeName.Integer): MoodEntryJson {
+export function makeCustomFieldEntryJson(type: CustomFieldTypeName = CustomFieldTypeName.Integer): CustomFieldEntryJson {
     return {
-        id: null,
-        field: "",
-        field_id: 0,
+        field: 0,
+        name: "",
         value: makeMoodEntryType(type),
         comment: null
     }
 }
 
-export function cloneMoodEntryJson(mood_entry: MoodEntryJson): MoodEntryJson {
+export function cloneCustomFieldEntryJson(custom_field_entry: CustomFieldEntryJson): CustomFieldEntryJson {
     return {
-        id: optionalCloneInteger(mood_entry.id),
-        field: mood_entry.field.slice(0),
-        field_id: cloneInteger(mood_entry.field_id),
-        value: cloneMoodEntryType(mood_entry.value),
-        comment: optionalCloneString(mood_entry.comment)
+        field: cloneInteger(custom_field_entry.field),
+        name: cloneString(custom_field_entry.name),
+        value: cloneMoodEntryType(custom_field_entry.value),
+        comment: optionalCloneString(custom_field_entry.comment)
     };
 }
 
@@ -184,7 +180,7 @@ export function makeEntryJson(): EntryJson {
         created: "",
         owner: 0,
         tags: [],
-        mood_entries: [],
+        custom_field_entries: [],
         text_entries: []
     }
 }
@@ -195,13 +191,13 @@ export function cloneEntryJson(entry: EntryJson) {
         created: cloneString(entry.created),
         owner: cloneInteger(entry.owner),
         tags: [],
-        mood_entries: [],
+        custom_field_entries: [],
         text_entries: []
     };
 
-    for (let m of (entry.mood_entries ?? [])) {
-        rtn.mood_entries.push(
-            cloneMoodEntryJson(m)
+    for (let m of (entry.custom_field_entries ?? [])) {
+        rtn.custom_field_entries.push(
+            cloneCustomFieldEntryJson(m)
         );
     }
 
@@ -236,22 +232,22 @@ export function cloneIssuedByJson(issued_by: IssuedByJson): IssuedByJson {
     }
 }
 
-export function makeMoodFieldJson(): MoodFieldJson {
+export function makeCustomFieldJson(): CustomFieldJson {
     return {
         id: null,
         name: "",
-        config: makeMoodFieldType(MoodFieldTypeName.Integer),
+        config: makeCustomFieldType(CustomFieldTypeName.Integer),
         comment: null,
         owner: null,
         issued_by: null
     }
 }
 
-export function cloneMoodFieldJson(mood_field: MoodFieldJson): MoodFieldJson {
+export function cloneCustomFieldJson(mood_field: CustomFieldJson): CustomFieldJson {
     return {
         id: cloneInteger(mood_field.id),
         name: cloneString(mood_field.name),
-        config: cloneMoodFieldType(mood_field.config),
+        config: cloneCustomFieldType(mood_field.config),
         comment: optionalCloneString(mood_field.comment),
         owner: cloneInteger(mood_field.owner),
         issued_by: mood_field.issued_by != null ? cloneIssuedByJson(mood_field.issued_by) : null

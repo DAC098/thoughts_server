@@ -1,17 +1,23 @@
-export function getCreatedStringToDate(created: string) {
-    let split = created.split("-");
-    let year = parseInt(split[0]);
-    let month = parseInt(split[1]) - 1;
-    let day = parseInt(split[2]);
-
-    return new Date(year, month, day);
+function padISONum(number: number) {
+    let normal = Math.floor(Math.abs(number));
+    return (normal < 10 ? '0' : '') + normal;
 }
 
-export function getCreatedDateToString(created: Date) {
-    let month = created.getMonth() + 1;
-    let day = created.getDate();
-    return `${created.getFullYear()}-${month < 10 ? `0${month}` : month}-${day < 10 ? `0${day}` : day}`;
+export function toISOOffsetString(date: Date) {
+    let tzo = -date.getTimezoneOffset();
+    let dif = tzo >= 0 ? "+" : "-";
+    
+    return date.getFullYear() +
+        '-' + padISONum(date.getMonth() + 1) +
+        '-' + padISONum(date.getDate()) +
+        'T' + padISONum(date.getHours()) +
+        ':' + padISONum(date.getMinutes()) +
+        ':' + padISONum(date.getSeconds()) +
+        dif + padISONum(tzo / 60) +
+        ':' + padISONum(tzo % 60);
 }
+
+window["toISOOffsetString"] = toISOOffsetString;
 
 export function compareDates(a: Date, b: Date) {
     return a.getTime() === b.getTime();

@@ -19,10 +19,9 @@ pub struct PutTextEntryJson {
 }
 
 #[derive(Deserialize)]
-pub struct PutMoodEntryJson {
-    id: Option<i32>,
-    field_id: Option<i32>,
-    value: db::mood_entries::MoodEntryType,
+pub struct PutCustomFieldEntryJson {
+    field: i32,
+    value: db::custom_field_entries::CustomFieldEntryType,
     comment: Option<String>
 }
 
@@ -30,7 +29,7 @@ pub struct PutMoodEntryJson {
 pub struct PutEntryJson {
     created: chrono::DateTime<chrono::Utc>,
     tags: Option<Vec<i32>>,
-    mood_entries: Option<Vec<PutMoodEntryJson>>,
+    custom_field_entries: Option<Vec<PutCustomFieldEntryJson>>,
     text_entries: Option<Vec<PutTextEntryJson>>
 }
 
@@ -110,79 +109,46 @@ pub async fn handle_put(
         id: path.entry_id,
         created: result.get(0),
         tags: vec!(),
-        mood_entries: vec!(),
+        custom_field_entries: vec!(),
         text_entries: vec!(),
         owner: initiator.user.get_id()
     };
 
-    if let Some(m) = &posted.mood_entries {
+    if let Some(m) = &posted.custom_field_entries {
         let mut ids: Vec<i32> = vec!();
-        let mut mood_entries: Vec<json::MoodEntryJson> = vec!();
+        let mut custom_field_entries: Vec<json::CustomFieldEntryJson> = vec!();
 
-        for mood_entry in m {
-            if let Some(id) = mood_entry.id {
-                let field = db::mood_fields::get_via_mood_entry(&transaction, id, Some(initiator.user.id)).await?;
+        for custom_field_entry in m {
+            let field = db::custom_fields::get_via_id(&transaction, custom_field_entry.field, Some(initiator.user.id)).await?;
 
-                db::mood_fields::verifiy(&field.config, &mood_entry.value)?;
-            
-                let value_json = serde_json::to_value(mood_entry.value.clone())?;
-                let _result = transaction.execute(
-                    r#"
-                    update mood_entries
-                    set value = $1,
-                        comment = $2
-                    where id = $3
-                    "#,
-                    &[&value_json, &mood_entry.comment, &id]
-                ).await?;
+            db::custom_fields::verifiy(&field.config, &custom_field_entry.value)?;
 
-                ids.push(id);
-                mood_entries.push(json::MoodEntryJson {
-                    id: id,
-                    field: field.name,
-                    field_id: field.id,
-                    value: mood_entry.value.clone(),
-                    comment: util::clone_option(&mood_entry.comment),
-                    entry: path.entry_id
-                });
-            } else {
-                let field_id = match mood_entry.field_id {
-                    Some(id) => id,
-                    None => Err(app_error::ResponseError::Validation(
-                        "no mood entry id was specified to update".to_owned()
-                    ))?
-                };
+            let value_json = serde_json::to_value(custom_field_entry.value.clone())?;
+            let _result = transaction.execute(
+                r#"
+                insert into custom_field_entries (field, value, comment, entry) values
+                ($1, $2, $3, $4)
+                on conflict on constraint entry_field_key do update
+                set value = excluded.value,
+                    comment = excluded.comment
+                "#,
+                &[&field.id, &value_json, &custom_field_entry.comment, &path.entry_id]
+            ).await?;
 
-                let field = db::mood_fields::get_via_id(&transaction, field_id, Some(initiator.user.id)).await?;
-
-                db::mood_fields::verifiy(&field.config, &mood_entry.value)?;
-
-                let value_json = serde_json::to_value(mood_entry.value.clone())?;
-                let result = transaction.query_one(
-                    r#"
-                    insert into mood_entries (field, value, comment, entry) values
-                    ($1, $2, $3, $4)
-                    returning id
-                    "#,
-                    &[&field_id, &value_json, &mood_entry.comment, &path.entry_id]
-                ).await?;
-
-                ids.push(result.get(0));
-                mood_entries.push(json::MoodEntryJson {
-                    id: result.get(0),
-                    field: field.name,
-                    field_id: field.id,
-                    value: mood_entry.value.clone(),
-                    comment: util::clone_option(&mood_entry.comment),
-                    entry: path.entry_id
-                });
-            }
+            ids.push(field.id);
+            custom_field_entries.push(json::CustomFieldEntryJson {
+                field: field.id,
+                name: field.name,
+                value: custom_field_entry.value.clone(),
+                comment: util::clone_option(&custom_field_entry.comment),
+                entry: path.entry_id
+            });
         }
 
-        rtn.mood_entries.append(&mut mood_entries);
+        rtn.custom_field_entries.append(&mut custom_field_entries);
 
         let left_over = transaction.query(
-            "select id from mood_entries where entry = $1 and not (id = any($2))",
+            "select field from custom_field_entries where entry = $1 and not (field = any($2))",
             &[&path.entry_id, &ids]
         ).await?;
 
@@ -194,12 +160,12 @@ pub async fn handle_put(
             }
 
             let _result = transaction.execute(
-                "delete from mood_entries where id = any($1)",
-                &[&to_delete]
+                "delete from custom_field_entries where field = any($1) and entry = $2",
+                &[&to_delete, &path.entry_id]
             ).await?;
         }
     } else {
-        rtn.mood_entries = json::search_mood_entries(&transaction, &path.entry_id).await?;
+        rtn.custom_field_entries = json::search_custom_field_entries(&transaction, &path.entry_id).await?;
     }
 
     if let Some(t) = &posted.text_entries {
@@ -368,8 +334,8 @@ pub async fn handle_delete(
         &[&path.entry_id]
     ).await?;
 
-    let _mood_result = transaction.execute(
-        "delete from mood_entries where entry = $1",
+    let _custom_field_entries_result = transaction.execute(
+        "delete from custom_field_entries where entry = $1",
         &[&path.entry_id]
     ).await?;
 

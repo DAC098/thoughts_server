@@ -5,15 +5,15 @@ import { useLoadEntries } from "../../hooks/useLoadEntries"
 import { useLoadFields } from "../../hooks/useLoadFields"
 import { useOwner } from "../../hooks/useOwner"
 import { EntryJson } from "../../api/types"
-import { MoodEntryType } from "../../api/mood_entry_types"
+import { CustomFieldEntryType } from "../../api/custom_field_entry_types"
 import { diffDates, displayDate, get12hrStr, get24hrStr, sameDate } from "../../time"
 import { useAppDispatch, useAppSelector } from "../../hooks/useApp"
-import { MoodFieldType, Time, TimeRange } from "../../api/mood_field_types"
+import { CustomFieldType, Time, TimeRange } from "../../api/custom_field_types"
 import { tags_actions } from "../../redux/slices/tags"
 import { getBrightness } from "../../util/colors"
 import TagToken from "../../components/tags/TagItem"
 
-function renderMoodFieldType(value: MoodEntryType, config: MoodFieldType) {
+function renderMoodFieldType(value: CustomFieldEntryType, config: CustomFieldType) {
     switch (value.type) {
         case "Integer":
             return `${value.value}`
@@ -54,7 +54,7 @@ const EntriesView = ({user_specific = false}: EntriesViewProps) => {
     const appDispatch = useAppDispatch();
 
     const [entries_state, loadEntries] = useLoadEntries();
-    const [mood_fields_state, loadFields] = useLoadFields();
+    const [custom_fields_state, loadFields] = useLoadFields();
 
     let [from_date, setFromDate] = useState<Date>(() => {
         if (entries_state.owner != owner)
@@ -71,7 +71,7 @@ const EntriesView = ({user_specific = false}: EntriesViewProps) => {
     let [visible_fields, setVisibleFields] = useState<Record<string, boolean>>(() => {
         let rtn = {};
 
-        for (let field of mood_fields_state.mood_fields) {
+        for (let field of custom_fields_state.custom_fields) {
             rtn[field.name] = true;
         }
 
@@ -95,7 +95,7 @@ const EntriesView = ({user_specific = false}: EntriesViewProps) => {
             }
         ];
 
-        for (let field of mood_fields_state.mood_fields) {
+        for (let field of custom_fields_state.custom_fields) {
             if (!visible_fields[field.name]) {
                 continue;
             }
@@ -106,10 +106,10 @@ const EntriesView = ({user_specific = false}: EntriesViewProps) => {
                 minWidth: 100,
                 maxWidth: 150,
                 onRender: (item: EntryJson) => {
-                    for (let m of item.mood_entries) {
-                        if (m.field_id === field.id) {
+                    for (let m of item.custom_field_entries) {
+                        if (m.field === field.id) {
                             let content = <>
-                                {renderMoodFieldType(m.value, mood_fields_state.mapping[m.field_id].config)}
+                                {renderMoodFieldType(m.value, custom_fields_state.mapping[m.field].config)}
                                 {m.comment && m.comment.length > 0 ?
                                     <Icon style={{paddingLeft: 4}} iconName="Info"/>
                                     :
@@ -153,24 +153,24 @@ const EntriesView = ({user_specific = false}: EntriesViewProps) => {
         }
 
         return rtn;
-    }, [mood_fields_state.mood_fields, tags_state.tags, visible_fields]);
+    }, [custom_fields_state.custom_fields, tags_state.tags, visible_fields]);
 
     useEffect(() => {
         let rtn = {};
 
-        for (let field of mood_fields_state.mood_fields) {
+        for (let field of custom_fields_state.custom_fields) {
             rtn[field.name] = true;
         }
         
         setVisibleFields(rtn);
-    }, [mood_fields_state.mood_fields])
+    }, [custom_fields_state.custom_fields])
     
     useEffect(() => {
         if (entries_state.owner !== owner) {
             loadEntries(owner, user_specific, {from: from_date, to: to_date});
         }
 
-        if (mood_fields_state.owner !== owner) {
+        if (custom_fields_state.owner !== owner) {
             loadFields(owner, user_specific);
         }
 
@@ -179,7 +179,7 @@ const EntriesView = ({user_specific = false}: EntriesViewProps) => {
         }
     }, [owner]);
 
-    let loading_state = mood_fields_state.loading || entries_state.loading;
+    let loading_state = custom_fields_state.loading || entries_state.loading;
     let command_bar_actions = [
         {
             key: "search",
@@ -200,7 +200,7 @@ const EntriesView = ({user_specific = false}: EntriesViewProps) => {
 
     let visible_fields_options: ICommandBarItemProps[] = [];
 
-    for (let field of mood_fields_state.mood_fields) {
+    for (let field of custom_fields_state.custom_fields) {
         visible_fields_options.push({
             key: field.name, 
             text: field.name,
@@ -248,7 +248,7 @@ const EntriesView = ({user_specific = false}: EntriesViewProps) => {
                                         {
                                             key: "fields",
                                             text: "Fields",
-                                            disabled: mood_fields_state.mood_fields.length === 0,
+                                            disabled: custom_fields_state.custom_fields.length === 0,
                                             subMenuProps: {
                                                 onItemClick: (ev, item) => {
                                                     ev.preventDefault();

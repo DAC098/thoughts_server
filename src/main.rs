@@ -98,11 +98,11 @@ async fn main() -> std::io::Result<()> {
             .route("/entries/{entry_id}", web::get().to(handler::entries::entry_id::handle_get))
             .route("/entries/{entry_id}", web::put().to(handler::entries::entry_id::handle_put))
             .route("/entries/{entry_id}", web::delete().to(handler::entries::entry_id::handle_delete))
-            .route("/mood_fields", web::get().to(handler::mood_fields::handle_get))
-            .route("/mood_fields", web::post().to(handler::mood_fields::handle_post))
-            .route("/mood_fields/{field_id}", web::get().to(handler::mood_fields::field_id::handle_get))
-            .route("/mood_fields/{field_id}", web::put().to(handler::mood_fields::field_id::handle_put))
-            .route("/mood_fields/{field_id}", web::delete().to(handler::mood_fields::field_id::handle_delete))
+            .route("/custom_fields", web::get().to(handler::custom_fields::handle_get))
+            .route("/custom_fields", web::post().to(handler::custom_fields::handle_post))
+            .route("/custom_fields/{field_id}", web::get().to(handler::custom_fields::field_id::handle_get))
+            .route("/custom_fields/{field_id}", web::put().to(handler::custom_fields::field_id::handle_put))
+            .route("/custom_fields/{field_id}", web::delete().to(handler::custom_fields::field_id::handle_delete))
             .route("/tags", web::get().to(handler::tags::handle_get))
             .route("/tags", web::post().to(handler::tags::handle_post))
             .route("/tags/{tag_id}", web::get().to(handler::tags::tag_id::handle_get))
@@ -126,12 +126,12 @@ async fn main() -> std::io::Result<()> {
                 web::get().to(handler::users::user_id::entries::entry_id::handle_get)
             )
             .route(
-                "/users/{user_id}/mood_fields",
-                web::get().to(handler::users::user_id::mood_fields::handle_get)
+                "/users/{user_id}/custom_fields",
+                web::get().to(handler::users::user_id::custom_fields::handle_get)
             )
             .route(
-                "/users/{user_id}/mood_fields/{field_id}",
-                web::get().to(handler::users::user_id::mood_fields::field_id::handle_get)
+                "/users/{user_id}/custom_fields/{field_id}",
+                web::get().to(handler::users::user_id::custom_fields::field_id::handle_get)
             )
             .route(
                 "/users/{user_id}/tags",

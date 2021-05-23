@@ -2,9 +2,9 @@ import { DatePicker, DefaultButton, Dialog, DialogFooter, DialogType, IBasePicke
 import React, { useContext, useEffect, useReducer, useRef } from "react"
 import { useHistory, useLocation, useParams } from "react-router-dom"
 import api from "../../../api"
-import { MoodEntryType } from "../../../api/mood_entry_types"
-import { EntryJson, MoodEntryJson, MoodFieldJson, TagJson, TextEntryJson } from "../../../api/types"
-import { MoodEntryTypeEditView, MoodEntryTypeReadView } from "../../../components/mood_entries"
+import { CustomFieldEntryType } from "../../../api/custom_field_entry_types"
+import { EntryJson, CustomFieldEntryJson, CustomFieldJson, TagJson, TextEntryJson } from "../../../api/types"
+import { CustomFieldEntryTypeEditView, CustomFieldEntryTypeReadView } from "../../../components/custom_field_entries"
 import { useAppDispatch, useAppSelector } from "../../../hooks/useApp"
 import { entryIdViewSlice, EntryIdViewContext, initialState, TextEntryUI, entry_id_view_actions, EntryIdViewReducer } from "./reducer"
 import { actions as entries_actions } from "../../../redux/slices/entries"
@@ -60,11 +60,11 @@ const TextEntryReadView = ({text_entries}: TextEntryReadViewProps) => {
 }
 
 interface MoodEntryInputProps {
-    field: MoodFieldJson
-    entry: MoodEntryJson
+    field: CustomFieldJson
+    entry: CustomFieldEntryJson
 
     onDelete?: () => void
-    onChange?: (entry: {comment: string, value: MoodEntryType}) => void
+    onChange?: (entry: {comment: string, value: CustomFieldEntryType}) => void
 }
 
 const MoodEntryInputs = ({
@@ -82,7 +82,7 @@ const MoodEntryInputs = ({
                 onDelete?.();
             }}/>
         </Stack>
-        <MoodEntryTypeEditView value={entry.value} config={similar_types ? field.config : null} onChange={value => {
+        <CustomFieldEntryTypeEditView value={entry.value} config={similar_types ? field.config : null} onChange={value => {
             onChange?.({comment: entry.comment, value});
         }}/>
         <TextField type="text" placeholder="comment" value={entry.comment ?? ""} onChange={(e,v) => {
@@ -91,20 +91,20 @@ const MoodEntryInputs = ({
     </Stack>
 }
 
-interface MoodEntriesEditViewProps {
-    mood_fields: {[id: string]: MoodFieldJson}
-    mood_entries: MoodEntryJson[]
+interface CustomFieldEntriesEditViewProps {
+    custom_fields: {[id: string]: CustomFieldJson}
+    custom_field_entries: CustomFieldEntryJson[]
 }
 
-const MoodEntriesEditView = ({mood_fields, mood_entries}: MoodEntriesEditViewProps) => {
+const CustomFieldEntriesEditView = ({custom_fields, custom_field_entries}: CustomFieldEntriesEditViewProps) => {
     let dispatch = useContext(EntryIdViewContext);
 
     return <Stack tokens={{childrenGap: 8}}>
-        {mood_entries.map((mood_entry,index) =>
+        {custom_field_entries.map((custom_field_entry,index) =>
             <MoodEntryInputs
-                key={mood_entry.field_id}
-                field={mood_fields?.[mood_entry.field_id]}
-                entry={mood_entry}
+                key={custom_field_entry.field}
+                field={custom_fields?.[custom_field_entry.field]}
+                entry={custom_field_entry}
         
                 onDelete={() => dispatch(entry_id_view_actions.delete_mood_entry(index))}
                 onChange={(value) => dispatch(entry_id_view_actions.update_mood_entry({index, ...value}))}
@@ -113,23 +113,23 @@ const MoodEntriesEditView = ({mood_fields, mood_entries}: MoodEntriesEditViewPro
     </Stack>
 }
 
-interface MoodEntriessReadViewProps {
-    mood_entries: MoodEntryJson[]
-    mood_fields: {[id: string]: MoodFieldJson}
+interface CustomFieldEntriesReadViewProps {
+    custom_field_entries: CustomFieldEntryJson[]
+    custom_fields: {[id: string]: CustomFieldJson}
 }
 
-const MoodEntriesReadView = ({mood_fields, mood_entries}: MoodEntriessReadViewProps) => {
+const CustomFieldEntriesReadView = ({custom_fields, custom_field_entries}: CustomFieldEntriesReadViewProps) => {
     return <Stack tokens={{childrenGap: 8}}>
-        {mood_entries.map((mood_entry, index) => 
-            <Stack key={mood_entry.field_id} tokens={{childrenGap: 8}}>
+        {custom_field_entries.map((custom_field_entry, index) => 
+            <Stack key={custom_field_entry.field} tokens={{childrenGap: 8}}>
                 <Stack tokens={{childrenGap: 8}}>
-                    <Separator alignContent="start">{mood_entry.field}</Separator>
-                    <MoodEntryTypeReadView 
-                        value={mood_entry.value} 
-                        config={mood_fields?.[mood_entry.field_id]?.config}
+                    <Separator alignContent="start">{custom_field_entry.field}</Separator>
+                    <CustomFieldEntryTypeReadView 
+                        value={custom_field_entry.value} 
+                        config={custom_fields?.[custom_field_entry.field]?.config}
                     />
                 </Stack>
-                <Text>{mood_entry.comment}</Text>
+                <Text>{custom_field_entry.comment}</Text>
             </Stack>
         )}
     </Stack>
@@ -145,7 +145,7 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
     const params = useParams<{entry_id: string, user_id?: string}>();
     
     const entries_state = useAppSelector(state => state.entries);
-    const mood_fields_state = useAppSelector(state => state.mood_fields);
+    const custom_fields_state = useAppSelector(state => state.custom_fields);
     const tags_state = useAppSelector(state => state.tags);
     const appDispatch = useAppDispatch();
 
@@ -189,10 +189,9 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
             promise = api.entries.id.put(state.current.id, {
                 created: state.current.created,
                 tags: state.current.tags,
-                mood_entries: state.current.mood_entries.map(v => {
+                custom_field_entries: state.current.custom_field_entries.map(v => {
                     return {
-                        id: v.id,
-                        field_id: v.field_id,
+                        field: v.field,
                         value: v.value,
                         comment: v.comment
                     }
@@ -208,9 +207,9 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
             promise = api.entries.post({
                 created: state.current.created,
                 tags: state.current.tags,
-                mood_entries: state.current.mood_entries.map(v => {
+                custom_field_entries: state.current.custom_field_entries.map(v => {
                     return {
-                        field_id: v.field_id,
+                        field: v.field,
                         value: v.value,
                         comment: v.comment
                     }
@@ -282,15 +281,15 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
         }}
     ];
 
-    for (let field_id in (mood_fields_state.mapping ?? {})) {
+    for (let field_id in (custom_fields_state.mapping ?? {})) {
         if (field_id in state.existing_fields) {
             continue;
         }
 
         entry_options.push({
-            key: mood_fields_state.mapping[field_id].name,
-            text: mood_fields_state.mapping[field_id].name,
-            title: mood_fields_state.mapping[field_id].comment,
+            key: custom_fields_state.mapping[field_id].name,
+            text: custom_fields_state.mapping[field_id].name,
+            title: custom_fields_state.mapping[field_id].comment,
             onClick: () => {
                 dispatch(entry_id_view_actions.create_mood_entry(field_id))
             }
@@ -436,10 +435,10 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
                                         }}
                                     />
                                     <TextEntryEditView text_entries={state.current.text_entries}/>
-                                    {!mood_fields_state.loading ?
-                                        <MoodEntriesEditView 
-                                            mood_fields={mood_fields_state.mapping} 
-                                            mood_entries={state.current.mood_entries}
+                                    {!custom_fields_state.loading ?
+                                        <CustomFieldEntriesEditView 
+                                            custom_fields={custom_fields_state.mapping} 
+                                            custom_field_entries={state.current.custom_field_entries}
                                         />
                                         :
                                         <h6>Loading</h6>
@@ -453,10 +452,10 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
                                         />) : null}
                                     </Stack>
                                     <TextEntryReadView text_entries={state.current.text_entries}/>
-                                    {!mood_fields_state.loading ?
-                                        <MoodEntriesReadView 
-                                            mood_fields={mood_fields_state.mapping}
-                                            mood_entries={state.current.mood_entries}
+                                    {!custom_fields_state.loading ?
+                                        <CustomFieldEntriesReadView 
+                                            custom_fields={custom_fields_state.mapping}
+                                            custom_field_entries={state.current.custom_field_entries}
                                         />
                                         :
                                         <h6>Loading</h6>

@@ -1,7 +1,7 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { createContext, Dispatch, Reducer } from "react"
-import { MoodEntryType } from "../../../api/mood_entry_types";
-import { cloneEntryJson, EntryJson, makeEntryJson, makeMoodEntryJson, makeTextEntry, MoodEntryJson, TextEntryJson } from "../../../api/types"
+import { CustomFieldEntryType } from "../../../api/custom_field_entry_types";
+import { cloneEntryJson, EntryJson, makeEntryJson, makeCustomFieldEntryJson, makeTextEntry, CustomFieldEntryJson, TextEntryJson } from "../../../api/types"
 import { store } from "../../../redux/store";
 import { SliceActionTypes } from "../../../redux/types";
 
@@ -11,20 +11,20 @@ interface UIKey {
 
 export interface TextEntryUI extends UIKey, TextEntryJson {}
 
-export interface MoodEntryUI extends UIKey, MoodEntryJson {
+export interface MoodEntryUI extends UIKey, CustomFieldEntryJson {
     error_msg?: string
 }
 
 export interface EntryUIState extends EntryJson {
     text_entries: TextEntryUI[]
-    mood_entries: MoodEntryUI[]
+    custom_field_entries: MoodEntryUI[]
 }
 
 export interface EntryIdViewState {
     original?: EntryUIState
     current?: EntryUIState
     tag_mapping: {[id: string]: boolean}
-    existing_fields: {[id: string]: number}
+    existing_fields: {[id: string]: boolean}
     changes_made: boolean
     prep_delete: boolean
     edit_view: boolean
@@ -60,8 +60,8 @@ export const entryIdViewSlice = createSlice({
             state.tag_mapping = {};
             state.changes_made = false;
 
-            for (let field of state.current.mood_entries) {
-                state.existing_fields[field.field_id] = field.id;
+            for (let field of state.current.custom_field_entries) {
+                state.existing_fields[field.field] = true;
             }
 
             for (let tag of state.current.tags) {
@@ -74,8 +74,8 @@ export const entryIdViewSlice = createSlice({
             state.tag_mapping = {};
             state.changes_made = false;
 
-            for (let field of state.current.mood_entries) {
-                state.existing_fields[field.field_id] = field.id;
+            for (let field of state.current.custom_field_entries) {
+                state.existing_fields[field.field] = true;
             }
 
             for (let tag of state.current.tags) {
@@ -98,7 +98,7 @@ export const entryIdViewSlice = createSlice({
         create_mood_entry: (state, action: PayloadAction<string>) => {
             const store_state = store.getState();
 
-            let field = store_state.mood_fields.mapping[action.payload];
+            let field = store_state.custom_fields.mapping[action.payload];
 
             if (field == null) {
                 return;
@@ -108,22 +108,22 @@ export const entryIdViewSlice = createSlice({
                 return;
             }
 
-            let mood_entry = makeMoodEntryJson(field.config.type);
-            mood_entry.field = field.name;
-            mood_entry.field_id = field.id;
+            let mood_entry = makeCustomFieldEntryJson(field.config.type);
+            mood_entry.field = field.id;
+            mood_entry.name = field.name;
 
-            state.current.mood_entries.push(mood_entry);
-            state.existing_fields[field.id] = 0;
+            state.current.custom_field_entries.push(mood_entry);
+            state.existing_fields[field.id] = true;
             state.changes_made = true;
         },
-        update_mood_entry: (state, action: PayloadAction<{index: number, comment: string, value: MoodEntryType}>) => {
-            state.current.mood_entries[action.payload.index].comment = action.payload.comment;
-            state.current.mood_entries[action.payload.index].value = action.payload.value;
+        update_mood_entry: (state, action: PayloadAction<{index: number, comment: string, value: CustomFieldEntryType}>) => {
+            state.current.custom_field_entries[action.payload.index].comment = action.payload.comment;
+            state.current.custom_field_entries[action.payload.index].value = action.payload.value;
             state.changes_made = true;
         },
         delete_mood_entry: (state, action: PayloadAction<number>) => {
-            delete state.existing_fields[state.current.mood_entries[action.payload].id];
-            state.current.mood_entries.splice(action.payload, 1);
+            delete state.existing_fields[state.current.custom_field_entries[action.payload].field];
+            state.current.custom_field_entries.splice(action.payload, 1);
             state.changes_made = true;
         },
 

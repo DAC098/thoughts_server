@@ -51,14 +51,14 @@ const Users = () => {
                                     onClick: () => history.push(`/users/${v.id}/entries`)
                                 },
                                 {
-                                    key: "mood_fields",
+                                    key: "custom_fields",
                                     text: "Fields",
-                                    onClick: () => history.push(`/users/${v.id}/mood_fields`)
+                                    onClick: () => history.push(`/users/${v.id}/custom_fields`)
                                 },
                                 {
-                                    key: "drop_access",
-                                    text: "Drop Access",
-                                    onClick: () => {}
+                                    key: "tags",
+                                    text: "Tags",
+                                    onClick: () => history.push(`/users/${v.id}/tags`)
                                 }
                             ]
                         }}

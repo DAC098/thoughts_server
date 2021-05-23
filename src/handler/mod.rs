@@ -8,7 +8,7 @@ use crate::state;
 
 pub mod auth;
 pub mod entries;
-pub mod mood_fields;
+pub mod custom_fields;
 pub mod users;
 pub mod account;
 pub mod backup;

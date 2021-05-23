@@ -5,16 +5,15 @@ use std::marker::{Sync};
 use tokio_postgres::{GenericClient, types::ToSql};
 use serde::{Deserialize, Serialize};
 
-use crate::db::mood_fields;
-use crate::db::mood_entries;
+use crate::db::custom_fields;
+use crate::db::custom_field_entries;
 use crate::error;
 
 #[derive(Serialize, Clone)]
-pub struct MoodEntryJson {
-    pub id: i32,
-    pub field: String,
-    pub field_id: i32,
-    pub value: mood_entries::MoodEntryType,
+pub struct CustomFieldEntryJson {
+    pub field: i32,
+    pub name: String,
+    pub value: custom_field_entries::CustomFieldEntryType,
     pub comment: Option<String>,
     pub entry: i32
 }
@@ -43,7 +42,7 @@ pub struct EntryJson {
     pub created: chrono::DateTime<chrono::Utc>,
     pub owner: i32,
     pub tags: Vec<i32>,
-    pub mood_entries: Vec<MoodEntryJson>,
+    pub custom_field_entries: Vec<CustomFieldEntryJson>,
     pub text_entries: Vec<TextEntryJson>
 }
 
@@ -55,11 +54,11 @@ pub struct IssuedByJson {
 }
 
 #[derive(Serialize)]
-pub struct MoodFieldJson {
+pub struct CustomFieldJson {
     pub id: i32,
     pub name: String,
     pub comment: Option<String>,
-    pub config: mood_fields::MoodFieldType,
+    pub config: custom_fields::CustomFieldType,
     pub owner: i32,
     pub issued_by: Option<IssuedByJson>
 }
@@ -91,28 +90,28 @@ pub struct UserInfoJson {
     pub user_access: Vec<UserAccessInfoJson>
 }
 
-pub async fn search_mood_fields(
+pub async fn search_custom_fields(
     conn: &impl GenericClient,
     owner: i32,
-) -> error::Result<Vec<MoodFieldJson>> {
+) -> error::Result<Vec<CustomFieldJson>> {
     let rows = conn.query(
         r#"
-        select mood_fields.id as id,
-               mood_fields.name as name, 
-               mood_fields.config as config,
-               mood_fields.comment as comment,
-               mood_fields.owner as owner,
-               mood_fields.issued_by as issued_by,
+        select custom_fields.id as id,
+               custom_fields.name as name, 
+               custom_fields.config as config,
+               custom_fields.comment as comment,
+               custom_fields.owner as owner,
+               custom_fields.issued_by as issued_by,
                users.username as username,
                users.full_name as full_name
-        from mood_fields
-        left join users on mood_fields.issued_by = users.id
+        from custom_fields
+        left join users on custom_fields.issued_by = users.id
         where owner = $1
         order by id asc
         "#,
         &[&owner]
     ).await?;
-    let mut rtn = Vec::<MoodFieldJson>::with_capacity(rows.len());
+    let mut rtn = Vec::<CustomFieldJson>::with_capacity(rows.len());
 
     for row in rows {
         let issued_by = match row.get::<usize, Option<i32>>(5) {
@@ -122,7 +121,7 @@ pub async fn search_mood_fields(
             None => None
         };
 
-        rtn.push(MoodFieldJson {
+        rtn.push(CustomFieldJson {
             id: row.get(0),
             name: row.get(1),
             comment: row.get(3),
@@ -135,23 +134,23 @@ pub async fn search_mood_fields(
     Ok(rtn)
 }
 
-pub async fn search_mood_field(
+pub async fn search_custom_field(
     conn: &impl GenericClient,
     field_id: i32
-) -> error::Result<Option<MoodFieldJson>> {
+) -> error::Result<Option<CustomFieldJson>> {
     let rows = conn.query(
         r#"
-        select mood_fields.id as id,
-               mood_fields.name as name, 
-               mood_fields.config as config,
-               mood_fields.comment as comment,
-               mood_fields.owner as owner,
-               mood_fields.issued_by as issued_by,
+        select custom_fields.id as id,
+               custom_fields.name as name, 
+               custom_fields.config as config,
+               custom_fields.comment as comment,
+               custom_fields.owner as owner,
+               custom_fields.issued_by as issued_by,
                users.username as username,
                users.full_name as full_name
-        from mood_fields
-        left join users on mood_fields.issued_by = users.id
-        where mood_fields.id = $1
+        from custom_fields
+        left join users on custom_fields.issued_by = users.id
+        where custom_fields.id = $1
         "#,
         &[&field_id]
     ).await?;
@@ -164,7 +163,7 @@ pub async fn search_mood_field(
             None => None
         };
 
-        Ok(Some(MoodFieldJson {
+        Ok(Some(CustomFieldJson {
             id: rows[0].get(0),
             name: rows[0].get(1),
             config: serde_json::from_value(rows[0].get(2)).unwrap(),
@@ -209,30 +208,29 @@ fn search_text_entries_query_slice<'a>(
     Ok((query_str, query_slice))
 }
 
-fn search_mood_entries_query_slice<'a>(
+fn search_custom_field_entries_query_slice<'a>(
     entry_ids: &'a Vec<i32>,
 ) -> error::Result<(String, Vec<&'a(dyn ToSql + Sync)>)> {
     let mut query_str = r#"
-    select mood_entries.id as id,
-           mood_fields.name as field,
-           mood_fields.id as field_id,
-           mood_entries.value as value,
-           mood_entries.comment as comment,
-           mood_entries.entry as entry
-    from mood_entries
-    join mood_fields on mood_entries.field = mood_fields.id
+    select custom_fields.id as field,
+           custom_fields.name as name,
+           custom_field_entries.value as value,
+           custom_field_entries.comment as comment,
+           custom_field_entries.entry as entry
+    from custom_field_entries
+    join custom_fields on custom_field_entries.field = custom_fields.id
     where "#.to_owned();
     let mut query_slice: Vec<&(dyn ToSql + Sync)> = vec!();
 
     if entry_ids.len() == 1 {
-        write!(&mut query_str, "mood_entries.entry = $1")?;
+        write!(&mut query_str, "custom_field_entries.entry = $1")?;
         query_slice.push(&entry_ids[0]);
     } else {
-        write!(&mut query_str, "mood_entries.entry = any($1)")?;
+        write!(&mut query_str, "custom_field_entries.entry = any($1)")?;
         query_slice.push(entry_ids);
     }
 
-    write!(&mut query_str, "    order by mood_entries.entry asc, mood_entries.field asc")?;
+    write!(&mut query_str, "    order by custom_field_entries.entry asc, custom_field_entries.field asc")?;
 
     Ok((query_str, query_slice))
 }
@@ -274,23 +272,22 @@ pub async fn search_text_entries(
         .collect())
 }
 
-pub async fn search_mood_entries(
+pub async fn search_custom_field_entries(
     conn: &impl GenericClient,
     entry_id: &i32,
-) -> error::Result<Vec<MoodEntryJson>> {
+) -> error::Result<Vec<CustomFieldEntryJson>> {
     let entry_ids: Vec<i32> = vec!(*entry_id);
-    let (query_str, query_slice) = search_mood_entries_query_slice(&entry_ids)?;
+    let (query_str, query_slice) = search_custom_field_entries_query_slice(&entry_ids)?;
 
     Ok(conn.query(query_str.as_str(), &query_slice[..])
         .await?
         .iter()
-        .map(|row| MoodEntryJson {
-            id: row.get(0),
-            field: row.get(1),
-            field_id: row.get(2),
-            value: serde_json::from_value(row.get(3)).unwrap(),
-            comment: row.get(4),
-            entry: row.get(5)
+        .map(|row| CustomFieldEntryJson {
+            field: row.get(0),
+            name: row.get(1),
+            value: serde_json::from_value(row.get(2)).unwrap(),
+            comment: row.get(3),
+            entry: row.get(4)
         })
         .collect())
 }
@@ -363,7 +360,7 @@ pub async fn search_entries(
             created: row.get(1),
             owner: row.get(2),
             tags: vec!(),
-            mood_entries: vec!(),
+            custom_field_entries: vec!(),
             text_entries: vec!()
         });
         entry_hash_map.insert(entry_id, count);
@@ -371,40 +368,39 @@ pub async fn search_entries(
     }
 
     {
-        let mood_entries = {
-            let (query_str, query_slice) = search_mood_entries_query_slice(&entry_ids)?;
+        let custom_field_entries = {
+            let (query_str, query_slice) = search_custom_field_entries_query_slice(&entry_ids)?;
 
             conn.query(query_str.as_str(), &query_slice[..]).await?
         };
-        let mut current_set: Vec<MoodEntryJson> = vec!();
+        let mut current_set: Vec<CustomFieldEntryJson> = vec!();
         let mut current_entry_id: i32 = 0;
 
-        for row in mood_entries {
+        for row in custom_field_entries {
             let entry_id: i32 = row.get(5);
 
             if current_entry_id == 0 {
                 current_entry_id = entry_id;
             } else if current_entry_id != entry_id {
                 let borrow = entry_hash_map.get(&current_entry_id).unwrap();
-                rtn[*borrow].mood_entries.reserve(current_set.len());
-                rtn[*borrow].mood_entries.append(&mut current_set);
+                rtn[*borrow].custom_field_entries.reserve(current_set.len());
+                rtn[*borrow].custom_field_entries.append(&mut current_set);
                 current_entry_id = entry_id;
             }
 
-            current_set.push(MoodEntryJson {
-                id: row.get(0),
-                field: row.get(1),
-                field_id: row.get(2),
-                value: serde_json::from_value(row.get(3)).unwrap(),
-                comment: row.get(4),
+            current_set.push(CustomFieldEntryJson {
+                field: row.get(0),
+                name: row.get(1),
+                value: serde_json::from_value(row.get(2)).unwrap(),
+                comment: row.get(3),
                 entry: entry_id
             });
         }
 
         if entry_ids.len() > 0 && current_entry_id != 0 {
             let borrow = entry_hash_map.get(&current_entry_id).unwrap();
-            rtn[*borrow].mood_entries.reserve(current_set.len());
-            rtn[*borrow].mood_entries.append(&mut current_set);
+            rtn[*borrow].custom_field_entries.reserve(current_set.len());
+            rtn[*borrow].custom_field_entries.append(&mut current_set);
         }
     }
 
@@ -500,7 +496,7 @@ pub async fn search_entry(
             created: rows[0].get(1),
             owner: rows[0].get(2),
             tags,
-            mood_entries: search_mood_entries(conn, &entry_id).await?,
+            custom_field_entries: search_custom_field_entries(conn, &entry_id).await?,
             text_entries: search_text_entries(conn, &entry_id, is_private).await?
         }))
     } else {

@@ -81,24 +81,24 @@ create table text_entries (
     constraint entry_fk foreign key (entry) references entries (id)
 );
 
-create table mood_fields (
+create table custom_fields (
     id serial primary key,
     
     name varchar not null,
     owner integer not null,
+    "order" integer default 0,
     issued_by integer,
 
     config json not null,
 
     comment varchar,
 
+    constraint unique_name_owner unique (name, owner),
     constraint owner_fk foreign key (owner) references users (id),
-    constraint issued_by_fk foreign key (issued_by) references users (id),
-    constraint unique_name_owner unique (name, owner)
+    constraint issued_by_fk foreign key (issued_by) references users (id)
 );
 
-create table mood_entries (
-    id serial primary key,
+create table custom_field_entries (
     field integer not null,
 
     value json not null,
@@ -107,7 +107,7 @@ create table mood_entries (
 
     entry integer not null,
 
+    constraint entry_field_key primary key (field, entry),
     constraint entry_fk foreign key (entry) references entries (id),
-    constraint field_fk foreign key (field) references mood_fields (id),
-    constraint unique_entry_field unique (field, entry)
+    constraint field_fk foreign key (field) references custom_fields (id)
 );

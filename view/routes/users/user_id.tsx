@@ -22,8 +22,11 @@ const UserInformationView = ({user}: UserInformationViewProps) => {
                     <Link to={`/users/${user.id}/entries`}>
                         <DefaultButton text="Entries"/>
                     </Link>
-                    <Link to={`/users/${user.id}/mood_fields`}>
+                    <Link to={`/users/${user.id}/custom_fields`}>
                         <DefaultButton text="Fields"/>
+                    </Link>
+                    <Link to={`/users/${user.id}/tags`}>
+                        <DefaultButton text="Tags"/>
                     </Link>
                 </Stack>
             </Stack.Item>

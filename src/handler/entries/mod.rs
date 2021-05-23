@@ -19,17 +19,17 @@ pub struct PostTextEntryJson {
 }
 
 #[derive(Deserialize)]
-pub struct PostMoodEntryJson {
-    field_id: i32,
-    value: db::mood_entries::MoodEntryType,
+pub struct PostCustomFieldEntryJson {
+    field: i32,
+    value: db::custom_field_entries::CustomFieldEntryType,
     comment: Option<String>
 }
 
 #[derive(Deserialize)]
 pub struct PostEntryJson {
-    created: Option<chrono::DateTime<chrono::Utc>>,
+    created: chrono::DateTime<chrono::Utc>,
     tags: Option<Vec<i32>>,
-    mood_entries: Option<Vec<PostMoodEntryJson>>,
+    custom_field_entries: Option<Vec<PostCustomFieldEntryJson>>,
     text_entries: Option<Vec<PostTextEntryJson>>
 }
 
@@ -86,53 +86,47 @@ pub async fn handle_post(
 ) -> app_error::Result<impl Responder> {
     let app = app_data.into_inner();
     let conn = &mut *app.get_conn().await?;
-    let created = match &posted.created {
-        Some(s) => s.clone(),
-        None => chrono::Utc::now()
-    };
 
     let entry_check = conn.query(
         "select id from entries where day = $1 and owner = $2",
-        &[&created, &initiator.user.get_id()]
+        &[&posted.created, &initiator.user.get_id()]
     ).await?;
 
     if entry_check.len() != 0 {
         return Err(app_error::ResponseError::EntryExists(
-            format!("{}", created)
+            format!("{}", posted.created)
         ));
     }
 
     let transaction = conn.transaction().await?;
     let result = transaction.query_one(
         "insert into entries (day, owner) values ($1, $2) returning id, day, owner",
-        &[&created, &initiator.user.get_id_ref()]
+        &[&posted.created, &initiator.user.get_id_ref()]
     ).await?;
     let entry_id: i32 = result.get(0);
 
-    let mut mood_entries: Vec<json::MoodEntryJson> = vec!();
+    let mut custom_field_entries: Vec<json::CustomFieldEntryJson> = vec!();
 
-    if let Some(m) = &posted.mood_entries {
-        for mood_entry in m {
-            let field = db::mood_fields::get_via_id(&transaction, mood_entry.field_id, Some(initiator.user.id)).await?;
+    if let Some(m) = &posted.custom_field_entries {
+        for custom_field_entry in m {
+            let field = db::custom_fields::get_via_id(&transaction, custom_field_entry.field, Some(initiator.user.id)).await?;
 
-            db::mood_fields::verifiy(&field.config, &mood_entry.value)?;
+            db::custom_fields::verifiy(&field.config, &custom_field_entry.value)?;
 
-            let value_json = serde_json::to_value(mood_entry.value.clone())?;
-            let result = transaction.query_one(
+            let value_json = serde_json::to_value(custom_field_entry.value.clone())?;
+            let _result = transaction.execute(
                 r#"
-                insert into mood_entries (field, value, comment, entry) values
+                insert into custom_field_entries (field, value, comment, entry) values
                 ($1, $2, $3, $4)
-                returning id
                 "#,
-                &[&field.id, &value_json, &mood_entry.comment, &entry_id]
+                &[&field.id, &value_json, &custom_field_entry.comment, &entry_id]
             ).await?;
 
-            mood_entries.push(json::MoodEntryJson {
-                id: result.get(0),
-                field: field.name,
-                field_id: field.id,
-                value: mood_entry.value.clone(),
-                comment: util::clone_option(&mood_entry.comment),
+            custom_field_entries.push(json::CustomFieldEntryJson {
+                field: field.id,
+                name: field.name,
+                value: custom_field_entry.value.clone(),
+                comment: util::clone_option(&custom_field_entry.comment),
                 entry: entry_id
             });
         }
@@ -180,7 +174,7 @@ pub async fn handle_post(
                 created: result.get(1),
                 owner: initiator.user.get_id(),
                 tags: entry_tags,
-                mood_entries,
+                custom_field_entries,
                 text_entries
             }
         )

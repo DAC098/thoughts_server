@@ -3,7 +3,7 @@ export function getURL(url: string) {
 }
 
 import * as entries from "./entries"
-import * as mood_fields from "./mood_fields"
+import * as custom_fields from "./custom_fields"
 import * as users from "./users"
 import * as login from "./login"
 import * as admin from "./admin"
@@ -11,7 +11,7 @@ import * as tags from "./tags"
 
 const api = {
     entries,
-    mood_fields,
+    custom_fields,
     users,
     login,
     admin,

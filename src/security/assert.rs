@@ -25,23 +25,23 @@ pub async fn is_owner_for_entry(
     Ok(())
 }
 
-pub async fn is_owner_for_mood_field(
+pub async fn is_owner_for_custom_field(
     conn: &impl GenericClient,
     field_id: i32,
     owner: i32,
 ) -> error::Result<()> {
     let rows = conn.query(
-        "select owner from mood_fields where id = $1",
+        "select owner from custom_fields where id = $1",
         &[&field_id]
     ).await?;
 
     if rows.len() == 0 {
-        return Err(error::ResponseError::MoodFieldNotFound(field_id));
+        return Err(error::ResponseError::CustomFieldNotFound(field_id));
     }
 
     if rows[0].get::<usize, i32>(0) != owner {
         return Err(error::ResponseError::PermissionDenied(
-            "you don't have permission to modify this users mood field".to_owned()
+            "you don't have permission to modify this users custom field".to_owned()
         ));
     }
 

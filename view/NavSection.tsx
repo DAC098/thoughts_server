@@ -32,7 +32,7 @@ const NavSection = () => {
                 },
                 {
                     name: "Fields",
-                    url: "/mood_fields"
+                    url: "/custom_fields"
                 },
                 {
                     name: "Tags",

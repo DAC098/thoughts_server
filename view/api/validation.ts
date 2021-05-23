@@ -1,6 +1,6 @@
-import { MoodEntryType } from "./mood_entry_types";
-import { MoodFieldType } from "./mood_field_types";
+import { CustomFieldEntryType } from "./custom_field_entry_types";
+import { CustomFieldType } from "./custom_field_types";
 
-export function validation(config: MoodFieldType, value: MoodEntryType) {
+export function validation(config: CustomFieldType, value: CustomFieldEntryType) {
     
 }
