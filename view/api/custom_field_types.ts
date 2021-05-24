@@ -1,4 +1,4 @@
-import { cloneBoolean, cloneString, optionalCloneInteger } from "../util/clone";
+import { cloneBoolean, cloneFloat, cloneInteger, cloneString, optionalCloneInteger } from "../util/clone";
 
 export enum CustomFieldTypeName {
     Integer = "Integer",
@@ -26,11 +26,15 @@ export interface IntegerRange extends CustomFieldTypeBase<CustomFieldTypeName.In
 export interface Float extends CustomFieldTypeBase<CustomFieldTypeName.Float> {
     minimum?: number
     maximum?: number
+    step: number
+    precision: number
 }
 
 export interface FloatRange extends CustomFieldTypeBase<CustomFieldTypeName.FloatRange> {
     minimum?: number
     maximum?: number
+    step: number
+    precision: number
 }
 
 export interface Time extends CustomFieldTypeBase<CustomFieldTypeName.Time> {
@@ -49,13 +53,21 @@ export type CustomFieldType = Integer | IntegerRange |
 export function cloneCustomFieldType(field: CustomFieldType): CustomFieldType {
     switch (field.type) {
         case "Integer":
-        case "IntegerRange":
+        case "IntegerRange": {
+            return {
+                type: <typeof field.type>cloneString(field.type),
+                minimum: optionalCloneInteger(field.minimum),
+                maximum: optionalCloneInteger(field.maximum),
+            }
+        }
         case "Float":
         case "FloatRange": {
             return {
                 type: <typeof field.type>cloneString(field.type),
                 minimum: optionalCloneInteger(field.minimum),
-                maximum: optionalCloneInteger(field.maximum)
+                maximum: optionalCloneInteger(field.maximum),
+                step: cloneFloat(field.step),
+                precision: cloneInteger(field.precision)
             }
         }
         case "Time": {
@@ -81,9 +93,9 @@ export function makeCustomFieldType(type: CustomFieldTypeName): CustomFieldType 
         case "IntegerRange":
             return {type, minimum: null, maximum: null};
         case "Float":
-            return {type, minimum: null, maximum: null};
+            return {type, minimum: null, maximum: null, step: 0.01, precision: 2};
         case "FloatRange":
-            return {type, minimum: null, maximum: null};
+            return {type, minimum: null, maximum: null, step: 0.01, precision: 2};
         case "Time":
             return {type, as_12hr: false};
         case "TimeRange":

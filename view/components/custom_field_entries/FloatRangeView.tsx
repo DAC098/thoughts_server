@@ -21,6 +21,9 @@ const DetailsText = ({value, config}: DetailsTextProps) => {
         if (config.maximum != null) {
             detail_text.push(`maximum: ${config.maximum}`);
         }
+
+        detail_text.push(`step: ${config.step}`);
+        detail_text.push(`precision: ${config.precision}`);
     } else {
         detail_text.push("details unknown");
     }
@@ -36,22 +39,6 @@ interface FloatRangeEditViewProps {
 }
 
 export const FloatRangeEditView = ({value, config = null, onChange}: FloatRangeEditViewProps) => {
-    let detail_text = [
-        `type: ${value.type}`
-    ];
-
-    if (config != null) {
-        if (config.minimum != null) {
-            detail_text.push(`minimum: ${config.minimum}`);
-        }
-
-        if (config.maximum != null) {
-            detail_text.push(`maximum: ${config.maximum}`);
-        }
-    } else {
-        detail_text.push("details unknown");
-    }
-
     return <Stack tokens={{childrenGap: 2}}>
         <Stack horizontal tokens={{childrenGap: 8}}>
             <SpinButton
@@ -59,6 +46,8 @@ export const FloatRangeEditView = ({value, config = null, onChange}: FloatRangeE
                 value={value.low.toString()}
                 min={config != null ? config.minimum : null}
                 max={config != null ? config.maximum : null}
+                precision={config.precision}
+                step={config.step}
                 onChange={(e,v) => {
                     let float = parseFloat(v);
 
@@ -72,6 +61,8 @@ export const FloatRangeEditView = ({value, config = null, onChange}: FloatRangeE
                 value={value.high.toString()}
                 min={config != null ? config.minimum : null}
                 max={config != null ? config.maximum : null}
+                precision={config.precision}
+                step={config.step}
                 onChange={(e,v) => {
                     let float = parseFloat(v);
 

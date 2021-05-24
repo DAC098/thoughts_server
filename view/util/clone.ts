@@ -6,6 +6,10 @@ export function cloneInteger(integer: number): number {
     return integer + 0;
 }
 
+export function cloneFloat(float: number): number {
+    return float + 0.0;
+}
+
 export function cloneBoolean(boolean: boolean): boolean {
     return !!boolean;
 }

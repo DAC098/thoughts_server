@@ -21,6 +21,9 @@ const DetailsText = ({value, config}: DetailsTextProps) => {
         if (config.maximum != null) {
             detail_text.push(`maximum: ${config.maximum}`);
         }
+        
+        detail_text.push(`step: ${config.step}`);
+        detail_text.push(`precision: ${config.precision}`);
     } else {
         detail_text.push("details unknown");
     }
@@ -42,6 +45,8 @@ export const FloatEditView = ({value, config = null, onChange}: FLoatEditViewPro
                 value={value.value.toString()}
                 min={config != null ? config.minimum : null}
                 max={config != null ? config.maximum : null}
+                step={config.step}
+                precision={config.precision}
                 onChange={(e,v) => {
                     let float = parseFloat(v);
 

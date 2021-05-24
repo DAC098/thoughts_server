@@ -67,6 +67,14 @@ fn default_as_12hr() -> bool {
     false
 }
 
+fn default_step() -> f32 {
+    0.01
+}
+
+fn default_precision() -> i32 {
+    2
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(tag = "type")]
 pub enum CustomFieldType {
@@ -81,11 +89,19 @@ pub enum CustomFieldType {
 
     Float {
         minimum: Option<f32>,
-        maximum: Option<f32>
+        maximum: Option<f32>,
+        #[serde(default = "default_step")]
+        step: f32,
+        #[serde(default = "default_precision")]
+        precision: i32
     },
     FloatRange {
         minimum: Option<f32>,
-        maximum: Option<f32>
+        maximum: Option<f32>,
+        #[serde(default = "default_step")]
+        step: f32,
+        #[serde(default = "default_precision")]
+        precision: i32
     },
 
     Time {
@@ -175,7 +191,7 @@ pub fn verifiy(config: &CustomFieldType, value: &CustomFieldEntryType) -> error:
                 ))
             }
         },
-        CustomFieldType::Float {minimum, maximum} => {
+        CustomFieldType::Float {minimum, maximum, step: _, precision: _} => {
             match value {
                 CustomFieldEntryType::Float {value} => {
                     verify_range(value, minimum, maximum)
@@ -185,7 +201,7 @@ pub fn verifiy(config: &CustomFieldType, value: &CustomFieldEntryType) -> error:
                 ))
             }
         },
-        CustomFieldType::FloatRange {minimum, maximum} => {
+        CustomFieldType::FloatRange {minimum, maximum, step: _, precision: _} => {
             match value {
                 CustomFieldEntryType::FloatRange {low, high} => {
                     verify_range_bound(low, high, minimum, maximum)

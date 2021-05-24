@@ -1,6 +1,6 @@
-import { CommandBar, DatePicker, Dropdown, IColumn, ICommandBarItemProps, Icon, IconButton, IDropdownOption, ScrollablePane, ShimmeredDetailsList, Spinner, Stack, Sticky, StickyPositionType, TagItem, Tooltip, TooltipHost, TooltipOverflowMode } from "@fluentui/react"
+import { CommandBar, DatePicker, IColumn, ICommandBarItemProps, Icon, IconButton, ScrollablePane, ShimmeredDetailsList, Stack, Sticky, StickyPositionType, TooltipHost, TooltipOverflowMode } from "@fluentui/react"
 import React, { useEffect, useMemo, useState } from "react"
-import { Link, useHistory, useParams } from "react-router-dom"
+import { Link, useHistory } from "react-router-dom"
 import { useLoadEntries } from "../../hooks/useLoadEntries"
 import { useLoadFields } from "../../hooks/useLoadFields"
 import { useOwner } from "../../hooks/useOwner"
@@ -8,21 +8,24 @@ import { EntryJson } from "../../api/types"
 import { CustomFieldEntryType } from "../../api/custom_field_entry_types"
 import { diffDates, displayDate, get12hrStr, get24hrStr, sameDate } from "../../time"
 import { useAppDispatch, useAppSelector } from "../../hooks/useApp"
-import { CustomFieldType, Time, TimeRange } from "../../api/custom_field_types"
+import { CustomFieldType, Float, FloatRange, Time, TimeRange } from "../../api/custom_field_types"
 import { tags_actions } from "../../redux/slices/tags"
-import { getBrightness } from "../../util/colors"
 import TagToken from "../../components/tags/TagItem"
 
 function renderMoodFieldType(value: CustomFieldEntryType, config: CustomFieldType) {
     switch (value.type) {
         case "Integer":
-            return `${value.value}`
+            return `${value.value}`;
         case "IntegerRange":
-            return `${value.low} - ${value.high}`
-        case "Float":
-            return `${value.value.toFixed(2)}`
-        case "FloatRange":
-            return `${value.low.toFixed(2)} - ${value.high.toFixed(2)}`
+            return `${value.low} - ${value.high}`;
+        case "Float": {
+            let conf = config as Float;
+            return `${value.value.toFixed(conf.precision)}`;
+        }
+        case "FloatRange": {
+            let conf = config as FloatRange;
+            return `${value.low.toFixed(conf.precision)} - ${value.high.toFixed(conf.precision)}`;
+        }
         case "Time": {
             return `${displayDate(new Date(value.value), !(config as Time).as_12hr)}`;
         }
@@ -215,7 +218,7 @@ const EntriesView = ({user_specific = false}: EntriesViewProps) => {
         width: "100%",
         height: "100%"
     }}>
-        <ScrollablePane styles={{"root": {}}}>
+        <ScrollablePane styles={{"contentContainer": {height: "100%"}}}>
             <Sticky stickyPosition={StickyPositionType.Header} stickyBackgroundColor={"white"}>
                 <Stack tokens={{padding: "8px 8px 0", childrenGap: 8}}>
                     <Stack horizontal tokens={{childrenGap: 8}}>
