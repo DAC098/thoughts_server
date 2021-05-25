@@ -9,7 +9,7 @@ use crate::db::custom_fields;
 use crate::db::custom_field_entries;
 use crate::error;
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct CustomFieldEntryJson {
     pub field: i32,
     pub name: String,
@@ -18,7 +18,7 @@ pub struct CustomFieldEntryJson {
     pub entry: i32
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct TextEntryJson {
     pub id: i32,
     pub thought: String,
@@ -26,7 +26,7 @@ pub struct TextEntryJson {
     pub entry: i32
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct EntryTagJson {
     pub id: i32,
     pub tag_id: i32,
@@ -36,7 +36,7 @@ pub struct EntryTagJson {
     pub entry: i32
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct EntryJson {
     pub id: i32,
     pub created: chrono::DateTime<chrono::Utc>,
@@ -46,14 +46,14 @@ pub struct EntryJson {
     pub text_entries: Vec<TextEntryJson>
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct IssuedByJson {
     pub id: i32,
     pub username: i32,
     pub full_name: Option<String>
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct CustomFieldJson {
     pub id: i32,
     pub name: String,
@@ -62,15 +62,6 @@ pub struct CustomFieldJson {
     pub owner: i32,
     pub order: i32,
     pub issued_by: Option<IssuedByJson>
-}
-
-#[derive(Serialize, Clone)]
-pub struct TagJson {
-    pub id: i32,
-    pub title: String,
-    pub owner: i32,
-    pub color: String,
-    pub comment: Option<String>
 }
 
 #[derive(Serialize, Deserialize, Clone)]

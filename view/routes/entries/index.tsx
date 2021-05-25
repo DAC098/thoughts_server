@@ -11,6 +11,8 @@ import { useAppDispatch, useAppSelector } from "../../hooks/useApp"
 import { CustomFieldType, Float, FloatRange, Time, TimeRange } from "../../api/custom_field_types"
 import { tags_actions } from "../../redux/slices/tags"
 import TagToken from "../../components/tags/TagItem"
+import { downloadLink } from "../../util/downloadLink"
+import { getURL } from "../../api"
 
 function renderMoodFieldType(value: CustomFieldEntryType, config: CustomFieldType) {
     switch (value.type) {
@@ -263,6 +265,23 @@ const EntriesView = ({user_specific = false}: EntriesViewProps) => {
                                                     }));
                                                 },
                                                 items: visible_fields_options
+                                            }
+                                        },
+                                        {
+                                            key: "backup",
+                                            text: "Backup",
+                                            onClick: () => {
+                                                let url = getURL("/backup");
+
+                                                if (from_date != null) {
+                                                    url.searchParams.append("from", from_date.toISOString());
+                                                }
+
+                                                if (to_date != null) {
+                                                    url.searchParams.append("to", to_date.toISOString());
+                                                }
+
+                                                downloadLink(url.toString());
                                             }
                                         }
                                     ]

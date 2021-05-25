@@ -1,7 +1,7 @@
 use tokio_postgres::{GenericClient, Error as PGError};
-use serde::{Serialize};
+use serde::{Serialize, Deserialize};
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Tag {
     pub id: i32,
     pub title: String,
