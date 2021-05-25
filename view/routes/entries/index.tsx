@@ -1,4 +1,4 @@
-import { CommandBar, DatePicker, IColumn, ICommandBarItemProps, Icon, IconButton, ScrollablePane, ShimmeredDetailsList, Stack, Sticky, StickyPositionType, TooltipHost, TooltipOverflowMode } from "@fluentui/react"
+import { CommandBar, DatePicker, IColumn, ICommandBarItemProps, Icon, IconButton, IContextualMenuItem, ScrollablePane, ShimmeredDetailsList, Stack, Sticky, StickyPositionType, TooltipHost, TooltipOverflowMode } from "@fluentui/react"
 import React, { useEffect, useMemo, useState } from "react"
 import { Link, useHistory } from "react-router-dom"
 import { useLoadEntries } from "../../hooks/useLoadEntries"
@@ -215,6 +215,45 @@ const EntriesView = ({user_specific = false}: EntriesViewProps) => {
         });
     }
 
+    let settings_submenus: IContextualMenuItem[] = [
+        {
+            key: "fields",
+            text: "Fields",
+            disabled: custom_fields_state.custom_fields.length === 0,
+            subMenuProps: {
+                onItemClick: (ev, item) => {
+                    ev.preventDefault();
+
+                    setVisibleFields(v => ({
+                        ...v,
+                        [item.key]: !visible_fields[item.key]
+                    }));
+                },
+                items: visible_fields_options
+            }
+        }
+    ];
+
+    if (active_user_state.user.id === owner) {
+        settings_submenus.push({
+            key: "backup",
+            text: "Backup",
+            onClick: () => {
+                let url = getURL("/backup");
+
+                if (from_date != null) {
+                    url.searchParams.append("from", from_date.toISOString());
+                }
+
+                if (to_date != null) {
+                    url.searchParams.append("to", to_date.toISOString());
+                }
+
+                downloadLink(url.toString(), "backup.json");
+            }
+        })
+    }
+
     return <Stack style={{
         position: "relative",
         width: "100%",
@@ -250,41 +289,7 @@ const EntriesView = ({user_specific = false}: EntriesViewProps) => {
                                 iconOnly: true,
                                 iconProps: {iconName: "Settings"},
                                 subMenuProps: {
-                                    items: [
-                                        {
-                                            key: "fields",
-                                            text: "Fields",
-                                            disabled: custom_fields_state.custom_fields.length === 0,
-                                            subMenuProps: {
-                                                onItemClick: (ev, item) => {
-                                                    ev.preventDefault();
-
-                                                    setVisibleFields(v => ({
-                                                        ...v,
-                                                        [item.key]: !visible_fields[item.key]
-                                                    }));
-                                                },
-                                                items: visible_fields_options
-                                            }
-                                        },
-                                        {
-                                            key: "backup",
-                                            text: "Backup",
-                                            onClick: () => {
-                                                let url = getURL("/backup");
-
-                                                if (from_date != null) {
-                                                    url.searchParams.append("from", from_date.toISOString());
-                                                }
-
-                                                if (to_date != null) {
-                                                    url.searchParams.append("to", to_date.toISOString());
-                                                }
-
-                                                downloadLink(url.toString());
-                                            }
-                                        }
-                                    ]
+                                    items: settings_submenus
                                 }
                             }
                         ]}
