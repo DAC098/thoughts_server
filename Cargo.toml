@@ -20,6 +20,7 @@ bb8-postgres = { version = "0.7" }
 
 openssl = { version = "0.10", features = ["v110"]}
 rust-argon2 = { version = "0.8" }
+sha-1 = { version = "0.9" }
 
 lettre = { version = "0.10.0-rc.2", features = ["tokio1-native-tls", "native-tls"]}
 

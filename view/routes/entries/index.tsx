@@ -1,4 +1,4 @@
-import { CommandBar, DatePicker, IColumn, ICommandBarItemProps, Icon, IconButton, IContextualMenuItem, ScrollablePane, ShimmeredDetailsList, Stack, Sticky, StickyPositionType, TooltipHost, TooltipOverflowMode } from "@fluentui/react"
+import { CommandBar, DatePicker, IColumn, ICommandBarItemProps, Icon, IconButton, IContextualMenuItem, ScrollablePane, ShimmeredDetailsList, Stack, Sticky, StickyPositionType, Text, TooltipHost, TooltipOverflowMode } from "@fluentui/react"
 import React, { useEffect, useMemo, useState } from "react"
 import { Link, useHistory } from "react-router-dom"
 import { useLoadEntries } from "../../hooks/useLoadEntries"
@@ -83,7 +83,29 @@ const EntriesView = ({user_specific = false}: EntriesViewProps) => {
         return rtn;
     });
 
+    const owner_is_active_user = active_user_state.user.id === owner;
     const loading_state = custom_fields_state.loading || entries_state.loading || tags_state.loading;
+
+    const default_download = () => {
+        let url = getURL("/backup");
+        let filename = [];
+
+        if (from_date != null) {
+            url.searchParams.append("from", from_date.toISOString());
+            filename.push(from_date.toDateString());
+        } else {
+            filename.push("");
+        }
+
+        if (to_date != null) {
+            url.searchParams.append("to", to_date.toISOString());
+            filename.push(to_date.toDateString());
+        } else {
+            filename.push("");
+        }
+
+        downloadLink(url.toString(), filename.join("_to_") + ".json");
+    }
 
     let columns = useMemo(() => {
         let rtn: IColumn[] = [
@@ -186,7 +208,8 @@ const EntriesView = ({user_specific = false}: EntriesViewProps) => {
         }
     }, [owner]);
 
-    let command_bar_actions = [
+    let download_options: IContextualMenuItem[] = [];
+    let command_bar_actions: ICommandBarItemProps[] = [
         {
             key: "search",
             text: "Search",
@@ -195,13 +218,41 @@ const EntriesView = ({user_specific = false}: EntriesViewProps) => {
         }
     ];
 
-    if (active_user_state.user.id === owner) {
+    if (owner_is_active_user) {
         command_bar_actions.push({
             key: "new_item",
             text: "New Entry",
             iconProps: {iconName: "Add"},
             onClick: () => history.push("/entries/0")
         });
+
+        download_options.push({
+            key: "json",
+            text: "JSON",
+            onClick: default_download
+        });
+    }
+
+    command_bar_actions.push({
+        key: "download",
+        text: "Download",
+        split: owner_is_active_user,
+        iconProps: {iconName: "Download"},
+        onClick: owner_is_active_user ? default_download : null,
+        disabled: download_options.length === 0,
+        subMenuProps: {
+            items: download_options
+        }
+    });
+
+    if (owner_is_active_user) {
+        command_bar_actions.push({
+            key: "upload",
+            text: "Upload",
+            iconProps: {iconName: "Upload"},
+            disabled: true,
+            onClick: () => {}
+        })
     }
 
     let visible_fields_options: ICommandBarItemProps[] = [];
@@ -234,26 +285,6 @@ const EntriesView = ({user_specific = false}: EntriesViewProps) => {
         }
     ];
 
-    if (active_user_state.user.id === owner) {
-        settings_submenus.push({
-            key: "backup",
-            text: "Backup",
-            onClick: () => {
-                let url = getURL("/backup");
-
-                if (from_date != null) {
-                    url.searchParams.append("from", from_date.toISOString());
-                }
-
-                if (to_date != null) {
-                    url.searchParams.append("to", to_date.toISOString());
-                }
-
-                downloadLink(url.toString(), "backup.json");
-            }
-        })
-    }
-
     return <Stack style={{
         position: "relative",
         width: "100%",
@@ -280,6 +311,7 @@ const EntriesView = ({user_specific = false}: EntriesViewProps) => {
                             }}/>
                         </Stack>
                     </Stack>
+                    <Text variant="smallPlus">{!loading_state ? `${entries_state.entries.length} total entries` : "loading"}</Text>
                     <CommandBar 
                         items={command_bar_actions}
                         farItems={[

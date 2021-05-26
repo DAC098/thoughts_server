@@ -2555,6 +2555,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "sha-1",
  "tokio-postgres",
  "uuid",
 ]
