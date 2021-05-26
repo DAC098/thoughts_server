@@ -47,10 +47,85 @@ currently been building on Ubuntu Server `20.04` so no testing has been done on 
 
 No official server version as I am unsure about what to set it currently.
 
+### Building
+
+This will require the OpenSSL libraries and header files. The [docs](https://docs.rs/openssl/0.10.34/openssl/) for the rust package talks about how to download the headers and libraries.
+
+As stated above this has currently only been built on Ubuntu Linux. Once you have the OpenSSL requirements run
+```bash
+# development
+$ cargo build --bins
+# release
+$ cargo build --bins --release
+```
+
+The server should be ready to go by this point
+
+### Running
+
+Currently there are no command line arguments setup to run the server. it will look for a `server_config.json` and `server_config.override.json` in the root directory of the project (assuming the current working directory is the project root). Default configuration is as follows:
+
+```json
+{
+    "bind": [
+        {
+            // valid ipv4 or ipv6 address for the system
+            "host": "0.0.0.0",
+            "port": 8080
+        },
+        {
+            "host": "::1",
+            "port": 8080
+        }
+    ],
+    // default port if a bind host does not have a port specified
+    "port": 8080,
+
+    // defaults to system max
+    "threads": 16,
+    
+    // default values for the actix web framework being used
+    "backlog": 2048, 
+    "max_connections": 25000,
+    "max_connection_rate": 256,
+
+    "db": {
+        "username": "postgres",
+        "password": "password",
+        "database": "thoughts",
+        "port": 5432,
+        "hostname": "localhost"
+    },
+    "session": {
+        // used in cookie sessions to restrict cookies to a
+        // specific domain
+        "domain": ""
+    },
+
+    // key cert files for https connections, if none is given then
+    // it will default to http connections. http2 is currently only
+    // supported with encrypted servers
+    "key": null,
+    "cert": null
+}
+```
+
+### Database
+
+Currently only PostgreSQL is supported. If you run your own or have one running there is not easy way to create the database in that instance (work in progress). You can use Docker and Docker Compose to start one from the project root which will create and setup the database for use by the server.
+
+```bash
+# should create and start the dabase
+$ docker-compose up
+# start the database if it was already created
+$ docker-compose start
+```
+
 ## Contributions
 
 No idea. If you are interested in helping out with this then sweet!
 
-### THIS IS A WORK IN PROGRESS, PLEASE DO NOT USE THIS FOR PRODUCTION PURPOSES YET
+## THIS IS A WORK IN PROGRESS
+## PLEASE DO NOT USE THIS FOR PRODUCTION PURPOSES YET
 
 First personal project like this so bear with me as I figure this stuff out.
