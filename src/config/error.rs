@@ -5,7 +5,6 @@ use std::ffi::{OsString};
 pub enum ConfigError {
     UnknownFileExtension,
     InvalidFileExtension(OsString),
-    NotReadableFile(OsString),
     
     JsonError(serde_json::Error),
     YamlError(serde_yaml::Error),

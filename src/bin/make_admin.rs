@@ -4,22 +4,50 @@ use postgres::{Client, NoTls};
 mod config;
 
 fn main() {
-    let mut config_files: Vec::<&std::path::Path> = Vec::with_capacity(2);
-    let config_file = std::path::Path::new("./server_config.json");
-    let config_override_file = std::path::Path::new("./server_config.override.json");
+    let mut config_files: Vec<std::path::PathBuf> = vec!();
+    let mut args = std::env::args();
+    args.next();
+
+    while let Some(arg) = args.next() {
+        if arg.starts_with("--") {
+            if arg.len() <= 2 {
+                println!("incomplete argument given");
+                return;
+            }
+
+            let (_, arg_substring) = arg.split_at(2);
+
+            if arg_substring == "debug" {
+                std::env::set_var("RUST_LOG", "debug");
+            } else if arg_substring == "backtrace" {
+                std::env::set_var("RUST_BACKTRACE", "full");
+            } else if arg_substring == "info" {
+                std::env::set_var("RUST_LOG", "info");
+            } else {
+                println!("unknown argument given. {}", arg_substring);
+                return;
+            }
+        } else {
+            if let Ok(canonical_path) = std::fs::canonicalize(arg.clone()) {
+                if !canonical_path.is_file() {
+                    println!("specified configuration file is not a file. {:?}", canonical_path.into_os_string());
+                    return;
+                }
     
-    if config_file.exists() {
-        config_files.push(config_file);
+                config_files.push(canonical_path);
+            } else {
+                println!("failed to locate given file. {}", arg);
+                return;
+            }
+        }
     }
 
-    if config_override_file.exists() {
-        config_files.push(config_override_file);
-    }
+    env_logger::init();
 
     let config_check = config::load_server_config(config_files);
 
     if config_check.is_err() {
-        panic!("failed to load config file\n{:?}", config_check.unwrap_err());
+        panic!("failed to load server configuration\n{:?}", config_check.unwrap_err());
     }
 
     let server_config = config_check.unwrap();

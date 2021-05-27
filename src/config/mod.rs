@@ -119,31 +119,27 @@ fn map_server_config_shape(lhs: &mut ServerConfigShape, rhs: ServerConfigShape) 
     }
 }
 
-fn load_file(config_file: &std::path::Path) -> error::Result<ServerConfigShape> {
-    if config_file.exists() && config_file.is_file() {
-        if let Some(ext) = config_file.extension() {
-            if ext.eq("yaml") || ext.eq("yml") {
-                Ok(serde_yaml::from_reader::<
-                    std::io::BufReader<std::fs::File>,
-                    ServerConfigShape
-                >(std::io::BufReader::new(
-                    std::fs::File::open(&config_file)?
-                ))?)
-            } else if ext.eq("json") {
-                Ok(serde_json::from_reader::<
-                    std::io::BufReader<std::fs::File>,
-                    ServerConfigShape
-                >(std::io::BufReader::new(
-                    std::fs::File::open(&config_file)?
-                ))?)
-            } else {
-                Err(error::ConfigError::InvalidFileExtension(ext.to_os_string()))
-            }
+fn load_file(config_file: std::path::PathBuf) -> error::Result<ServerConfigShape> {
+    if let Some(ext) = config_file.extension() {
+        if ext.eq("yaml") || ext.eq("yml") {
+            Ok(serde_yaml::from_reader::<
+                std::io::BufReader<std::fs::File>,
+                ServerConfigShape
+            >(std::io::BufReader::new(
+                std::fs::File::open(&config_file)?
+            ))?)
+        } else if ext.eq("json") {
+            Ok(serde_json::from_reader::<
+                std::io::BufReader<std::fs::File>,
+                ServerConfigShape
+            >(std::io::BufReader::new(
+                std::fs::File::open(&config_file)?
+            ))?)
         } else {
-            Err(error::ConfigError::UnknownFileExtension)
+            Err(error::ConfigError::InvalidFileExtension(ext.to_os_string()))
         }
     } else {
-        Err(error::ConfigError::NotReadableFile(config_file.as_os_str().to_os_string()))
+        Err(error::ConfigError::UnknownFileExtension)
     }
 }
 
@@ -231,7 +227,7 @@ pub struct ServerConfig {
     pub cert: Option<String>
 }
 
-pub fn load_server_config(files: Vec<&std::path::Path>) -> error::Result<ServerConfig> {
+pub fn load_server_config(files: Vec<std::path::PathBuf>) -> error::Result<ServerConfig> {
     let mut base_shape = ServerConfigShape {
         bind: None, port: None,
         threads: None,
@@ -244,7 +240,7 @@ pub fn load_server_config(files: Vec<&std::path::Path>) -> error::Result<ServerC
     };
 
     for file in files {
-        map_server_config_shape(&mut base_shape, load_file(&file)?);
+        map_server_config_shape(&mut base_shape, load_file(file)?);
     }
 
     let mut bind_list: Vec<BindInterface>;

@@ -21,31 +21,54 @@ mod util;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    std::env::set_var("RUST_LOG", "debug");
-    std::env::set_var("RUST_BACKTRACE", "full");
+    let mut config_files: Vec<std::path::PathBuf> = vec!();
+    let mut args = std::env::args();
+    args.next();
+
+    while let Some(arg) = args.next() {
+        if arg.starts_with("--") {
+            if arg.len() <= 2 {
+                println!("incomplete argument given");
+                return Ok(());
+            }
+
+            let (_, arg_substring) = arg.split_at(2);
+
+            if arg_substring == "debug" {
+                std::env::set_var("RUST_LOG", "debug");
+            } else if arg_substring == "backtrace" {
+                std::env::set_var("RUST_BACKTRACE", "full");
+            } else if arg_substring == "info" {
+                std::env::set_var("RUST_LOG", "info");
+            } else {
+                println!("unknown argument given. {}", arg_substring);
+                return Ok(());
+            }
+        } else {
+            if let Ok(canonical_path) = std::fs::canonicalize(arg.clone()) {
+                if !canonical_path.is_file() {
+                    println!("specified configuration file is not a file. {:?}", canonical_path.into_os_string());
+                    return Ok(());
+                }
+    
+                config_files.push(canonical_path);
+            } else {
+                println!("failed to locate given file. {}", arg);
+                return Ok(());
+            }
+        }
+    }
+
     env_logger::init();
 
-    // configuration loading seems kind of janky
-    // planning on adding in the ability to specify your own
-    // config files via command line
-    let mut config_files: Vec<&std::path::Path> = Vec::with_capacity(2);
-    let config_file = std::path::Path::new("./server_config.json");
-    let config_override_file = std::path::Path::new("./server_config.override.json");
+    let config_result = config::load_server_config(config_files);
 
-    if config_file.exists() {
-        config_files.push(config_file);
+    if config_result.is_err() {
+        println!("failed to load server configuration\n{:?}", config_result.unwrap_err());
+        return Ok(());
     }
 
-    if config_override_file.exists() {
-        config_files.push(config_override_file);
-    }
-
-    let config = match config::load_server_config(config_files) {
-        Ok(conf) => conf,
-        Err(e) => panic!("failed to load config file\n{:?}", e)
-    };
-
-    log::info!("config {:#?}", config);
+    let config = config_result.unwrap();
 
     if config.bind.len() == 0 {
         println!("no bind interfaces specified");
