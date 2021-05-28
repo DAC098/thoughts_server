@@ -48,7 +48,10 @@ pub enum ResponseError {
     OpensslError(openssl::error::Error),
     OpensslErrorStack(openssl::error::ErrorStack),
     
-    UuidError(uuid::Error)
+    UuidError(uuid::Error),
+
+    EmailSmtpError(lettre::transport::smtp::Error),
+    EmailBuilderError(lettre::error::Error)
 }
 
 impl ResponseError {
@@ -89,7 +92,10 @@ impl ResponseError {
             ResponseError::OpensslError(_) => "InternalError",
             ResponseError::OpensslErrorStack(_) => "InternalError",
 
-            ResponseError::UuidError(_) => "InternalError"
+            ResponseError::UuidError(_) => "InternalError",
+
+            ResponseError::EmailSmtpError(_) => "InternalError",
+            ResponseError::EmailBuilderError(_) => "InternalError"
         }
     }
 
@@ -129,7 +135,10 @@ impl ResponseError {
             ResponseError::OpensslError(_) => "internal server error".to_owned(),
             ResponseError::OpensslErrorStack(_) => "internal server error".to_owned(),
 
-            ResponseError::UuidError(_) => "internal server error".to_owned()
+            ResponseError::UuidError(_) => "internal server error".to_owned(),
+
+            ResponseError::EmailSmtpError(_) => "internal server error".to_owned(),
+            ResponseError::EmailBuilderError(_) => "internal server error".to_owned()
         }
     }
     
@@ -191,7 +200,10 @@ impl ActixResponseError for ResponseError {
             ResponseError::OpensslError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             ResponseError::OpensslErrorStack(_) => StatusCode::INTERNAL_SERVER_ERROR,
 
-            ResponseError::UuidError(_) => StatusCode::INTERNAL_SERVER_ERROR
+            ResponseError::UuidError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+
+            ResponseError::EmailSmtpError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ResponseError::EmailBuilderError(_) => StatusCode::INTERNAL_SERVER_ERROR
         }
     }
 }
@@ -258,6 +270,22 @@ impl From<uuid::Error> for ResponseError {
 
     fn from(error: uuid::Error) -> Self {
         ResponseError::UuidError(error)
+    }
+    
+}
+
+impl From<lettre::transport::smtp::Error> for ResponseError {
+
+    fn from(error: lettre::transport::smtp::Error) -> Self {
+        ResponseError::EmailSmtpError(error)
+    }
+    
+}
+
+impl From<lettre::error::Error> for ResponseError {
+
+    fn from(error: lettre::error::Error) -> Self {
+        ResponseError::EmailBuilderError(error)
     }
     
 }

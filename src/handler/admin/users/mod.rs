@@ -48,7 +48,7 @@ pub async fn handle_get(
             ))
         } else {
             let mut arg_count: usize = 2;
-            let mut query_str = "select id, username, level, full_name, email from users where id != $1".to_owned();
+            let mut query_str = "select id, username, level, full_name, email, email_verified from users where id != $1".to_owned();
             let mut query_slice: Vec<&(dyn tokio_postgres::types::ToSql + std::marker::Sync)> = vec![&initiator.user.id];
 
             if let Some(level) = info.level.as_ref() {
@@ -77,7 +77,8 @@ pub async fn handle_get(
                     username: row.get(1),
                     level: row.get(2),
                     full_name: row.get(3),
-                    email: row.get(4)
+                    email: row.get(4),
+                    email_verified: row.get(5)
                 });
             }
 

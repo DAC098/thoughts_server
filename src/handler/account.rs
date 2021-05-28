@@ -1,11 +1,17 @@
 use actix_web::{web, http, Responder, HttpRequest};
 use actix_session::{Session};
 use serde::{Deserialize};
+use lettre::{Message, Transport};
+use lettre::message::{Mailbox};
 
 use crate::error;
 use crate::state;
 use crate::request::from;
 use crate::response;
+use crate::email;
+use crate::util;
+use crate::time;
+use crate::db;
 
 pub async fn handle_get(
     req: HttpRequest,
@@ -13,7 +19,7 @@ pub async fn handle_get(
     app: web::Data<state::AppState>
 ) -> error::Result<impl Responder> {
     let accept_html = response::check_if_html_req(&req, true)?;
-    let conn = &app.get_conn().await?;
+    let conn = &*app.as_ref().get_conn().await?;
     let initiator_opt = from::get_initiator(conn, &session).await?;
 
     if accept_html {
@@ -39,55 +45,117 @@ pub async fn handle_get(
 
 #[derive(Deserialize)]
 pub struct PutAccountJson {
-    username: Option<String>,
+    username: String,
     full_name: Option<String>,
-    email: Option<String>
+    email: String
 }
 
 pub async fn handle_put(
     initiator: from::Initiator,
-    app: web::Data<state::AppState>,
-    posted: web::Json<PutAccountJson>,
+    app_data: web::Data<state::AppState>,
+    posted_json: web::Json<PutAccountJson>,
 ) -> error::Result<impl Responder> {
+    let app = app_data.into_inner();
+    let posted = posted_json.into_inner();
     let conn = &mut *app.get_conn().await?;
-    let mut arg_count: u32 = 2;
-    let mut set_fields: Vec<String> = vec!();
-    let mut query_slice: Vec<&(dyn tokio_postgres::types::ToSql + std::marker::Sync)> = vec!(initiator.user.get_id_ref());
+    let mut email_value: Option<String> = None;
+    let mut email_verified: bool = false;
+    let mut to_mailbox: Option<Mailbox> = None;
 
-    if let Some(username) = posted.username.as_ref() {
-        set_fields.push(format!("username = ${}", arg_count));
-        arg_count += 1;
-        query_slice.push(username);
+    if app.email.enabled {
+        let to_mailbox_result = posted.email.parse::<Mailbox>();
+
+        if to_mailbox_result.is_err() {
+            return Err(error::ResponseError::Validation(
+                format!("given email address is invalid. {}", posted.email)
+            ));
+        } else {
+            to_mailbox = Some(to_mailbox_result.unwrap());
+        }
+
+        let check = conn.query(
+            "select id from users where email = $1",
+            &[&posted.email]
+        ).await?;
+
+        if !check.is_empty() && check[0].get::<usize, i32>(0) != initiator.user.id {
+            return Err(error::ResponseError::EmailExists(posted.email));
+        }
+
+        if initiator.user.email.is_some() {
+            if initiator.user.email.unwrap() == posted.email {
+                email_verified = initiator.user.email_verified;
+            } else {
+                email_verified = false;
+            }
+        }
+
+        email_value = Some(posted.email);
     }
-
-    if let Some(full_name) = posted.full_name.as_ref() {
-        set_fields.push(format!("full_name = ${}", arg_count));
-        arg_count += 1;
-        query_slice.push(full_name);
-    }
-
-    if let Some(email) = posted.email.as_ref() {
-        set_fields.push(format!("email = ${}", arg_count));
-        query_slice.push(email);
-    }
-
-    let query_str = format!(r#"
-        update users
-        set {}
-        where id = $1
-    "#, set_fields.join(", "));
 
     let transaction = conn.transaction().await?;
 
-    let _result = transaction.execute(query_str.as_str(), &query_slice[..]).await?;
+    let _result = transaction.execute(
+        r#"
+        update users
+        set username = $2,
+            full_name = $3,
+            email = $4,
+            email_verified = $5
+        where id = $1
+        "#,
+        &[
+            &initiator.user.id,
+            &posted.username,
+            &posted.full_name,
+            &email_value,
+            &email_verified
+        ]
+    ).await?;
 
     transaction.commit().await?;
+
+    if app.email.enabled && !email_verified {
+        let mut rand_bytes: [u8; 32] = [0; 32];
+        openssl::rand::rand_bytes(&mut rand_bytes)?;
+        let hex_str = util::hex_string(&rand_bytes)?;
+        let issued = time::now();
+
+        conn.execute(
+            r#"
+            insert into email_verifications (owner, key_id, issued) values
+            ($1, $2, $3)
+            on conflict on constraint email_verifications_pkey do update
+            set key_id = excluded.key_id,
+                issued = excluded.issued
+            "#,
+            &[&initiator.user.id, &hex_str, &issued]
+        ).await?;
+
+        let transport = app.email.get_transport()?;
+        let email_message = Message::builder()
+            .from(app.email.get_from())
+            .to(to_mailbox.unwrap())
+            .subject("Verify Changed Email")
+            .multipart(email::message_body::verify_email_body(
+                app.info.url_origin(), hex_str
+            ))?;
+
+        transport.send(&email_message)?;
+    }
     
     Ok(response::json::respond_json(
         http::StatusCode::OK,
-        response::json::MessageDataJSON::<Option<()>>::build(
+        response::json::MessageDataJSON::build(
             "successful",
-            None
+            db::users::User {
+                id: initiator.user.id,
+                username: posted.username,
+                full_name: posted.full_name,
+                level: initiator.user.level,
+                email: email_value,
+                email_verified: email_verified
+            }
         )
     ))
 }

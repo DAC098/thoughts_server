@@ -7,7 +7,8 @@ pub struct User {
     pub username: String,
     pub level: i32,
     pub full_name: Option<String>,
-    pub email: String
+    pub email: Option<String>,
+    pub email_verified: bool
 }
 
 pub async fn check_username_email(
@@ -45,7 +46,16 @@ pub async fn get_via_id(
     id: i32
 ) -> Result<Option<User>, PGError> {
     let result = client.query(
-        r#"select id, username, full_name, email, level from users where id = $1"#,
+        r#"
+        select id, 
+               username, 
+               full_name, 
+               email, 
+               email_verified,
+               level 
+        from users 
+        where id = $1
+        "#,
         &[&id]
     ).await?;
 
@@ -55,7 +65,8 @@ pub async fn get_via_id(
             username: result[0].get(1),
             full_name: result[0].get(2),
             email: result[0].get(3),
-            level: result[0].get(4)
+            email_verified: result[0].get(4),
+            level: result[0].get(5)
         }))
     } else {
         Ok(None)

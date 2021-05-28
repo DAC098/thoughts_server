@@ -10,6 +10,7 @@ default-run = "thoughts_server"
 [dependencies]
 futures = { version = "0.3" }
 
+base64 = { version = "0.13.0" }
 uuid = { version = "0.8", features = ["v4", "serde"] }
 num_cpus = { version = "1.0" }
 

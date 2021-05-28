@@ -18,6 +18,7 @@ mod request;
 mod json;
 mod parsing;
 mod util;
+mod email;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -82,6 +83,30 @@ async fn main() -> std::io::Result<()> {
     db_config.port(config.db.port);
     db_config.dbname(config.db.database.as_ref());
 
+    if config.email.enable {
+        if config.email.username.is_none() || config.email.password.is_none() {
+            println!("username and password must be given if email is enabled");
+            return Ok(());
+        }
+
+        if config.email.from.is_none() {
+            println!("from email address must be given if email is enabled");
+            return Ok(());
+        } else {
+            if !email::valid_email_address(config.email.from.as_ref().unwrap()) {
+                println!("from email address is invalid");
+                return Ok(());
+            }
+        }
+
+        if config.email.relay.is_none() {
+            println!("relay must be given if email is enabled");
+            return Ok(());
+        }
+    }
+
+    let info_config = config.info;
+    let email_config = config.email;
     let session_domain = config.session.domain;
     let manager = PostgresConnectionManager::new(db_config, NoTls);
     let pool = match bb8::Pool::builder().build(manager).await {
@@ -97,7 +122,7 @@ async fn main() -> std::io::Result<()> {
                 web::JsonConfig::default()
                 .error_handler(handler::handle_json_error)
             )
-            .data(state::AppState::new(&pool))
+            .data(state::AppState::new(&pool, &email_config, &info_config))
             .wrap(Logger::new("%a XF-%{X-Forwarded-For}i:%{X-Forwarded-Port}i %t \"%r\" %s %b \"%{Referer}i\" %T"))
             .wrap(
                 CookieSession::signed(&[0; 32])
@@ -107,10 +132,12 @@ async fn main() -> std::io::Result<()> {
                     .path("/")
             )
             .route("/", web::get().to(handler::handle_get))
+            .route("/email", web::get().to(handler::email::handle_get))
             .route("/auth/login", web::get().to(handler::auth::login::handle_get))
             .route("/auth/login", web::post().to(handler::auth::login::handle_post))
             .route("/auth/logout", web::post().to(handler::auth::logout::handle_post))
             .route("/auth/change", web::post().to(handler::auth::change::handle_post))
+            .route("/auth/verify_email", web::get().to(handler::auth::verify_email::handle_get))
             .route("/admin/users", web::get().to(handler::admin::users::handle_get))
             .route("/admin/users", web::post().to(handler::admin::users::handle_post))
             .route("/admin/users/{user_id}", web::get().to(handler::admin::users::user_id::handle_get))

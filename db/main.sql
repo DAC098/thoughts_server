@@ -13,7 +13,15 @@ create table users (
     username varchar not null unique,
     hash varchar not null,
 
-    email varchar unique not null
+    email varchar unique
+    email_verified boolean not null default false
+);
+
+create table email_verifications (
+    owner integer not null primary key,
+    key_id varchar not null unique,
+    issued timestamp with time zone not null,
+    constraint owner_fk foreign key (owner) references users (id)
 );
 
 create table user_access (

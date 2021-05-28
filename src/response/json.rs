@@ -12,7 +12,10 @@ pub struct ErrorJSON {
 }
 
 impl ErrorJSON {
-    pub fn build<M: Into<String>>(m: M, t: &str) -> ErrorJSON {
+    pub fn build<M>(m: M, t: &str) -> ErrorJSON
+    where
+        M: Into<String>
+    {
         ErrorJSON {
             r#type: t.to_string(),
             message: m.into(),
@@ -21,7 +24,11 @@ impl ErrorJSON {
         }
     }
 
-    pub fn build_with_err<M: Into<String>, E: ToString>(m: M, t: &str, e: E) -> ErrorJSON {
+    pub fn build_with_err<M, E>(m: M, t: &str, e: E) -> ErrorJSON
+    where
+        M: Into<String>,
+        E: ToString
+    {
         ErrorJSON {
             r#type: t.to_string(),
             message: m.into(),
@@ -40,13 +47,23 @@ pub struct MessageDataJSON<T: Serialize> {
 
 impl<T: Serialize> MessageDataJSON<T> {
 
-    pub fn build<M: Into<String>>(m: M, d: T) -> MessageDataJSON<T> {
+    pub fn build<M>(m: M, d: T) -> MessageDataJSON<T>
+    where
+        M: Into<String>
+    {
         MessageDataJSON {
             message: m.into(),
             date: time::now_rfc3339(),
             data: d
         }
     }
+}
+
+pub fn only_message<M>(m: M) -> MessageDataJSON<Option<()>>
+where
+    M: Into<String> 
+{
+    MessageDataJSON::build(m, None)
 }
 
 pub fn build_json_response(status: http::StatusCode) -> HttpResponseBuilder {
@@ -56,16 +73,26 @@ pub fn build_json_response(status: http::StatusCode) -> HttpResponseBuilder {
     return builder;
 }
 
-pub fn respond_json<T: Serialize>(status: http::StatusCode, data: T) -> HttpResponse {
+pub fn respond_json<T>(status: http::StatusCode, data: T) -> HttpResponse
+where
+    T: Serialize
+{
     build_json_response(status).json(data)
 }
 
 pub fn respond_okay() -> HttpResponse {
     respond_json(
         http::StatusCode::OK,
-        MessageDataJSON::<Option<()>>::build(
-            "okay",
-            None
-        )
+        only_message("okay")
+    )
+}
+
+pub fn respond_message<T>(msg: T) -> HttpResponse 
+where
+    T: Into<String>
+{
+    respond_json(
+        http::StatusCode::OK,
+        only_message(msg)
     )
 }

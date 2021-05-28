@@ -119,7 +119,8 @@ export interface UserDataJson {
     username: string,
     level: number,
     full_name?: string,
-    email?: string
+    email?: string,
+    email_verified: boolean
 }
 
 export interface UserAccessInfoJson {
@@ -261,11 +262,12 @@ export function cloneCustomFieldJson(custom_field: CustomFieldJson): CustomField
 
 export function makeUserDataJson(): UserDataJson {
     return {
-        id: null,
+        id: 0,
         username: "",
         level: 20,
         full_name: null,
-        email: null
+        email: null,
+        email_verified: false
     }
 }
 
@@ -275,7 +277,8 @@ export function cloneUserDataJson(user_data: UserDataJson): UserDataJson {
         username: cloneString(user_data.username),
         level: cloneInteger(user_data.level),
         full_name: optionalCloneString(user_data.full_name),
-        email: optionalCloneString(user_data.email)
+        email: optionalCloneString(user_data.email),
+        email_verified: cloneBoolean(user_data.email_verified)
     }
 }
 

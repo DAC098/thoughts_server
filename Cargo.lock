@@ -2542,6 +2542,7 @@ dependencies = [
  "actix-session",
  "actix-web 4.0.0-beta.5",
  "actix-web-actors",
+ "base64",
  "bb8-postgres",
  "chrono",
  "env_logger",

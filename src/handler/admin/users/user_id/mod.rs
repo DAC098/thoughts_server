@@ -170,7 +170,15 @@ pub async fn handle_put(
         }
 
         let check_result = transaction.query(
-            "select users.id, users.username, users.level, users.full_name, users.email from users where users.id = any($1)",
+            r#"
+            select users.id, 
+                   users.username, 
+                   users.level, 
+                   users.full_name, 
+                   users.email,
+                   users.email_verified
+            from users 
+            where users.id = any($1)"#,
             &[&id_list]
         ).await?;
 
@@ -180,7 +188,8 @@ pub async fn handle_put(
                 username: check.get(1),
                 level: check.get(2),
                 full_name: check.get(3),
-                email: check.get(4)
+                email: check.get(4),
+                email_verified: check.get(5)
             };
 
             if user.level != check_level {

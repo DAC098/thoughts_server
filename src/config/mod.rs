@@ -2,6 +2,10 @@ use serde::{Deserialize};
 
 pub mod error;
 
+trait MapShape {
+    fn map_shape(&mut self, rhs: Self);
+}
+
 #[derive(Deserialize)]
 pub struct DBConfigShape {
     pub username: Option<String>,
@@ -13,6 +17,30 @@ pub struct DBConfigShape {
     pub port: Option<u16>
 }
 
+impl MapShape for DBConfigShape {
+    fn map_shape(&mut self, rhs: Self) {
+        if rhs.username.is_some() {
+            self.username = rhs.username;
+        }
+    
+        if rhs.password.is_some() {
+            self.password = rhs.password;
+        }
+    
+        if rhs.database.is_some() {
+            self.database = rhs.database;
+        }
+    
+        if rhs.hostname.is_some() {
+            self.hostname = rhs.hostname;
+        }
+    
+        if rhs.port.is_some() {
+            self.port = rhs.port;
+        }
+    }
+}
+
 #[derive(Deserialize)]
 pub struct BindInterfaceShape {
     pub host: String,
@@ -22,6 +50,70 @@ pub struct BindInterfaceShape {
 #[derive(Deserialize)]
 pub struct SessionConfigShape {
     pub domain: Option<String>
+}
+
+impl MapShape for SessionConfigShape {
+    fn map_shape(&mut self, rhs: Self) {
+        if rhs.domain.is_some() {
+            self.domain = rhs.domain;
+        }
+    }
+}
+
+#[derive(Deserialize)]
+pub struct EmailConfigShape {
+    pub enable: Option<bool>,
+    pub from: Option<String>,
+    pub username: Option<String>,
+    pub password: Option<String>,
+    pub relay: Option<String>
+}
+
+impl MapShape for EmailConfigShape {
+    fn map_shape(&mut self, rhs: Self) {
+        if rhs.enable.is_some() {
+            self.enable = rhs.enable;
+        }
+    
+        if rhs.from.is_some() {
+            self.from = rhs.from;
+        }
+    
+        if rhs.username.is_some() {
+            self.username = rhs.username;
+        }
+    
+        if rhs.password.is_some() {
+            self.password = rhs.password;
+        }
+    
+        if rhs.relay.is_some() {
+            self.relay = rhs.relay;
+        }
+    }
+}
+
+#[derive(Deserialize)]
+pub struct ServerInfoConfigShape {
+    pub secure: Option<bool>,
+    pub origin: Option<String>,
+    pub name: Option<String>
+}
+
+impl MapShape for ServerInfoConfigShape {
+    fn map_shape(&mut self, rhs: Self) {
+        if rhs.secure.is_some() {
+            self.secure = rhs.secure;
+        }
+
+        if rhs.origin.is_some() {
+            self.origin = rhs.origin;
+        }
+
+        if rhs.name.is_some() {
+            self.name = rhs.name;
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -36,86 +128,78 @@ pub struct ServerConfigShape {
 
     pub db: Option<DBConfigShape>,
     pub session: Option<SessionConfigShape>,
+    pub email: Option<EmailConfigShape>,
+    pub info: Option<ServerInfoConfigShape>,
 
     pub key: Option<String>,
     pub cert: Option<String>
 }
 
-fn map_db_config_shape(lhs: &mut DBConfigShape, rhs: DBConfigShape) {
-    if rhs.username.is_some() {
-        lhs.username = rhs.username;
-    }
-
-    if rhs.password.is_some() {
-        lhs.password = rhs.password;
-    }
-
-    if rhs.database.is_some() {
-        lhs.database = rhs.database;
-    }
-
-    if rhs.hostname.is_some() {
-        lhs.hostname = rhs.hostname;
-    }
-
-    if rhs.port.is_some() {
-        lhs.port = rhs.port;
-    }
-}
-
-fn map_session_config_shape(lhs: &mut SessionConfigShape, rhs: SessionConfigShape) {
-    if rhs.domain.is_some() {
-        lhs.domain = rhs.domain;
-    }
-}
-
-fn map_server_config_shape(lhs: &mut ServerConfigShape, rhs: ServerConfigShape) {
-    if rhs.bind.is_some() {
-        lhs.bind = rhs.bind;
-    }
-
-    if rhs.port.is_some() {
-        lhs.port = rhs.port;
-    }
-
-    if rhs.threads.is_some() {
-        lhs.threads = rhs.threads;
-    }
-
-    if rhs.backlog.is_some() {
-        lhs.backlog = rhs.backlog;
-    }
-
-    if rhs.max_connections.is_some() {
-        lhs.max_connections = rhs.max_connections;
-    }
-
-    if rhs.max_connection_rate.is_some() {
-        lhs.max_connection_rate = rhs.max_connection_rate;
-    }
-
-    if rhs.key.is_some() {
-        lhs.key = rhs.key;
-    }
-
-    if rhs.cert.is_some() {
-        lhs.cert = rhs.cert;
-    }
-
-    if let Some(session) = lhs.session.as_mut() {
-        if rhs.session.is_some() {
-            map_session_config_shape(session, rhs.session.unwrap());
+impl MapShape for ServerConfigShape {
+    fn map_shape(&mut self, rhs: Self) {
+        if rhs.bind.is_some() {
+            self.bind = rhs.bind;
         }
-    } else {
-        lhs.session = rhs.session;
-    }
-
-    if let Some(db) = lhs.db.as_mut() {
-        if let Some(rhs_db) = rhs.db {
-            map_db_config_shape(db, rhs_db);
+    
+        if rhs.port.is_some() {
+            self.port = rhs.port;
         }
-    } else {
-        lhs.db = rhs.db;
+    
+        if rhs.threads.is_some() {
+            self.threads = rhs.threads;
+        }
+    
+        if rhs.backlog.is_some() {
+            self.backlog = rhs.backlog;
+        }
+    
+        if rhs.max_connections.is_some() {
+            self.max_connections = rhs.max_connections;
+        }
+    
+        if rhs.max_connection_rate.is_some() {
+            self.max_connection_rate = rhs.max_connection_rate;
+        }
+    
+        if rhs.key.is_some() {
+            self.key = rhs.key;
+        }
+    
+        if rhs.cert.is_some() {
+            self.cert = rhs.cert;
+        }
+    
+        if let Some(session) = self.session.as_mut() {
+            if let Some(rhs_session) = rhs.session {
+                session.map_shape(rhs_session);
+            }
+        } else {
+            self.session = rhs.session;
+        }
+    
+        if let Some(db) = self.db.as_mut() {
+            if let Some(rhs_db) = rhs.db {
+                db.map_shape(rhs_db);
+            }
+        } else {
+            self.db = rhs.db;
+        }
+    
+        if let Some(email) = self.email.as_mut() {
+            if let Some(rhs_email) = rhs.email {
+                email.map_shape(rhs_email);
+            }
+        } else {
+            self.email = rhs.email;
+        }
+
+        if let Some(info) = self.info.as_mut() {
+            if let Some(rhs_info) = rhs.info {
+                info.map_shape(rhs_info);
+            }
+        } else {
+            self.info = rhs.info;
+        }
     }
 }
 
@@ -180,6 +264,22 @@ pub struct SessionConfig {
 }
 
 #[derive(Debug, Clone)]
+pub struct EmailConfig {
+    pub enable: bool,
+    pub from: Option<String>,
+    pub username: Option<String>,
+    pub password: Option<String>,
+    pub relay: Option<String>
+}
+
+#[derive(Debug, Clone)]
+pub struct ServerInfoConfig {
+    pub secure: bool,
+    pub origin: String,
+    pub name: String
+}
+
+#[derive(Debug, Clone)]
 pub struct BindInterface {
     pub host: String,
     pub port: u16
@@ -223,6 +323,10 @@ pub struct ServerConfig {
 
     pub session: SessionConfig,
 
+    pub email: EmailConfig,
+
+    pub info: ServerInfoConfig,
+
     pub key: Option<String>,
     pub cert: Option<String>
 }
@@ -236,11 +340,13 @@ pub fn load_server_config(files: Vec<std::path::PathBuf>) -> error::Result<Serve
         max_connection_rate: None,
         db: None,
         session: None,
+        email: None,
+        info: None,
         key: None, cert: None
     };
 
     for file in files {
-        map_server_config_shape(&mut base_shape, load_file(file)?);
+        base_shape.map_shape(load_file(file)?);
     }
 
     let mut bind_list: Vec<BindInterface>;
@@ -290,6 +396,38 @@ pub fn load_server_config(files: Vec<std::path::PathBuf>) -> error::Result<Serve
         }
     };
 
+    let email_config = if let Some(email) = base_shape.email {
+        EmailConfig {
+            enable: email.enable.unwrap_or(false),
+            from: email.from,
+            username: email.username,
+            password: email.password,
+            relay: email.relay
+        }
+    } else {
+        EmailConfig {
+            enable: false,
+            from: None,
+            username: None,
+            password: None,
+            relay: None
+        }
+    };
+
+    let info_config = if let Some(info) = base_shape.info {
+        ServerInfoConfig {
+            secure: info.secure.unwrap_or(false),
+            origin: info.origin.unwrap_or("".to_owned()),
+            name: info.name.unwrap_or("Thoughts Server".to_owned())
+        }
+    } else {
+        ServerInfoConfig {
+            secure: false,
+            origin: "".to_owned(),
+            name: "Thoughts Server".to_owned()
+        }
+    };
+
     Ok(ServerConfig {
         bind: bind_list,
         threads: base_shape.threads.unwrap_or(num_cpus::get()),
@@ -298,6 +436,8 @@ pub fn load_server_config(files: Vec<std::path::PathBuf>) -> error::Result<Serve
         max_connection_rate: base_shape.max_connection_rate.unwrap_or(default_max_connection_rate()),
         db: db_config,
         session: session_config,
+        email: email_config,
+        info: info_config,
         key: base_shape.key,
         cert: base_shape.cert
     })

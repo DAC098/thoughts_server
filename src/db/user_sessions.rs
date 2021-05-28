@@ -12,6 +12,7 @@ pub async fn find_token_user(
                users.username,
                users.full_name,
                users.email,
+               users.email_verified,
                users.level
         from user_sessions 
         join users on user_sessions.owner = users.id 
@@ -28,7 +29,8 @@ pub async fn find_token_user(
             username: result[0].get(1),
             full_name: result[0].get(2),
             email: result[0].get(3),
-            level: result[0].get(4)
+            email_verified: result[0].get(4),
+            level: result[0].get(5)
         }))
     }
 }

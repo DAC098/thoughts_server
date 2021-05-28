@@ -17,10 +17,11 @@ export const active_user = createSlice({
         clear_user: (state) => {
             state.user = makeUserDataJson();
         },
-        update_info: (state, action: PayloadAction<{full_name: string, username: string, email?: string}>) => {
+        update_info: (state, action: PayloadAction<{full_name: string, username: string, email?: string, email_verified: boolean}>) => {
             state.user.username = action.payload.username;
             state.user.full_name = action.payload.full_name;
             state.user.email = action.payload.email;
+            state.user.email_verified = action.payload.email_verified;
         }
     }
 });

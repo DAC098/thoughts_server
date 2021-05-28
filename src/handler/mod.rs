@@ -14,6 +14,7 @@ pub mod account;
 pub mod backup;
 pub mod admin;
 pub mod tags;
+pub mod email;
 
 pub async fn handle_get(
     session: Session,

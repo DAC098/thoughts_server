@@ -1,4 +1,4 @@
-import { DefaultButton, Persona, PersonaSize, Stack, TextField } from "@fluentui/react"
+import { DefaultButton, Icon, Label, Persona, PersonaSize, Stack, TextField } from "@fluentui/react"
 import React, { useEffect, useState } from "react"
 import { useAppDispatch, useAppSelector } from "../hooks/useApp"
 import { json } from "../request"
@@ -93,10 +93,15 @@ const UserInformation = () => {
 
         setSending(true);
 
-        json.put<{}>("/account", {
+        json.put<any>("/account", {
             full_name, username, email
-        }).then(({}) => {
-            appDispatch(active_user_actions.update_info({username, full_name, email}));
+        }).then(({body}) => {
+            appDispatch(active_user_actions.update_info({
+                username: body.data.username, 
+                full_name: body.data.full_name, 
+                email: body.data.email,
+                email_verified: body.data.email_verified
+            }));
         }).catch(console.error).then(() => {
             setSending(false);
         })
@@ -121,8 +126,16 @@ const UserInformation = () => {
             </Stack>
         </Stack>
         <IndentSection content="Personal Information">
-            <Stack tokens={{childrenGap: 8}} styles={{root: {width: 250}}}>
-                <TextField label="Email" value={email} onChange={(e,v) => setEmail(v)}/>
+            <Stack styles={{root: {width: 250}}}>
+                <Label>
+                    Email
+                    {active_user_state.user.email_verified ?
+                        <Icon styles={{root: {marginLeft: 4}}} iconName="VerifiedBrandSolid"/>
+                        :
+                        null
+                    } 
+                </Label>
+                <TextField value={email ?? ""} onChange={(e,v) => setEmail(v)}/>
             </Stack>
             <Stack.Item>
                 <DefaultButton 
