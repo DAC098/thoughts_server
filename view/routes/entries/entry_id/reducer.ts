@@ -17,7 +17,7 @@ export interface MoodEntryUI extends UIKey, CustomFieldEntryJson {
 
 export interface EntryUIState extends EntryJson {
     text_entries: TextEntryUI[]
-    custom_field_entries: MoodEntryUI[]
+    custom_field_entries: {[id: string]: MoodEntryUI}
 }
 
 export interface EntryIdViewState {
@@ -60,10 +60,6 @@ export const entryIdViewSlice = createSlice({
             state.tag_mapping = {};
             state.changes_made = false;
 
-            for (let field of state.current.custom_field_entries) {
-                state.existing_fields[field.field] = true;
-            }
-
             for (let tag of state.current.tags) {
                 state.tag_mapping[tag] = true;
             }
@@ -73,10 +69,6 @@ export const entryIdViewSlice = createSlice({
             state.existing_fields = {};
             state.tag_mapping = {};
             state.changes_made = false;
-
-            for (let field of state.current.custom_field_entries) {
-                state.existing_fields[field.field] = true;
-            }
 
             for (let tag of state.current.tags) {
                 state.tag_mapping[tag] = true;
@@ -101,8 +93,7 @@ export const entryIdViewSlice = createSlice({
                 let custom_field_entry = makeCustomFieldEntryJson(field.config.type);
                 custom_field_entry.field = field.id;
                 custom_field_entry.name = field.name;
-                state.current.custom_field_entries.push(custom_field_entry);
-                state.existing_fields[field.id] = true;
+                state.current.custom_field_entries[field.id] = custom_field_entry;
             }
         },
         update_entry: (state, action: PayloadAction<string>) => {
@@ -123,12 +114,11 @@ export const entryIdViewSlice = createSlice({
                 return;
             }
 
-            let mood_entry = makeCustomFieldEntryJson(field.config.type);
-            mood_entry.field = field.id;
-            mood_entry.name = field.name;
+            let custom_field_entry = makeCustomFieldEntryJson(field.config.type);
+            custom_field_entry.field = field.id;
+            custom_field_entry.name = field.name;
 
-            state.current.custom_field_entries.push(mood_entry);
-            state.existing_fields[field.id] = true;
+            state.current.custom_field_entries[field.id] = custom_field_entry;
             state.changes_made = true;
         },
         update_mood_entry: (state, action: PayloadAction<{index: number, comment: string, value: CustomFieldEntryType}>) => {
@@ -136,9 +126,8 @@ export const entryIdViewSlice = createSlice({
             state.current.custom_field_entries[action.payload.index].value = action.payload.value;
             state.changes_made = true;
         },
-        delete_mood_entry: (state, action: PayloadAction<number>) => {
-            delete state.existing_fields[state.current.custom_field_entries[action.payload].field];
-            state.current.custom_field_entries.splice(action.payload, 1);
+        delete_mood_entry: (state, action: PayloadAction<string>) => {
+            delete state.current.custom_field_entries[action.payload];
             state.changes_made = true;
         },
 

@@ -1,5 +1,5 @@
 import { Breadcrumb, IconButton, ScrollablePane, Stack } from "@fluentui/react"
-import React from "react"
+import React, { useEffect } from "react"
 import { Route, Switch, useHistory, useLocation } from "react-router-dom"
 
 import NavSection from "./NavSection"
@@ -15,10 +15,39 @@ import AdminUserListView from "./routes/admin/users"
 import AdminUserIdView from "./routes/admin/users/users_id"
 import TagsView from "./routes/tags"
 import TagsIDView from "./routes/tags/tag_id"
+import { useAppDispatch, useAppSelector } from "./hooks/useApp"
+import { view_actions } from "./redux/slices/view"
+import resize_listener from "./util/ResizeListener"
 
 const App = () => {
     const location = useLocation();
     const history = useHistory();
+    const app_dispatch = useAppDispatch();
+    const view_state = useAppSelector(state => state.view);
+
+    useEffect(() => {
+        let is_min_width = window.innerWidth <= 1080;
+
+        const onResize = (width: number, height: number) => {
+            if (width <= 1080) {
+                if (!is_min_width) {
+                    app_dispatch(view_actions.update_visibility(true));
+                    is_min_width = true;
+                }
+            } else {
+                if (is_min_width) {
+                    app_dispatch(view_actions.update_visibility(false));
+                    is_min_width = false;
+                }
+            }
+        }
+
+        resize_listener.on("resize", onResize);
+
+        return () => {
+            resize_listener.off("resize", onResize);
+        }
+    }, [])
 
     let breadcrumb_items = [];
     let previous = [];
@@ -50,13 +79,26 @@ const App = () => {
     }
 
     return <Stack horizontal style={{position: "relative", width: "100vw", height: "100vh"}}>
-        <Stack.Item shrink={0} grow={0} style={{width: 180}}>
+        <Stack.Item shrink={0} grow={0}>
             <NavSection/>
         </Stack.Item>
-        <Stack.Item grow>
+        <Stack.Item grow styles={{root: {
+            maxWidth: view_state.is_min_width ? "100vw" : (
+                view_state.visible ? "calc(100vw - 200px)" : "100vw"
+            ),
+            maxHeight: "100vh"
+        }}}>
             <Stack style={{position: "relative", width: "100%", height: "100%"}}>
                 <Stack.Item shrink={0} grow={0} styles={{root: {backgroundColor: "black"}}}>
-                    <Breadcrumb items={breadcrumb_items} styles={{root: {marginBottom: 0, marginTop: 10}}}/>
+                    <Stack horizontal verticalAlign="center" tokens={{childrenGap: 8, padding: "4 8px"}}>
+                        <IconButton
+                            iconProps={{iconName: "GlobalNavButton"}} 
+                            onClick={() => app_dispatch(view_actions.set_visible(!view_state.visible))}
+                        />
+                        <Stack.Item grow>
+                            <Breadcrumb items={breadcrumb_items} styles={{root: {marginBottom: 0, marginTop: 0}}}/>
+                        </Stack.Item>
+                    </Stack>
                 </Stack.Item>
                 <Stack.Item id="main_content" grow style={{position: "relative"}}>
                     <Switch>

@@ -42,7 +42,7 @@ pub struct EntryJson {
     pub created: chrono::DateTime<chrono::Utc>,
     pub owner: i32,
     pub tags: Vec<i32>,
-    pub custom_field_entries: Vec<CustomFieldEntryJson>,
+    pub custom_field_entries: HashMap<i32, CustomFieldEntryJson>,
     pub text_entries: Vec<TextEntryJson>
 }
 
@@ -271,20 +271,20 @@ pub async fn search_text_entries(
 pub async fn search_custom_field_entries(
     conn: &impl GenericClient,
     entry_id: &i32,
-) -> error::Result<Vec<CustomFieldEntryJson>> {
+) -> error::Result<HashMap<i32, CustomFieldEntryJson>> {
     let entry_ids: Vec<i32> = vec!(*entry_id);
     let (query_str, query_slice) = search_custom_field_entries_query_slice(&entry_ids)?;
 
     Ok(conn.query(query_str.as_str(), &query_slice[..])
         .await?
         .iter()
-        .map(|row| CustomFieldEntryJson {
+        .map(|row| (row.get(0), CustomFieldEntryJson {
             field: row.get(0),
             name: row.get(1),
             value: serde_json::from_value(row.get(2)).unwrap(),
             comment: row.get(3),
             entry: row.get(4)
-        })
+        }))
         .collect())
 }
 
@@ -356,7 +356,7 @@ pub async fn search_entries(
             created: row.get(1),
             owner: row.get(2),
             tags: vec!(),
-            custom_field_entries: vec!(),
+            custom_field_entries: HashMap::new(),
             text_entries: vec!()
         });
         entry_hash_map.insert(entry_id, count);
@@ -369,7 +369,7 @@ pub async fn search_entries(
 
             conn.query(query_str.as_str(), &query_slice[..]).await?
         };
-        let mut current_set: Vec<CustomFieldEntryJson> = vec!();
+        let mut current_set: HashMap<i32, CustomFieldEntryJson> = HashMap::new();
         let mut current_entry_id: i32 = 0;
 
         for row in custom_field_entries {
@@ -379,12 +379,11 @@ pub async fn search_entries(
                 current_entry_id = entry_id;
             } else if current_entry_id != entry_id {
                 let borrow = entry_hash_map.get(&current_entry_id).unwrap();
-                rtn[*borrow].custom_field_entries.reserve(current_set.len());
-                rtn[*borrow].custom_field_entries.append(&mut current_set);
+                std::mem::swap(&mut rtn[*borrow].custom_field_entries, &mut current_set);
                 current_entry_id = entry_id;
             }
 
-            current_set.push(CustomFieldEntryJson {
+            current_set.insert(row.get(0), CustomFieldEntryJson {
                 field: row.get(0),
                 name: row.get(1),
                 value: serde_json::from_value(row.get(2)).unwrap(),
@@ -395,8 +394,7 @@ pub async fn search_entries(
 
         if entry_ids.len() > 0 && current_entry_id != 0 {
             let borrow = entry_hash_map.get(&current_entry_id).unwrap();
-            rtn[*borrow].custom_field_entries.reserve(current_set.len());
-            rtn[*borrow].custom_field_entries.append(&mut current_set);
+            std::mem::swap(&mut rtn[*borrow].custom_field_entries, &mut current_set);
         }
     }
 
@@ -416,8 +414,7 @@ pub async fn search_entries(
                 current_entry_id = entry_id;
             } else if current_entry_id != entry_id {
                 let borrow = entry_hash_map.get(&current_entry_id).unwrap();
-                rtn[*borrow].text_entries.reserve(current_set.len());
-                rtn[*borrow].text_entries.append(&mut current_set);
+                std::mem::swap(&mut rtn[*borrow].text_entries, &mut current_set);
                 current_entry_id = entry_id;
             }
 
@@ -431,8 +428,7 @@ pub async fn search_entries(
 
         if entry_ids.len() > 0 && current_entry_id != 0 {
             let borrow = entry_hash_map.get(&current_entry_id).unwrap();
-            rtn[*borrow].text_entries.reserve(current_set.len());
-            rtn[*borrow].text_entries.append(&mut current_set);
+            std::mem::swap(&mut rtn[*borrow].text_entries, &mut current_set);
         }
     }
 
@@ -452,8 +448,7 @@ pub async fn search_entries(
                 current_entry_id = entry_id;
             } else if entry_id != current_entry_id {
                 let borrow = entry_hash_map.get(&current_entry_id).unwrap();
-                rtn[*borrow].tags.reserve(current_set.len());
-                rtn[*borrow].tags.append(&mut current_set);
+                std::mem::swap(&mut rtn[*borrow].tags, &mut current_set);
                 current_entry_id = entry_id;
             }
 
@@ -462,8 +457,7 @@ pub async fn search_entries(
 
         if entry_ids.len() > 0 && current_entry_id != 0 {
             let borrow = entry_hash_map.get(&current_entry_id).unwrap();
-            rtn[*borrow].tags.reserve(current_set.len());
-            rtn[*borrow].tags.append(&mut current_set);
+            std::mem::swap(&mut rtn[*borrow].tags, &mut current_set);
         }
     }
 

@@ -1,3 +1,5 @@
+use std::collections::{HashMap};
+
 use actix_web::{web, http, HttpRequest, Responder};
 use actix_session::{Session};
 use serde::{Deserialize};
@@ -109,14 +111,13 @@ pub async fn handle_put(
         id: path.entry_id,
         created: result.get(0),
         tags: vec!(),
-        custom_field_entries: vec!(),
+        custom_field_entries: HashMap::new(),
         text_entries: vec!(),
         owner: initiator.user.get_id()
     };
 
     if let Some(m) = &posted.custom_field_entries {
         let mut ids: Vec<i32> = vec!();
-        let mut custom_field_entries: Vec<json::CustomFieldEntryJson> = vec!();
 
         for custom_field_entry in m {
             let field = db::custom_fields::get_via_id(&transaction, custom_field_entry.field, Some(initiator.user.id)).await?;
@@ -136,7 +137,7 @@ pub async fn handle_put(
             ).await?;
 
             ids.push(field.id);
-            custom_field_entries.push(json::CustomFieldEntryJson {
+            rtn.custom_field_entries.insert(field.id, json::CustomFieldEntryJson {
                 field: field.id,
                 name: field.name,
                 value: custom_field_entry.value.clone(),
@@ -144,8 +145,6 @@ pub async fn handle_put(
                 entry: path.entry_id
             });
         }
-
-        rtn.custom_field_entries.append(&mut custom_field_entries);
 
         let left_over = transaction.query(
             "select field from custom_field_entries where entry = $1 and not (field = any($2))",
@@ -170,7 +169,6 @@ pub async fn handle_put(
 
     if let Some(t) = &posted.text_entries {
         let mut ids: Vec<i32> = vec!();
-        let mut text_entries: Vec<json::TextEntryJson> = vec!();
 
         for text_entry in t {
             if let Some(id) = text_entry.id {
@@ -200,7 +198,7 @@ pub async fn handle_put(
                 ).await?;
 
                 ids.push(id);
-                text_entries.push(json::TextEntryJson {
+                rtn.text_entries.push(json::TextEntryJson {
                     id: result.get(0),
                     thought: result.get(1),
                     entry: path.entry_id,
@@ -213,7 +211,7 @@ pub async fn handle_put(
                 ).await?;
 
                 ids.push(result.get(0));
-                text_entries.push(json::TextEntryJson {
+                rtn.text_entries.push(json::TextEntryJson {
                     id: result.get(0),
                     thought: result.get(1),
                     entry: path.entry_id,
@@ -221,8 +219,6 @@ pub async fn handle_put(
                 })
             }
         }
-
-        rtn.text_entries.append(&mut text_entries);
 
         let left_over = transaction.query(
             "select id from text_entries where entry = $1 and not (id = any($2))",
@@ -247,7 +243,6 @@ pub async fn handle_put(
 
     if let Some(tags) = &posted.tags {
         let mut ids: Vec<i32> = vec!();
-        let mut entry_tags: Vec<i32> = vec!();
 
         for tag_id in tags {
             let result = transaction.query_one(
@@ -262,10 +257,8 @@ pub async fn handle_put(
             ).await?;
 
             ids.push(result.get(0));
-            entry_tags.push(*tag_id);
+            rtn.tags.push(*tag_id);
         }
-
-        rtn.tags.append(&mut entry_tags);
 
         let left_over = transaction.query(
             "select id from entries2tags where entry = $1 and not (id = any ($2))",

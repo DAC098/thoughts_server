@@ -150,11 +150,11 @@ pub async fn handle_post(
             }
         }
 
-        for custom_field_entry in entry.custom_field_entries {
-            let custom_field_id_opt = custom_field_mapping.get(&custom_field_entry.field);
+        for (field_id, custom_field_entry) in entry.custom_field_entries {
+            let custom_field_id_opt = custom_field_mapping.get(&field_id);
 
             if let Some(custom_field_id) = custom_field_id_opt {
-                let config = custom_field_config_mapping.get(&custom_field_entry.field).unwrap();
+                let config = custom_field_config_mapping.get(&field_id).unwrap();
 
                 db::custom_fields::verifiy(&config, &custom_field_entry.value)?;
 

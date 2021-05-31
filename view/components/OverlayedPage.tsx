@@ -42,6 +42,7 @@ const OverlayedPage = ({
                 backgroundColor,
                 position: "relative"
             }}}
+            tokens={{maxWidth: "100%"}}
         >
             <ScrollablePane {...scrollablePane}>
                 {children}

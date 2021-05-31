@@ -1,3 +1,5 @@
+use std::collections::{HashMap};
+
 use actix_web::{web, http, HttpRequest, Responder};
 use actix_session::{Session};
 use serde::{Deserialize};
@@ -105,7 +107,7 @@ pub async fn handle_post(
     ).await?;
     let entry_id: i32 = result.get(0);
 
-    let mut custom_field_entries: Vec<json::CustomFieldEntryJson> = vec!();
+    let mut custom_field_entries: HashMap<i32, json::CustomFieldEntryJson> = HashMap::new();
 
     if let Some(m) = &posted.custom_field_entries {
         for custom_field_entry in m {
@@ -122,7 +124,7 @@ pub async fn handle_post(
                 &[&field.id, &value_json, &custom_field_entry.comment, &entry_id]
             ).await?;
 
-            custom_field_entries.push(json::CustomFieldEntryJson {
+            custom_field_entries.insert(field.id, json::CustomFieldEntryJson {
                 field: field.id,
                 name: field.name,
                 value: custom_field_entry.value.clone(),

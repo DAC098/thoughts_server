@@ -36,7 +36,7 @@ export interface EntryJson {
     created: string
     owner: number
     tags: number[]
-    custom_field_entries: CustomFieldEntryJson[]
+    custom_field_entries: {[id: string]: CustomFieldEntryJson}
     text_entries: TextEntryJson[]
 }
 
@@ -184,7 +184,7 @@ export function makeEntryJson(): EntryJson {
         created: "",
         owner: 0,
         tags: [],
-        custom_field_entries: [],
+        custom_field_entries: {},
         text_entries: []
     }
 }
@@ -195,14 +195,12 @@ export function cloneEntryJson(entry: EntryJson) {
         created: cloneString(entry.created),
         owner: cloneInteger(entry.owner),
         tags: [],
-        custom_field_entries: [],
+        custom_field_entries: {},
         text_entries: []
     };
 
-    for (let m of (entry.custom_field_entries ?? [])) {
-        rtn.custom_field_entries.push(
-            cloneCustomFieldEntryJson(m)
-        );
+    for (let [k, m] of Object.entries(entry.custom_field_entries)) {
+        rtn.custom_field_entries[k] = cloneCustomFieldEntryJson(m);
     }
 
     for (let t of (entry.text_entries ?? [])) {

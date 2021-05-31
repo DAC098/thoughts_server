@@ -1,20 +1,27 @@
-import { CommandBar, DatePicker, IColumn, ICommandBarItemProps, Icon, IconButton, IContextualMenuItem, ScrollablePane, ShimmeredDetailsList, Stack, Sticky, StickyPositionType, Text, TooltipHost, TooltipOverflowMode } from "@fluentui/react"
-import React, { useEffect, useMemo, useState } from "react"
+import { CommandBar, DatePicker, Dropdown, IColumn, ICommandBarItemProps, Icon, IconButton, IContextualMenuItem, ScrollablePane, ShimmeredDetailsList, Stack, Sticky, StickyPositionType, Text, TooltipHost, TooltipOverflowMode } from "@fluentui/react"
+import React, { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useHistory } from "react-router-dom"
+import ParentSize from "@visx/responsive/lib/components/ParentSize"
 import { useLoadEntries } from "../../hooks/useLoadEntries"
 import { useLoadFields } from "../../hooks/useLoadFields"
 import { useOwner } from "../../hooks/useOwner"
-import { EntryJson } from "../../api/types"
+import { CustomFieldJson, EntryJson } from "../../api/types"
 import { CustomFieldEntryType } from "../../api/custom_field_entry_types"
 import { diffDates, displayDate, get12hrStr, get24hrStr, sameDate } from "../../time"
 import { useAppDispatch, useAppSelector } from "../../hooks/useApp"
-import { CustomFieldType, Float, FloatRange, Time, TimeRange } from "../../api/custom_field_types"
+import { CustomFieldType, CustomFieldTypeName, Float, FloatRange, Time, TimeRange } from "../../api/custom_field_types"
 import { tags_actions } from "../../redux/slices/tags"
 import TagToken from "../../components/tags/TagItem"
 import { downloadLink } from "../../util/downloadLink"
 import { getURL } from "../../api"
+import IntegerRangeGraph from "../../components/graphs/IntegerRange"
+import IntegerGraph from "../../components/graphs/Integer"
+import FloatGraph from "../../components/graphs/Float"
+import FloatRangeGraph from "../../components/graphs/FloatRange"
+import TimeGraph from "../../components/graphs/Time"
+import TimeRangeGraph from "../../components/graphs/TimeRange"
 
-function renderMoodFieldType(value: CustomFieldEntryType, config: CustomFieldType) {
+function renderCustomFieldType(value: CustomFieldEntryType, config: CustomFieldType) {
     switch (value.type) {
         case "Integer":
             return `${value.value}`;
@@ -47,65 +54,71 @@ function renderMoodFieldType(value: CustomFieldEntryType, config: CustomFieldTyp
     }
 }
 
-interface EntriesViewProps {
-    user_specific?: boolean
+interface CustomFieldGraphProps {
+    field: CustomFieldJson
+
+    entries: EntryJson[]
+
+    width: number
+    height: number
 }
 
-const EntriesView = ({user_specific = false}: EntriesViewProps) => {
-    const history = useHistory();
-    const owner = useOwner(user_specific);
-    const active_user_state = useAppSelector(state => state.active_user);
+function CustomFieldGraph({
+    field,
+    entries,
+    width, height
+}: CustomFieldGraphProps) {
+    switch (field.config.type) {
+        case CustomFieldTypeName.Integer:
+            return <IntegerGraph width={width} height={height} field={field} entries={entries}/>
+        case CustomFieldTypeName.IntegerRange:
+            return <IntegerRangeGraph width={width} height={height} field={field} entries={entries}/>
+        case CustomFieldTypeName.Float:
+            return <FloatGraph width={width} height={height} field={field} entries={entries}/>
+        case CustomFieldTypeName.FloatRange:
+            return <FloatRangeGraph width={width} height={height} field={field} entries={entries}/>
+        case CustomFieldTypeName.Time:
+            return <TimeGraph width={width} height={height} field={field} entries={entries}/>
+        case CustomFieldTypeName.TimeRange:
+            return <TimeRangeGraph width={width} height={height} field={field} entries={entries}/>
+    }
+}
+
+interface EntriesGraphViewProps {
+    field: CustomFieldJson
+    entries: EntryJson[]
+}
+
+const EntriesGraphView = ({field, entries}: EntriesGraphViewProps) => {
+    const custom_fields_state = useAppSelector(state => state.custom_fields);
+    const entries_state = useAppSelector(state => state.entries);
     const tags_state = useAppSelector(state => state.tags);
-    const appDispatch = useAppDispatch();
 
-    const [entries_state, loadEntries] = useLoadEntries();
-    const [custom_fields_state, loadFields] = useLoadFields();
-
-    const [from_date, setFromDate] = useState<Date>(() => {
-        if (entries_state.owner != owner)
-            return null;
-        else
-            return entries_state.from != null ? new Date(entries_state.from) : null
-    });
-    const [to_date, setToDate] = useState<Date>(() => {
-        if (entries_state.owner != owner)
-            return null;
-        else
-            return entries_state.to != null ? new Date(entries_state.to) : null
-    });
-    const [visible_fields, setVisibleFields] = useState<Record<string, boolean>>(() => {
-        let rtn = {};
-
-        for (let field of custom_fields_state.custom_fields) {
-            rtn[field.name] = true;
-        }
-
-        return rtn;
-    });
-
-    const owner_is_active_user = active_user_state.user.id === owner;
     const loading_state = custom_fields_state.loading || entries_state.loading || tags_state.loading;
 
-    const default_download = () => {
-        let url = getURL("/backup");
-        let filename = [];
+    return <Stack.Item grow shrink styles={{root: {overflow: "hidden"}}}>
+        <ParentSize debounceTime={10}>
+            {({width, height}) => loading_state ?
+                null
+                :
+                <CustomFieldGraph field={field} entries={entries} width={width} height={400}/>
+            }
+        </ParentSize>
+    </Stack.Item>
+}
 
-        if (from_date != null) {
-            url.searchParams.append("from", from_date.toISOString());
-            filename.push(from_date.toDateString());
-        } else {
-            filename.push("");
-        }
+interface EntriesTableViewProps {
+    user_specific: boolean
+    owner: number
+    visible_fields: Record<string, boolean>
+}
 
-        if (to_date != null) {
-            url.searchParams.append("to", to_date.toISOString());
-            filename.push(to_date.toDateString());
-        } else {
-            filename.push("");
-        }
+const EntriesTableView = ({user_specific, owner, visible_fields}: EntriesTableViewProps) => {
+    const custom_fields_state = useAppSelector(state => state.custom_fields);
+    const entries_state = useAppSelector(state => state.entries);
+    const tags_state = useAppSelector(state => state.tags);
 
-        downloadLink(url.toString(), filename.join("_to_") + ".json");
-    }
+    const loading_state = custom_fields_state.loading || entries_state.loading || tags_state.loading;
 
     let columns = useMemo(() => {
         let rtn: IColumn[] = [
@@ -135,24 +148,24 @@ const EntriesView = ({user_specific = false}: EntriesViewProps) => {
                 minWidth: 100,
                 maxWidth: 150,
                 onRender: (item: EntryJson) => {
-                    for (let m of item.custom_field_entries) {
-                        if (m.field === field.id) {
-                            let content = <>
-                                {renderMoodFieldType(m.value, custom_fields_state.mapping[m.field].config)}
-                                {m.comment && m.comment.length > 0 ?
-                                    <Icon style={{paddingLeft: 4}} iconName="Info"/>
-                                    :
-                                    null
-                                }
-                            </>;
+                    let custom_field_entry = item.custom_field_entries?.[field.id];
 
-                            return <TooltipHost overflowMode={TooltipOverflowMode.Parent} content={content}>
-                                {content}
-                            </TooltipHost>
-                        }
+                    if (!custom_field_entry) {
+                        return <span/>
                     }
 
-                    return <span/>
+                    let content = <>
+                        {renderCustomFieldType(custom_field_entry.value, field.config)}
+                        {custom_field_entry.comment && custom_field_entry.comment.length > 0 ?
+                            <Icon style={{paddingLeft: 4}} iconName="Info"/>
+                            :
+                            null
+                        }
+                    </>;
+
+                    return <TooltipHost overflowMode={TooltipOverflowMode.Parent} content={content}>
+                        {content}
+                    </TooltipHost>
                 }
             })
         }
@@ -183,6 +196,81 @@ const EntriesView = ({user_specific = false}: EntriesViewProps) => {
 
         return rtn;
     }, [loading_state, visible_fields]);
+
+    return <ShimmeredDetailsList
+        items={loading_state ? [] : entries_state.entries}
+        columns={columns}
+        compact={false}
+        enableShimmer={loading_state}
+        onRenderDetailsHeader={(p,d) => {
+            return <Sticky stickyPosition={StickyPositionType.Header}>
+                {d(p)}
+            </Sticky>
+        }}
+    />
+}
+
+interface EntriesViewProps {
+    user_specific?: boolean
+}
+
+const EntriesView = ({user_specific = false}: EntriesViewProps) => {
+    const history = useHistory();
+    const owner = useOwner(user_specific);
+    const active_user_state = useAppSelector(state => state.active_user);
+    const tags_state = useAppSelector(state => state.tags);
+    const appDispatch = useAppDispatch();
+
+    const [entries_state, loadEntries] = useLoadEntries();
+    const [custom_fields_state, loadFields] = useLoadFields();
+
+    const [view_graph, setViewGraph] = useState(false);
+    const [from_date, setFromDate] = useState<Date>(() => {
+        if (entries_state.owner != owner)
+            return null;
+        else
+            return entries_state.from != null ? new Date(entries_state.from) : null
+    });
+    const [to_date, setToDate] = useState<Date>(() => {
+        if (entries_state.owner != owner)
+            return null;
+        else
+            return entries_state.to != null ? new Date(entries_state.to) : null
+    });
+    const [visible_fields, setVisibleFields] = useState<Record<string, boolean>>(() => {
+        let rtn = {};
+
+        for (let field of custom_fields_state.custom_fields) {
+            rtn[field.name] = true;
+        }
+
+        return rtn;
+    });
+    const [selected_field, setSelectedField] = useState<CustomFieldJson>(null);
+
+    const owner_is_active_user = active_user_state.user.id === owner;
+    const loading_state = custom_fields_state.loading || entries_state.loading || tags_state.loading;
+
+    const default_download = () => {
+        let url = getURL("/backup");
+        let filename = [];
+
+        if (from_date != null) {
+            url.searchParams.append("from", from_date.toISOString());
+            filename.push(from_date.toDateString());
+        } else {
+            filename.push("");
+        }
+
+        if (to_date != null) {
+            url.searchParams.append("to", to_date.toISOString());
+            filename.push(to_date.toDateString());
+        } else {
+            filename.push("");
+        }
+
+        downloadLink(url.toString(), filename.join("_to_") + ".json");
+    }
 
     useEffect(() => {
         let rtn = {};
@@ -257,13 +345,15 @@ const EntriesView = ({user_specific = false}: EntriesViewProps) => {
 
     let visible_fields_options: ICommandBarItemProps[] = [];
 
-    for (let field of custom_fields_state.custom_fields) {
-        visible_fields_options.push({
-            key: field.name, 
-            text: field.name,
-            canCheck: true,
-            checked: visible_fields[field.name]
-        });
+    if (!view_graph) {
+        for (let field of custom_fields_state.custom_fields) {
+            visible_fields_options.push({
+                key: field.name, 
+                text: field.name,
+                canCheck: true,
+                checked: visible_fields[field.name]
+            });
+        }
     }
 
     let settings_submenus: IContextualMenuItem[] = [
@@ -285,61 +375,90 @@ const EntriesView = ({user_specific = false}: EntriesViewProps) => {
         }
     ];
 
+    const header_content = <Stack tokens={{padding: "8px 8px 0", childrenGap: 8}}>
+        <Stack horizontal tokens={{childrenGap: 8}}>
+            <Stack horizontal  verticalAlign="end">
+                <DatePicker label="From" value={from_date} onSelectDate={d => {
+                    setFromDate(d);
+                }}/>
+                <IconButton iconProps={{iconName: "Delete"}} onClick={() => {
+                    setFromDate(null);
+                }}/>
+            </Stack>
+            <Stack horizontal verticalAlign="end">
+                <DatePicker label="To" value={to_date} onSelectDate={d => {
+                    setToDate(d);
+                }}/>
+                <IconButton iconProps={{iconName: "Delete"}} onClick={() => {
+                    setToDate(null);
+                }}/>
+            </Stack>
+            {view_graph ?
+                <Dropdown
+                    label="Graph Field"
+                    styles={{root: {width: 200}}}
+                    options={custom_fields_state.custom_fields.map(field => {
+                        return {
+                            key: field.id,
+                            text: field.name,
+                            selected: selected_field ? selected_field.id === field.id : false,
+                            data: field
+                        }
+                    })}
+                    onChange={(e, o) => {
+                        setSelectedField(o.data);
+                    }}
+                />
+                :
+                null
+            }
+        </Stack>
+        <Text variant="smallPlus">{!loading_state ? `${entries_state.entries.length} total entries` : "loading"}</Text>
+        <CommandBar 
+            items={command_bar_actions}
+            farItems={[
+                {
+                    key: "view_change",
+                    text: view_graph ? "Table View" : "Graph View",
+                    iconOnly: true,
+                    iconProps: {iconName: view_graph ? "Table" : "LineChart"},
+                    onClick: () => setViewGraph(!view_graph)
+                },
+                {
+                    key: "settings", 
+                    text: "Settings",
+                    iconOnly: true,
+                    iconProps: {iconName: "Settings"},
+                    subMenuProps: {
+                        items: settings_submenus
+                    }
+                }
+            ]}
+        />
+    </Stack>;
+
     return <Stack style={{
         position: "relative",
         width: "100%",
         height: "100%"
     }}>
-        <ScrollablePane styles={{"contentContainer": {height: "100%"}}}>
-            <Sticky stickyPosition={StickyPositionType.Header} stickyBackgroundColor={"white"}>
-                <Stack tokens={{padding: "8px 8px 0", childrenGap: 8}}>
-                    <Stack horizontal tokens={{childrenGap: 8}}>
-                        <Stack horizontal  verticalAlign="end">
-                            <DatePicker label="From" value={from_date} onSelectDate={d => {
-                                setFromDate(d);
-                            }}/>
-                            <IconButton iconProps={{iconName: "Delete"}} onClick={() => {
-                                setFromDate(null);
-                            }}/>
-                        </Stack>
-                        <Stack horizontal verticalAlign="end">
-                            <DatePicker label="To" value={to_date} onSelectDate={d => {
-                                setToDate(d);
-                            }}/>
-                            <IconButton iconProps={{iconName: "Delete"}} onClick={() => {
-                                setToDate(null);
-                            }}/>
-                        </Stack>
-                    </Stack>
-                    <Text variant="smallPlus">{!loading_state ? `${entries_state.entries.length} total entries` : "loading"}</Text>
-                    <CommandBar 
-                        items={command_bar_actions}
-                        farItems={[
-                            {
-                                key: "settings", 
-                                text: "Settings",
-                                iconOnly: true,
-                                iconProps: {iconName: "Settings"},
-                                subMenuProps: {
-                                    items: settings_submenus
-                                }
-                            }
-                        ]}
-                    />
-                </Stack>
-            </Sticky>
-            <ShimmeredDetailsList
-                items={loading_state ? [] : entries_state.entries}
-                columns={columns}
-                compact={false}
-                enableShimmer={loading_state}
-                onRenderDetailsHeader={(p,d) => {
-                    return <Sticky stickyPosition={StickyPositionType.Header}>
-                        {d(p)}
-                    </Sticky>
-                }}
-            />
-        </ScrollablePane>
+        {view_graph ?
+            <>
+                {header_content}
+                {!loading_state && selected_field != null ?
+                    <EntriesGraphView field={selected_field} entries={entries_state.entries}/>
+                    :
+                    null
+                }
+            </>
+            :
+            <ScrollablePane styles={{"contentContainer": {height: "100%"}}}>
+                <Sticky stickyPosition={StickyPositionType.Header} stickyBackgroundColor={"white"}>
+                    {header_content}
+                </Sticky>
+                <EntriesTableView user_specific={user_specific} owner={owner} visible_fields={visible_fields}/>
+            </ScrollablePane>
+        }
     </Stack>
 }
 

@@ -11,6 +11,7 @@ import { actions as entries_actions } from "../../../redux/slices/entries"
 import arrayFilterMap from "../../../util/arrayFilterMap"
 import { getBrightness } from "../../../util/colors"
 import TagToken from "../../../components/tags/TagItem"
+import OverlayedPage from "../../../components/OverlayedPage"
 
 interface TextEntryEditViewProps {
     text_entries: TextEntryUI[]
@@ -92,44 +93,44 @@ const MoodEntryInputs = ({
 }
 
 interface CustomFieldEntriesEditViewProps {
-    custom_fields: {[id: string]: CustomFieldJson}
-    custom_field_entries: CustomFieldEntryJson[]
+    custom_fields: CustomFieldJson[]
+    custom_field_entries: {[id: string]: CustomFieldEntryJson}
 }
 
 const CustomFieldEntriesEditView = ({custom_fields, custom_field_entries}: CustomFieldEntriesEditViewProps) => {
     let dispatch = useContext(EntryIdViewContext);
 
     return <Stack tokens={{childrenGap: 8}}>
-        {custom_field_entries.map((custom_field_entry,index) =>
+        {custom_fields.filter(field => field.id in custom_field_entries).map((field, index) =>
             <MoodEntryInputs
-                key={custom_field_entry.field}
-                field={custom_fields?.[custom_field_entry.field]}
-                entry={custom_field_entry}
+                key={field.id}
+                field={field}
+                entry={custom_field_entries[field.id]}
         
-                onDelete={() => dispatch(entry_id_view_actions.delete_mood_entry(index))}
-                onChange={(value) => dispatch(entry_id_view_actions.update_mood_entry({index, ...value}))}
+                onDelete={() => dispatch(entry_id_view_actions.delete_mood_entry(field.id.toString()))}
+                onChange={(value) => dispatch(entry_id_view_actions.update_mood_entry({index: field.id, ...value}))}
             />
         )}
     </Stack>
 }
 
 interface CustomFieldEntriesReadViewProps {
-    custom_field_entries: CustomFieldEntryJson[]
-    custom_fields: {[id: string]: CustomFieldJson}
+    custom_field_entries: {[id: string]: CustomFieldEntryJson}
+    custom_fields: CustomFieldJson[]
 }
 
 const CustomFieldEntriesReadView = ({custom_fields, custom_field_entries}: CustomFieldEntriesReadViewProps) => {
     return <Stack tokens={{childrenGap: 8}}>
-        {custom_field_entries.map((custom_field_entry, index) => 
-            <Stack key={custom_field_entry.field} tokens={{childrenGap: 8}}>
+        {custom_fields.filter(field => field.id in custom_field_entries).map((field) => 
+            <Stack key={field.id} tokens={{childrenGap: 8}}>
                 <Stack tokens={{childrenGap: 8}}>
-                    <Separator alignContent="start">{custom_field_entry.name}</Separator>
+                    <Separator alignContent="start">{field.name}</Separator>
                     <CustomFieldEntryTypeReadView 
-                        value={custom_field_entry.value} 
-                        config={custom_fields?.[custom_field_entry.field]?.config}
+                        value={custom_field_entries[field.id].value}
+                        config={field.config}
                     />
                 </Stack>
-                <Text>{custom_field_entry.comment}</Text>
+                <Text>{custom_field_entries[field.id].comment}</Text>
             </Stack>
         )}
     </Stack>
@@ -189,7 +190,7 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
             promise = api.entries.id.put(state.current.id, {
                 created: state.current.created,
                 tags: state.current.tags,
-                custom_field_entries: state.current.custom_field_entries.map(v => {
+                custom_field_entries: Object.values(state.current.custom_field_entries).map(v => {
                     return {
                         field: v.field,
                         value: v.value,
@@ -207,7 +208,7 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
             promise = api.entries.post({
                 created: state.current.created,
                 tags: state.current.tags,
-                custom_field_entries: state.current.custom_field_entries.map(v => {
+                custom_field_entries: Object.values(state.current.custom_field_entries).map(v => {
                     return {
                         field: v.field,
                         value: v.value,
@@ -278,27 +279,27 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
     let fields_section = [];
     let issued_fields_section = [];
 
-    for (let field_id in (custom_fields_state.mapping ?? {})) {
-        if (field_id in state.existing_fields) {
+    for (let field of custom_fields_state.custom_fields) {
+        if (state.current && field.id in state.current?.custom_field_entries) {
             continue;
         }
 
-        if (custom_fields_state.mapping[field_id].issued_by != null) {
+        if (custom_fields_state.mapping[field.id].issued_by != null) {
             issued_fields_section.push({
-                key: custom_fields_state[field_id].name,
-                text: custom_fields_state[field_id].name,
-                title: custom_fields_state[field_id].comment,
+                key: custom_fields_state[field.id].name,
+                text: custom_fields_state[field.id].name,
+                title: custom_fields_state[field.id].comment,
                 onClick: () => {
-                    dispatch(entry_id_view_actions.create_mood_entry(field_id))
+                    dispatch(entry_id_view_actions.create_mood_entry(field.id.toString()))
                 }
             });
         } else {
             fields_section.push({
-                key: custom_fields_state.mapping[field_id].name,
-                text: custom_fields_state.mapping[field_id].name,
-                title: custom_fields_state.mapping[field_id].comment,
+                key: custom_fields_state.mapping[field.id].name,
+                text: custom_fields_state.mapping[field.id].name,
+                title: custom_fields_state.mapping[field.id].comment,
                 onClick: () => {
-                    dispatch(entry_id_view_actions.create_mood_entry(field_id))
+                    dispatch(entry_id_view_actions.create_mood_entry(field.id.toString()))
                 }
             });
         }
@@ -333,202 +334,179 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
         }
     ];
 
-    console.log(state);
-
     return <EntryIdViewContext.Provider value={dispatch}>
-        <Stack 
-            horizontal
-            verticalAlign="center"
-            horizontalAlign="center"
-            style={{
-                width: "100%", height: "100%",
-                backgroundColor: "rgba(0,0,0,0.5)",
-                position: "absolute",
-                top: 0,
-                zIndex: 1
-            }}
-        >
-            <Stack 
-                style={{
-                    width: 600, height: "100%",
-                    backgroundColor: "white",
-                    position: "relative"
-                }}
-            >
-                <ScrollablePane>
-                    <Sticky stickyPosition={StickyPositionType.Header} stickyBackgroundColor="white">
-                        {state.current != null ? 
-                            <Stack horizontal tokens={{childrenGap: 8, padding: 8}}>
-                                <DatePicker
-                                    disabled={!state.edit_view}
-                                    value={new Date(state.current.created)}
-                                    onSelectDate={d => {
-                                        dispatch(entry_id_view_actions.update_entry(d.toISOString()))
-                                    }}
-                                />
-                                {allow_edit ?
-                                    <IconButton 
-                                        iconProps={{iconName: "Edit"}} 
-                                        onClick={() => dispatch(entry_id_view_actions.set_edit_view(!state.edit_view))}
-                                    />
-                                    :
-                                    null
-                                }
-                                {state.edit_view ?
-                                    <>
-                                        <DefaultButton
-                                            text="Add"
-                                            iconProps={{iconName: "Add"}}
-                                            menuProps={{items: entry_options}}
-                                        />
-                                        <DefaultButton
-                                            text="Save"
-                                            primaryDisabled={!state.changes_made}
-                                            split
-                                            iconProps={{iconName: "Save"}}
-                                            onClick={() => sendEntry()}
-                                            menuProps={{
-                                                items: [
-                                                    {
-                                                        key: "reset",
-                                                        text: "Reset",
-                                                        disabled: !state.changes_made,
-                                                        iconProps: {iconName: "Refresh"},
-                                                        onClick: () => dispatch(entry_id_view_actions.reset_entry())
-                                                    },
-                                                    {
-                                                        key: "delete",
-                                                        text: "Delete",
-                                                        iconProps: {iconName: "Delete"},
-                                                        onClick: () => dispatch(entry_id_view_actions.set_prep_delete(true))
-                                                    }
-                                                ]
-                                            }}
-                                        />
-                                    </>
-                                    :
-                                    null
-                                }
-                            </Stack>
-                            :
-                            state.loading ?
-                                <h4>Loading</h4>
-                                :
-                                <h4>No Entry to Show</h4>
-                        }
-                        <IconButton 
-                            iconProps={{iconName: "Cancel"}} 
-                            style={{position: "absolute", top: 0, right: 0}}
-                            onClick={() => {
-                                let new_path = location.pathname.split("/");
-                                new_path.pop();
-
-                                history.push(new_path.join("/"));
+        <OverlayedPage>
+            <Sticky stickyPosition={StickyPositionType.Header} stickyBackgroundColor="white">
+                {state.current != null ? 
+                    <Stack horizontal tokens={{childrenGap: 8, padding: 8}}>
+                        <DatePicker
+                            disabled={!state.edit_view}
+                            value={new Date(state.current.created)}
+                            onSelectDate={d => {
+                                dispatch(entry_id_view_actions.update_entry(d.toISOString()))
                             }}
                         />
-                    </Sticky>
-                    <Stack tokens={{childrenGap: 8, padding: "0 8px 8px"}}>
-                        {state.current != null ?
-                            state.edit_view ?
-                                <>
-                                    <TagPicker
-                                        inputProps={{placeholder: state.current.tags.length === 0 ? "Tags" : ""}}
-                                        selectedItems={tags_state.loading ? [] : state.current.tags.map(v => (
-                                            {key: v, name: tags_state.mapping[v].title}
-                                        ))}
-                                        componentRef={tag_picker}
-                                        onRenderItem={(props) => {                                            
-                                            return <TagItem {...props} styles={{
-                                                root: {
-                                                    backgroundColor: tags_state.mapping[props.item.key].color,
-                                                    color: getBrightness(tags_state.mapping[props.item.key].color) < 65 ? 
-                                                        "white" : null
-                                                },
-                                                close: {
-                                                    backgroundColor: "rgb(243,242,241)"
-                                                }
-                                            }}>{props.item.name}</TagItem>
-                                        }}
-                                        onRenderSuggestionsItem={(props) => {
-                                            return <TagItemSuggestion styles={{}}>{props.name}</TagItemSuggestion>
-                                        }}
-                                        onResolveSuggestions={(filter, selected) => {
-                                            return arrayFilterMap(
-                                                tags_state.tags, 
-                                                (value) => ((filter.trim() === "?" || value.title.indexOf(filter) !== -1) && !(value.id in state.tag_mapping)),
-                                                (value) => ({key: value.id, name: value.title} as ITag)
-                                            );
-                                        }}
-                                        getTextFromItem={(item) => item.name}
-                                        onItemSelected={(item) => {
-                                            if (tag_picker.current && tag_picker.current.items.some(v => v.key === item.key)) {
-                                                return null;
-                                            } else {
-                                                return item;
+                        {allow_edit ?
+                            <IconButton 
+                                iconProps={{iconName: "Edit"}} 
+                                onClick={() => dispatch(entry_id_view_actions.set_edit_view(!state.edit_view))}
+                            />
+                            :
+                            null
+                        }
+                        {state.edit_view ?
+                            <>
+                                <DefaultButton
+                                    text="Add"
+                                    iconProps={{iconName: "Add"}}
+                                    menuProps={{items: entry_options}}
+                                />
+                                <DefaultButton
+                                    text="Save"
+                                    primaryDisabled={!state.changes_made}
+                                    split
+                                    iconProps={{iconName: "Save"}}
+                                    onClick={() => sendEntry()}
+                                    menuProps={{
+                                        items: [
+                                            {
+                                                key: "reset",
+                                                text: "Reset",
+                                                disabled: !state.changes_made,
+                                                iconProps: {iconName: "Refresh"},
+                                                onClick: () => dispatch(entry_id_view_actions.reset_entry())
+                                            },
+                                            {
+                                                key: "delete",
+                                                text: "Delete",
+                                                iconProps: {iconName: "Delete"},
+                                                onClick: () => dispatch(entry_id_view_actions.set_prep_delete(true))
                                             }
-                                        }}
-                                        onChange={(items) => {
-                                            dispatch(entry_id_view_actions.set_tags(items.map(v => (v.key as number))))
-                                        }}
-                                    />
-                                    <TextEntryEditView text_entries={state.current.text_entries}/>
-                                    {!custom_fields_state.loading ?
-                                        <CustomFieldEntriesEditView 
-                                            custom_fields={custom_fields_state.mapping} 
-                                            custom_field_entries={state.current.custom_field_entries}
-                                        />
-                                        :
-                                        <h6>Loading</h6>
-                                    }
-                                </>
-                                :
-                                <>
-                                    <Stack horizontal wrap tokens={{childrenGap: 4}}>
-                                        {!tags_state.loading ? state.current.tags.map(v => <TagToken
-                                            key={v} color={tags_state.mapping[v].color} title={tags_state.mapping[v].title}
-                                        />) : null}
-                                    </Stack>
-                                    <TextEntryReadView text_entries={state.current.text_entries}/>
-                                    {!custom_fields_state.loading ?
-                                        <CustomFieldEntriesReadView 
-                                            custom_fields={custom_fields_state.mapping}
-                                            custom_field_entries={state.current.custom_field_entries}
-                                        />
-                                        :
-                                        <h6>Loading</h6>
-                                    }
-                                </>
+                                        ]
+                                    }}
+                                />
+                            </>
                             :
                             null
                         }
                     </Stack>
-                </ScrollablePane>
-            </Stack>
-        </Stack>
-        <Dialog
-            hidden={!state.prep_delete}
-            onDismiss={() => dispatch(entry_id_view_actions.set_prep_delete(false))}
-            dialogContentProps={{
-                type: DialogType.normal,
-                title: "Delete Entry",
-                subText: "Are you sure you want to delete this entry?"
-            }}
-        >
-            <DialogFooter>
-                <DefaultButton
-                    text="Yes"
-                    primary
+                    :
+                    state.loading ?
+                        <h4>Loading</h4>
+                        :
+                        <h4>No Entry to Show</h4>
+                }
+                <IconButton 
+                    iconProps={{iconName: "Cancel"}} 
+                    style={{position: "absolute", top: 0, right: 0}}
                     onClick={() => {
-                        dispatch(entry_id_view_actions.set_prep_delete(false));
-                        deleteEntry();
+                        let new_path = location.pathname.split("/");
+                        new_path.pop();
+
+                        history.push(new_path.join("/"));
                     }}
                 />
-                <DefaultButton
-                    text="No"
-                    onClick={() => dispatch(entry_id_view_actions.set_prep_delete(false))}
-                />
-            </DialogFooter>
-        </Dialog>
+            </Sticky>
+            <Stack tokens={{childrenGap: 8, padding: "0 8px 8px"}}>
+                {state.current != null ?
+                    state.edit_view ?
+                        <>
+                            <TagPicker
+                                inputProps={{placeholder: state.current.tags.length === 0 ? "Tags" : ""}}
+                                selectedItems={tags_state.loading ? [] : state.current.tags.map(v => (
+                                    {key: v, name: tags_state.mapping[v].title}
+                                ))}
+                                componentRef={tag_picker}
+                                onRenderItem={(props) => {
+                                    return <TagItem {...props} styles={{
+                                        root: {
+                                            backgroundColor: tags_state.mapping[props.item.key].color,
+                                            color: getBrightness(tags_state.mapping[props.item.key].color) < 65 ? 
+                                                "white" : null
+                                        },
+                                        close: {
+                                            backgroundColor: "rgb(243,242,241)"
+                                        }
+                                    }}>{props.item.name}</TagItem>
+                                }}
+                                onRenderSuggestionsItem={(props) => {
+                                    return <TagItemSuggestion styles={{}}>{props.name}</TagItemSuggestion>
+                                }}
+                                onResolveSuggestions={(filter, selected) => {
+                                    return arrayFilterMap(
+                                        tags_state.tags, 
+                                        (value) => ((filter.trim() === "?" || value.title.indexOf(filter) !== -1) && !(value.id in state.tag_mapping)),
+                                        (value) => ({key: value.id, name: value.title} as ITag)
+                                    );
+                                }}
+                                getTextFromItem={(item) => item.name}
+                                onItemSelected={(item) => {
+                                    if (tag_picker.current && tag_picker.current.items.some(v => v.key === item.key)) {
+                                        return null;
+                                    } else {
+                                        return item;
+                                    }
+                                }}
+                                onChange={(items) => {
+                                    dispatch(entry_id_view_actions.set_tags(items.map(v => (v.key as number))))
+                                }}
+                            />
+                            <TextEntryEditView text_entries={state.current.text_entries}/>
+                            {!custom_fields_state.loading ?
+                                <CustomFieldEntriesEditView 
+                                    custom_fields={custom_fields_state.custom_fields} 
+                                    custom_field_entries={state.current.custom_field_entries}
+                                />
+                                :
+                                <h6>Loading</h6>
+                            }
+                        </>
+                        :
+                        <>
+                            <Stack horizontal wrap tokens={{childrenGap: 4}}>
+                                {!tags_state.loading ? state.current.tags.map(v => <TagToken
+                                    key={v} color={tags_state.mapping[v].color} title={tags_state.mapping[v].title}
+                                />) : null}
+                            </Stack>
+                            <TextEntryReadView text_entries={state.current.text_entries}/>
+                            {!custom_fields_state.loading ?
+                                <CustomFieldEntriesReadView 
+                                    custom_fields={custom_fields_state.custom_fields}
+                                    custom_field_entries={state.current.custom_field_entries}
+                                />
+                                :
+                                <h6>Loading</h6>
+                            }
+                        </>
+                    :
+                    null
+                }
+            </Stack>
+            <Dialog
+                hidden={!state.prep_delete}
+                onDismiss={() => dispatch(entry_id_view_actions.set_prep_delete(false))}
+                dialogContentProps={{
+                    type: DialogType.normal,
+                    title: "Delete Entry",
+                    subText: "Are you sure you want to delete this entry?"
+                }}
+            >
+                <DialogFooter>
+                    <DefaultButton
+                        text="Yes"
+                        primary
+                        onClick={() => {
+                            dispatch(entry_id_view_actions.set_prep_delete(false));
+                            deleteEntry();
+                        }}
+                    />
+                    <DefaultButton
+                        text="No"
+                        onClick={() => dispatch(entry_id_view_actions.set_prep_delete(false))}
+                    />
+                </DialogFooter>
+            </Dialog>
+        </OverlayedPage>
     </EntryIdViewContext.Provider>
 }
 
