@@ -14,7 +14,7 @@ Current features with plans to add more
  - [x] Custom fields that allow you to store integers, integer ranges, floats, float ranges, time, and time ranges along with a description of what the field is.
  - [x] Custom tags with colors that can be assigned to an entry
  - [x] Controlled user accounts so that only those you want to have access to the server do.
- - [ ] Graphing for the custom fields to have a more visual representation of the data
+ - [x] Graphing for the custom fields to have a more visual representation of the data
  - [x] Change account information such as username, full name, password, email, etc.
  - [x] Search entries over a given date range and show / hide fields as you wish
  - [ ] Password recovery in case you forgot it
@@ -63,51 +63,50 @@ The server should be ready to go by this point
 
 ### Running
 
-Currently there are no command line arguments setup to run the server. it will look for a `server_config.json` and `server_config.override.json` in the root directory of the project (assuming the current working directory is the project root). Default configuration is as follows:
+Command line arguments are currently limited. You will need to specify configuration files to setup the server. Specifying multiple config files and will be loaded in the order given with later files overriding earlier values. A configuration is as follows:
 
-```json
-{
-    "bind": [
-        {
-            // valid ipv4 or ipv6 address for the system
-            "host": "0.0.0.0",
-            "port": 8080
-        },
-        {
-            "host": "::1",
-            "port": 8080
-        }
-    ],
-    // default port if a bind host does not have a port specified
-    "port": 8080,
+```yaml
+bind:
+    # valid ipv4 or ipv6 address for the system
+    - host: "0.0.0.0"
+      port: 8080
+    - host: "::1"
+      port: 8080
+# default port if a bind host does not have a port specified
+port: 8080
 
-    // defaults to system max
-    "threads": 16,
-    
-    // default values for the actix web framework being used
-    "backlog": 2048, 
-    "max_connections": 25000,
-    "max_connection_rate": 256,
+# defaults to system max
+threads: 16
 
-    "db": {
-        "username": "postgres",
-        "password": "password",
-        "database": "thoughts",
-        "port": 5432,
-        "hostname": "localhost"
-    },
-    "session": {
-        // used in cookie sessions to restrict cookies to a
-        // specific domain
-        "domain": ""
-    },
+# default values for the actix web framework being used
+backlog: 2048
+max_connections: 25000
+max_connection_rate: 256
 
-    // key cert files for https connections, if none is given then
-    // it will default to http connections. http2 is currently only
-    // supported with encrypted servers
-    "key": null,
-    "cert": null
-}
+db:
+    username: "postgres"
+    password: "password"
+    database: "thoughts"
+    port: 5432
+    hostname: "localhost"
+
+session:
+    # used in cookie sessions to restrict cookies to a
+    # specific domain
+    domain: ""
+
+email:
+    enabled: false
+    from: "no_reply@example.com"
+    username: "no_reply@example.com"
+    password: "password"
+    relay: "smtp.google.com"
+
+# key cert files for https connections, if none is given then
+# it will default to http connections. http2 is currently only
+# supported with encrypted servers
+key: null
+cert: null
 ```
 
 ### Database
