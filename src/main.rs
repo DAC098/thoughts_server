@@ -20,8 +20,22 @@ mod parsing;
 mod util;
 mod email;
 
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
+use error::app_main::{AppError, Result};
+
+fn main() {
+    std::process::exit(match app_runner() {
+        Ok(code) => code,
+        Err(err) => {
+            let (code, msg) = err.get();
+
+            println!("{}", msg);
+
+            code
+        }
+    });
+}
+
+fn app_runner() -> Result {
     let mut config_files: Vec<std::path::PathBuf> = vec!();
     let mut args = std::env::args();
     args.next();
@@ -29,33 +43,39 @@ async fn main() -> std::io::Result<()> {
     while let Some(arg) = args.next() {
         if arg.starts_with("--") {
             if arg.len() <= 2 {
-                println!("incomplete argument given");
-                return Ok(());
+                return Err(AppError::invalid_config(
+                    format!("incomplete argument given")
+                ));
             }
 
             let (_, arg_substring) = arg.split_at(2);
 
-            if arg_substring == "debug" {
+            if arg_substring == "log-debug" {
                 std::env::set_var("RUST_LOG", "debug");
+            } else if arg_substring == "log-info" {
+                std::env::set_var("RUST_LOG", "info")
             } else if arg_substring == "backtrace" {
                 std::env::set_var("RUST_BACKTRACE", "full");
             } else if arg_substring == "info" {
                 std::env::set_var("RUST_LOG", "info");
             } else {
-                println!("unknown argument given. {}", arg_substring);
-                return Ok(());
+                return Err(AppError::invalid_config(
+                    format!("unknown argument given. {}", arg_substring)
+                ));
             }
         } else {
             if let Ok(canonical_path) = std::fs::canonicalize(arg.clone()) {
                 if !canonical_path.is_file() {
-                    println!("specified configuration file is not a file. {:?}", canonical_path.into_os_string());
-                    return Ok(());
+                    return Err(AppError::invalid_config(
+                        format!("specified configuration file is not a file. {:?}", canonical_path.into_os_string())
+                    ));
                 }
     
                 config_files.push(canonical_path);
             } else {
-                println!("failed to locate given file. {}", arg);
-                return Ok(());
+                return Err(AppError::invalid_config(
+                    format!("failed to locate given file. {}", arg)
+                ));
             }
         }
     }
@@ -65,17 +85,51 @@ async fn main() -> std::io::Result<()> {
     let config_result = config::load_server_config(config_files);
 
     if config_result.is_err() {
-        println!("failed to load server configuration\n{:?}", config_result.unwrap_err());
-        return Ok(());
+        return Err(AppError::invalid_config(
+            format!("failed to load server configuration\n{:?}", config_result.unwrap_err())
+        ));
     }
 
     let config = config_result.unwrap();
 
     if config.bind.len() == 0 {
-        println!("no bind interfaces specified");
-        return Ok(());
+        return Err(AppError::invalid_config(
+            format!("no bind interfaces specified")
+        ));
     }
 
+    if config.email.enable {
+        if config.email.username.is_none() || config.email.password.is_none() {
+            return Err(AppError::invalid_config(
+                "username and password must be given if email is enabled".to_owned()
+            ));
+        }
+
+        if config.email.from.is_none() {
+            return Err(AppError::invalid_config(
+                "from email address must be given if email is enabled".to_owned()
+            ));
+        } else {
+            if !email::valid_email_address(config.email.from.as_ref().unwrap()) {
+                return Err(AppError::invalid_config("from email address is invalid".to_owned()));
+            }
+        }
+
+        if config.email.relay.is_none() {
+            return Err(AppError::invalid_config(
+                "relay must be given if email is emabled".to_owned()
+            ));
+        }
+    }
+
+    let result = actix_web::rt::System::new().block_on(server_runner(config));
+
+    log::info!("server shutdown");
+
+    result
+}
+
+async fn server_runner(config: config::ServerConfig) -> Result {
     let mut db_config = PGConfig::new();
     db_config.user(config.db.username.as_ref());
     db_config.password(config.db.password);
@@ -83,36 +137,11 @@ async fn main() -> std::io::Result<()> {
     db_config.port(config.db.port);
     db_config.dbname(config.db.database.as_ref());
 
-    if config.email.enable {
-        if config.email.username.is_none() || config.email.password.is_none() {
-            println!("username and password must be given if email is enabled");
-            return Ok(());
-        }
-
-        if config.email.from.is_none() {
-            println!("from email address must be given if email is enabled");
-            return Ok(());
-        } else {
-            if !email::valid_email_address(config.email.from.as_ref().unwrap()) {
-                println!("from email address is invalid");
-                return Ok(());
-            }
-        }
-
-        if config.email.relay.is_none() {
-            println!("relay must be given if email is enabled");
-            return Ok(());
-        }
-    }
-
     let info_config = config.info;
     let email_config = config.email;
     let session_domain = config.session.domain;
     let manager = PostgresConnectionManager::new(db_config, NoTls);
-    let pool = match bb8::Pool::builder().build(manager).await {
-        Ok(p) => p,
-        Err(e) => panic!("failed to create database connection pool. error: {}", e)
-    };
+    let pool = bb8::Pool::builder().build(manager).await?;
     let mut static_dir = std::env::current_dir()?;
     static_dir.push("static");
 
@@ -215,11 +244,15 @@ async fn main() -> std::io::Result<()> {
         let cert_path = Path::new(&cert_file);
 
         if !key_path.exists() {
-            panic!("key file given does not exist: {}", key_file);
+            return Err(AppError::invalid_config(
+                format!("key file given does not exist: {}", key_file)
+            ));
         }
 
         if !cert_path.exists() {
-            panic!("cert file given does not exist: {}", cert_file);
+            return Err(AppError::invalid_config(
+                format!("cert file given does not exist: {}", key_file)
+            ));
         }
 
         run_ssl = true;
@@ -227,28 +260,20 @@ async fn main() -> std::io::Result<()> {
 
     for interface in config.bind.iter() {
         let bind_value = format!("{}:{}", interface.host, interface.port);
-        let bind_check;
 
         if run_ssl {
             let mut ssl_builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
             ssl_builder.set_private_key_file(key_file.clone(), SslFiletype::PEM).unwrap();
             ssl_builder.set_certificate_chain_file(cert_file.clone()).unwrap();
-            bind_check = server.bind_openssl(bind_value.clone(), ssl_builder);
+            server = server.bind_openssl(bind_value.clone(), ssl_builder)?;
         } else {
-            bind_check = server.bind(bind_value.clone());
+            server = server.bind(bind_value.clone())?;
         }
-
-        server = match bind_check {
-            Ok(s) => s,
-            Err(e) => panic!("failed to bind interface: {}\n{:?}", bind_value, e)
-        };
     }
 
     log::info!("server listening for requests");
 
-    if let Err(e) = server.workers(config.threads).run().await {
-        log::error!("server error: {}", e);
-    }
+    server.workers(config.threads).run().await?;
 
-    Ok(())
+    Ok(0)
 }

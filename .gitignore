@@ -1,6 +1,8 @@
 target/
-static/main.b.js
-static/runtime.b.js
+static/main.*
+static/runtime.*
+static/vendor.*
+static/manifest.json
 node_modules/
 
 docker-compose.override.yml

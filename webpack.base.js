@@ -1,14 +1,14 @@
 const path = require("path");
+const { WebpackManifestPlugin } = require("webpack-manifest-plugin");
 
 module.exports = {
-	mode: "development",
-	devtool: "inline-source-map",
 	entry: {
 		main: "./view/entry.tsx"
 	},
 	output: {
 		path: path.resolve(__dirname, "static"),
-		filename: "[name].b.js"
+		filename: "[name].b.js",
+		clean: true
 	},
 	resolve: {
 		extensions: [".ts",".tsx",".js",".jsx"]
@@ -27,6 +27,18 @@ module.exports = {
 		]
 	},
 	optimization: {
-		runtimeChunk: "single"
-	}
+		runtimeChunk: "single",
+		splitChunks: {
+			cacheGroups: {
+				vendor: {
+					test: /[\\/]node_modules[\\/]/,
+					name: "vendor",
+					chunks: "all"
+				}
+			}
+		}
+	},
+	plugins: [
+		new WebpackManifestPlugin({})
+	]
 };

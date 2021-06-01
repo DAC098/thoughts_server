@@ -7,6 +7,8 @@ use actix_web::{
     HttpResponse
 };
 
+pub mod app_main;
+
 use crate::response;
 
 pub type Result<R> = std::result::Result<R, ResponseError>;
