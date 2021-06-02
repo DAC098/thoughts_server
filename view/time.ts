@@ -69,7 +69,35 @@ const month = days_in_month * day;
 const year = days_in_year * day;
 
 const diff_names = ["years", "months", "weeks", "days", "hours", "minutes", "seconds", "milliseconds"];
+const diff_names_short = ["y", "m", "w", "d", "h", "min", "s", "ms"];
 const diff_order = [year, month, week, day, hour, minute, second, millisecond];
+
+export function timeToString(time: number, show_milli: boolean = true, short_hand: boolean = false): string {
+    let working = time;
+    let results = [];
+
+    for (let i = 0; i < diff_order.length; ++i) {
+        // critical section
+        let value = Math.floor(working / diff_order[i]);
+        working %= diff_order[i];
+
+        results.push(value);
+    }
+
+    let str_list = [];
+
+    for (let i = 0; i < results.length; ++i) {
+        if (!show_milli && i === results.length - 1) {
+            continue;
+        }
+
+        if (results[i] != 0) {
+            str_list.push(`${results[i]} ${short_hand ? diff_names_short[i] : diff_names[i]}`);
+        }
+    }
+
+    return str_list.join(" ");
+}
 
 /**
  * takes the difference between two dates and will display then as
@@ -78,26 +106,9 @@ const diff_order = [year, month, week, day, hour, minute, second, millisecond];
  * @param rhs right hand side of operation
  * @returns
  */
-export function diffDates(lhs: Date, rhs: Date): string {
+export function diffDates(lhs: Date, rhs: Date, show_milli: boolean = true, short_hand: boolean = false): string {
     // get the timestamps of both dates in milliseconds
     let diff = lhs.getTime() - rhs.getTime();
-    let results = [];
 
-    for (let i = 0; i < diff_order.length; ++i) {
-        // critical section
-        let value = Math.floor(diff / diff_order[i]);
-        diff %= diff_order[i];
-
-        results.push(value);
-    }
-
-    let str_list = [];
-
-    for (let i = 0; i < results.length; ++i) {
-        if (results[i] != 0) {
-            str_list.push(`${results[i]} ${diff_names[i]}`);
-        }
-    }
-
-    return str_list.join(" ");
+    return timeToString(diff, show_milli, short_hand);
 }

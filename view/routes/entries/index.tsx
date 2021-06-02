@@ -44,7 +44,7 @@ function renderCustomFieldType(value: CustomFieldEntryType, config: CustomFieldT
             let high = new Date(value.high);
 
             if (conf.show_diff) {
-                return diffDates(high, low);
+                return diffDates(high, low, false, true);
             } else {
                 return sameDate(low, high) ? 
                        `${displayDate(low, !conf.as_12hr)} - ${conf.as_12hr ? get12hrStr(high) : get24hrStr(high)}` :

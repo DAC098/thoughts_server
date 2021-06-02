@@ -30,8 +30,13 @@ module.exports = {
 		runtimeChunk: "single",
 		splitChunks: {
 			cacheGroups: {
+				fabric_ui: {
+					test: /[\\/]node_modules[\\/]@fluentui/,
+					name: "fabric_ui",
+					chunks: "all"
+				},
 				vendor: {
-					test: /[\\/]node_modules[\\/]/,
+					test: /[\\/]node_modules[\\/](?!@fluentui)/,
 					name: "vendor",
 					chunks: "all"
 				}

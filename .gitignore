@@ -2,6 +2,7 @@ target/
 static/main.*
 static/runtime.*
 static/vendor.*
+static/fabric_ui.*
 static/manifest.json
 node_modules/
 

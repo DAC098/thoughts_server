@@ -23,6 +23,7 @@ pub fn respond_index_html(user_opt: Option<users::User>) -> HttpResponse {
         <link rel="stylesheet" href="https://static2.sharepointonline.com/files/fabric/office-ui-fabric-core/11.0.0/css/fabric.min.css">
         <script src="/static/runtime.b.js"></script>
         <script src="/static/vendor.b.js"></script>
+        <script src="/static/fabric_ui.b.js"></script>
         <script>
             const active_user = {}; 
             window.active_user = active_user;
