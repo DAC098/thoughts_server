@@ -50,3 +50,29 @@ pub fn handle_json_error(
         )
     ).into()
 }
+
+pub async fn handle_not_found(
+    req: HttpRequest,
+    session: Session,
+    app: web::Data<state::AppState>,
+) -> app_error::Result<impl Responder> {
+    log::info!("handle_not_found");
+    let accept_html = response::check_if_html_req(&req, true)?;
+    let conn = &*app.get_conn().await?;
+    let initiator_opt = from::get_initiator(conn, &session).await?;
+
+    if accept_html {
+        if initiator_opt.is_some() {
+            Ok(response::respond_index_html(Some(initiator_opt.unwrap().user)))
+        } else {
+            Ok(response::redirect_to_path("/auth/login"))
+        }
+    } else if initiator_opt.is_none() {
+        Err(app_error::ResponseError::Session)
+    } else {
+        Ok(response::json::respond_json(
+            http::StatusCode::NOT_FOUND,
+            response::json::only_message("not found")
+        ))
+    }
+}

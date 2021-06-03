@@ -6,6 +6,25 @@ trait MapShape {
     fn map_shape(&mut self, rhs: Self);
 }
 
+#[inline]
+fn assign_map_value<T>(lhs: &mut Option<T>, rhs: Option<T>) {
+    if rhs.is_some() { *lhs = rhs; }
+}
+
+#[inline]
+fn assign_map_struct<T>(lhs: &mut Option<T>, rhs: Option<T>) 
+where
+    T: MapShape
+{
+    if let Some(lhs_value) = lhs.as_mut() {
+        if let Some(rhs_value) = rhs {
+            lhs_value.map_shape(rhs_value);
+        }
+    } else {
+        *lhs = rhs;
+    }
+}
+
 #[derive(Deserialize)]
 pub struct DBConfigShape {
     pub username: Option<String>,
@@ -19,25 +38,11 @@ pub struct DBConfigShape {
 
 impl MapShape for DBConfigShape {
     fn map_shape(&mut self, rhs: Self) {
-        if rhs.username.is_some() {
-            self.username = rhs.username;
-        }
-    
-        if rhs.password.is_some() {
-            self.password = rhs.password;
-        }
-    
-        if rhs.database.is_some() {
-            self.database = rhs.database;
-        }
-    
-        if rhs.hostname.is_some() {
-            self.hostname = rhs.hostname;
-        }
-    
-        if rhs.port.is_some() {
-            self.port = rhs.port;
-        }
+        assign_map_value(&mut self.username, rhs.username);
+        assign_map_value(&mut self.password, rhs.password);
+        assign_map_value(&mut self.database, rhs.database);
+        assign_map_value(&mut self.hostname, rhs.hostname);
+        assign_map_value(&mut self.port, rhs.port);
     }
 }
 
@@ -54,9 +59,7 @@ pub struct SessionConfigShape {
 
 impl MapShape for SessionConfigShape {
     fn map_shape(&mut self, rhs: Self) {
-        if rhs.domain.is_some() {
-            self.domain = rhs.domain;
-        }
+        assign_map_value(&mut self.domain, rhs.domain);
     }
 }
 
@@ -71,25 +74,11 @@ pub struct EmailConfigShape {
 
 impl MapShape for EmailConfigShape {
     fn map_shape(&mut self, rhs: Self) {
-        if rhs.enable.is_some() {
-            self.enable = rhs.enable;
-        }
-    
-        if rhs.from.is_some() {
-            self.from = rhs.from;
-        }
-    
-        if rhs.username.is_some() {
-            self.username = rhs.username;
-        }
-    
-        if rhs.password.is_some() {
-            self.password = rhs.password;
-        }
-    
-        if rhs.relay.is_some() {
-            self.relay = rhs.relay;
-        }
+        assign_map_value(&mut self.enable, rhs.enable);
+        assign_map_value(&mut self.from, rhs.from);
+        assign_map_value(&mut self.username, rhs.username);
+        assign_map_value(&mut self.password, rhs.password);
+        assign_map_value(&mut self.relay, rhs.relay);
     }
 }
 
@@ -102,17 +91,24 @@ pub struct ServerInfoConfigShape {
 
 impl MapShape for ServerInfoConfigShape {
     fn map_shape(&mut self, rhs: Self) {
-        if rhs.secure.is_some() {
-            self.secure = rhs.secure;
-        }
+        assign_map_value(&mut self.secure, rhs.secure);
+        assign_map_value(&mut self.origin, rhs.origin);
+        assign_map_value(&mut self.name, rhs.name);
+    }
+}
 
-        if rhs.origin.is_some() {
-            self.origin = rhs.origin;
-        }
+#[derive(Deserialize)]
+pub struct SslConfigShape {
+    pub enable: Option<bool>,
+    pub key: Option<String>,
+    pub cert: Option<String>
+}
 
-        if rhs.name.is_some() {
-            self.name = rhs.name;
-        }
+impl MapShape for SslConfigShape {
+    fn map_shape(&mut self, rhs: Self) {
+        assign_map_value(&mut self.enable, rhs.enable);
+        assign_map_value(&mut self.key, rhs.key);
+        assign_map_value(&mut self.cert, rhs.cert);
     }
 }
 
@@ -130,76 +126,23 @@ pub struct ServerConfigShape {
     pub session: Option<SessionConfigShape>,
     pub email: Option<EmailConfigShape>,
     pub info: Option<ServerInfoConfigShape>,
-
-    pub key: Option<String>,
-    pub cert: Option<String>
+    pub ssl: Option<SslConfigShape>
 }
 
 impl MapShape for ServerConfigShape {
     fn map_shape(&mut self, rhs: Self) {
-        if rhs.bind.is_some() {
-            self.bind = rhs.bind;
-        }
+        assign_map_value(&mut self.bind, rhs.bind);
+        assign_map_value(&mut self.port, rhs.port);
+        assign_map_value(&mut self.threads, rhs.threads);
+        assign_map_value(&mut self.backlog, rhs.backlog);
+        assign_map_value(&mut self.max_connections, rhs.max_connections);
+        assign_map_value(&mut self.max_connection_rate, rhs.max_connection_rate);
     
-        if rhs.port.is_some() {
-            self.port = rhs.port;
-        }
-    
-        if rhs.threads.is_some() {
-            self.threads = rhs.threads;
-        }
-    
-        if rhs.backlog.is_some() {
-            self.backlog = rhs.backlog;
-        }
-    
-        if rhs.max_connections.is_some() {
-            self.max_connections = rhs.max_connections;
-        }
-    
-        if rhs.max_connection_rate.is_some() {
-            self.max_connection_rate = rhs.max_connection_rate;
-        }
-    
-        if rhs.key.is_some() {
-            self.key = rhs.key;
-        }
-    
-        if rhs.cert.is_some() {
-            self.cert = rhs.cert;
-        }
-    
-        if let Some(session) = self.session.as_mut() {
-            if let Some(rhs_session) = rhs.session {
-                session.map_shape(rhs_session);
-            }
-        } else {
-            self.session = rhs.session;
-        }
-    
-        if let Some(db) = self.db.as_mut() {
-            if let Some(rhs_db) = rhs.db {
-                db.map_shape(rhs_db);
-            }
-        } else {
-            self.db = rhs.db;
-        }
-    
-        if let Some(email) = self.email.as_mut() {
-            if let Some(rhs_email) = rhs.email {
-                email.map_shape(rhs_email);
-            }
-        } else {
-            self.email = rhs.email;
-        }
-
-        if let Some(info) = self.info.as_mut() {
-            if let Some(rhs_info) = rhs.info {
-                info.map_shape(rhs_info);
-            }
-        } else {
-            self.info = rhs.info;
-        }
+        assign_map_struct(&mut self.session, rhs.session);
+        assign_map_struct(&mut self.db, rhs.db);
+        assign_map_struct(&mut self.email, rhs.email);
+        assign_map_struct(&mut self.info, rhs.info);
+        assign_map_struct(&mut self.ssl, rhs.ssl);
     }
 }
 
@@ -311,6 +254,13 @@ fn default_max_connection_rate() -> usize {
 }
 
 #[derive(Debug, Clone)]
+pub struct SslConfig {
+    pub enable: bool,
+    pub key: Option<String>,
+    pub cert: Option<String>
+}
+
+#[derive(Debug, Clone)]
 pub struct ServerConfig {
     pub bind: Vec<BindInterface>,
 
@@ -320,15 +270,10 @@ pub struct ServerConfig {
     pub max_connection_rate: usize,
 
     pub db: DBConfig,
-
     pub session: SessionConfig,
-
     pub email: EmailConfig,
-
     pub info: ServerInfoConfig,
-
-    pub key: Option<String>,
-    pub cert: Option<String>
+    pub ssl: SslConfig
 }
 
 pub fn load_server_config(files: Vec<std::path::PathBuf>) -> error::Result<ServerConfig> {
@@ -342,7 +287,7 @@ pub fn load_server_config(files: Vec<std::path::PathBuf>) -> error::Result<Serve
         session: None,
         email: None,
         info: None,
-        key: None, cert: None
+        ssl: None
     };
 
     for file in files {
@@ -428,6 +373,20 @@ pub fn load_server_config(files: Vec<std::path::PathBuf>) -> error::Result<Serve
         }
     };
 
+    let ssl_config = if let Some(ssl) = base_shape.ssl {
+        SslConfig {
+            enable: ssl.enable.unwrap_or(false),
+            key: ssl.key,
+            cert: ssl.cert
+        }
+    } else {
+        SslConfig {
+            enable: false,
+            key: None,
+            cert: None
+        }
+    };
+
     Ok(ServerConfig {
         bind: bind_list,
         threads: base_shape.threads.unwrap_or(num_cpus::get()),
@@ -438,7 +397,6 @@ pub fn load_server_config(files: Vec<std::path::PathBuf>) -> error::Result<Serve
         session: session_config,
         email: email_config,
         info: info_config,
-        key: base_shape.key,
-        cert: base_shape.cert
+        ssl: ssl_config
     })
 }

@@ -7,8 +7,8 @@ use lettre::transport::smtp::authentication::{Credentials};
 use crate::error;
 use crate::config;
 use crate::email;
-use crate::util;
 
+#[derive(Clone)]
 pub struct ServerInfoState {
     pub secure: bool,
     pub origin: String,
@@ -17,11 +17,11 @@ pub struct ServerInfoState {
 
 impl ServerInfoState {
 
-    pub fn new(conf: &config::ServerInfoConfig) -> Self {
+    pub fn new(conf: config::ServerInfoConfig) -> Self {
         Self {
             secure: conf.secure,
-            origin: conf.origin.clone(),
-            name: conf.name.clone()
+            origin: conf.origin,
+            name: conf.name
         }
     }
     
@@ -34,6 +34,7 @@ impl ServerInfoState {
     }
 }
 
+#[derive(Clone)]
 pub struct EmailState {
     pub enabled: bool,
     pub credentials: Option<Credentials>,
@@ -43,21 +44,21 @@ pub struct EmailState {
 
 impl EmailState {
 
-    pub fn new(conf: &config::EmailConfig) -> EmailState {
+    pub fn new(conf: config::EmailConfig) -> EmailState {
         let credentials = if conf.enable {
             Some(email::get_credentials(
-                conf.username.as_ref().unwrap().clone(),
-                conf.password.as_ref().unwrap().clone()
+                conf.username.unwrap(),
+                conf.password.unwrap()
             ))
         } else { None };
         let from = if conf.enable {
             Some(email::get_mailbox(
-                conf.from.as_ref().unwrap().clone(),
+                conf.from.unwrap(),
                 None
             ).unwrap())
         } else { None };
         let relay = if conf.enable {
-            util::clone_option(&conf.relay)
+            conf.relay
         } else {
             None
         };
@@ -82,6 +83,7 @@ impl EmailState {
     }
 }
 
+#[derive(Clone)]
 pub struct AppState {
     pub pool: Pool<PostgresConnectionManager<NoTls>>,
 
@@ -90,11 +92,11 @@ pub struct AppState {
 }
 
 impl AppState {
-    
+
     pub fn new(
-        pool: &Pool<PostgresConnectionManager<NoTls>>, 
-        email_config: &config::EmailConfig,
-        info_config: &config::ServerInfoConfig
+        pool: Pool<PostgresConnectionManager<NoTls>>, 
+        email_config: config::EmailConfig,
+        info_config: config::ServerInfoConfig
     ) -> AppState {
         AppState {
             pool: pool.clone(),

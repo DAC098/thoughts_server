@@ -174,6 +174,7 @@ const App = () => {
                                 }/>
                             </Switch> : null
                         }/>
+                        <Route component={() => <div>Page Not Found</div>}/>
                     </Switch>
                 </Stack.Item>
             </Stack>
