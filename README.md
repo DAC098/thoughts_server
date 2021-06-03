@@ -70,8 +70,8 @@ bind:
     # valid ipv4 or ipv6 address for the system
     - host: "0.0.0.0"
       port: 8080
+      
     - host: "::1"
-      port: 8080
 # default port if a bind host does not have a port specified
 port: 8080
 
@@ -102,11 +102,12 @@ email:
     password: "password"
     relay: "smtp.google.com"
 
-# key cert files for https connections, if none is given then
-# it will default to http connections. http2 is currently only
-# supported with encrypted servers
-key: null
-cert: null
+# ssl information for secure server connections. if enabled
+# then both key and cert must be provided and be valid files.
+ssl:
+    enable: false
+    key: null
+    cert: null
 ```
 
 ### Database
