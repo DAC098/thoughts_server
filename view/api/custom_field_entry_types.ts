@@ -1,4 +1,4 @@
-import { unixNow } from "../time";
+import { unixNow } from "../util/time";
 import { cloneInteger, cloneString } from "../util/clone";
 import { CustomFieldTypeName } from "./custom_field_types"
 

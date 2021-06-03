@@ -1,15 +1,16 @@
-import React, { Fragment, useMemo } from 'react'
+import React, { Fragment } from 'react'
 import { Group } from '@visx/group'
-import { curveBasis } from '@visx/curve'
-import { LinePath } from '@visx/shape'
+import * as CurveType from '@visx/curve'
 import { Threshold } from '@visx/threshold'
-import { scaleTime, scaleLinear } from '@visx/scale'
+import { scaleTime } from '@visx/scale'
 import { AxisLeft, AxisBottom } from '@visx/axis'
 import { GridRows, GridColumns } from '@visx/grid'
 import { TimeRange as TimeRangeField } from "../../api/custom_field_types"
 import { TimeRange } from "../../api/custom_field_entry_types"
 import { CustomFieldJson, EntryJson } from '../../api/types'
-import { timeToString } from '../../time'
+import { timeToString } from '../../util/time'
+import { CircleMarker, TransCircleMarker } from './markers'
+import { DashedLinePath, SolidLinePath } from './line_paths'
 
 export const background = '#f3f3f3';
 
@@ -96,14 +97,14 @@ export default function TimeRangeGraph({
 
             field_entries.push(entry);
         } else {
-            if (field_entries.length > 1) {
+            if (field_entries.length > 0) {
                 data_groups.push(field_entries.slice());
                 field_entries = [];
             }
         }
     }
 
-    if (field_entries.length > 1) {
+    if (field_entries.length > 0) {
         data_groups.push(field_entries.slice());
         field_entries = [];
     }
@@ -127,7 +128,7 @@ export default function TimeRangeGraph({
     if (!field_config.show_diff) {
         content = data_groups.map(set => {
             return <Fragment key={Math.random()}>
-                <Threshold<EntryJson>
+                <Threshold
                     id={`${Math.random()}`}
                     data={set}
                     x={d => x_axis_scale(getX(d))}
@@ -135,64 +136,63 @@ export default function TimeRangeGraph({
                     y1={d => y_axis_scale(getY1(d, field_id))}
                     clipAboveTo={0}
                     clipBelowTo={yMax}
-                    curve={curveBasis}
                     belowAreaProps={{
                         fill: 'green',
                         fillOpacity: 0.4,
                     }}
                 />
-                <LinePath
+                <DashedLinePath
                     data={set}
-                    curve={curveBasis}
-                    x={d => x_axis_scale(getX(d))}
-                    y={d => y_axis_scale(getY0(d, field_id))}
-                    stroke="#222"
-                    strokeWidth={1.5}
-                    strokeOpacity={0.8}
-                    strokeDasharray="1,2"
+                    xGetter={d => x_axis_scale(getX(d))}
+                    yGetter={d => y_axis_scale(getY0(d, field_id))}
+                    marker={TransCircleMarker.url}
                 />
-                <LinePath
+                <SolidLinePath
                     data={set}
-                    curve={curveBasis}
-                    x={d => x_axis_scale(getX(d))}
-                    y={d => y_axis_scale(getY1(d, field_id))}
-                    stroke="#222"
-                    strokeWidth={1.5}
+                    xGetter={d => x_axis_scale(getX(d))}
+                    yGetter={d => y_axis_scale(getY1(d, field_id))}
+                    marker={CircleMarker.url}
                 />
             </Fragment>
         });
     } else {
         content = data_groups.map((set) => {
-            return <LinePath
-                key={Math.random()}
-                data={set}
-                curve={curveBasis}
-                x={d => x_axis_scale(getX(d))}
-                y={d => y_axis_scale(getY(d, field_id))}
-                stroke="#222"
-                strokeWidth={1.5}
-            />
+            return <Fragment key={Math.random()}>
+                <DashedLinePath
+                    data={set}
+                    xGetter={d => x_axis_scale(getX(d))}
+                    yGetter={d => y_axis_scale(getY(d, field_id))}
+                    marker={TransCircleMarker.url}
+                />
+                <SolidLinePath
+                    data={set}
+                    curve={CurveType.curveBasis}
+                    xGetter={d => x_axis_scale(getX(d))}
+                    yGetter={d => y_axis_scale(getY(d, field_id))}
+                    marker={CircleMarker.url}
+                />
+            </Fragment>
         })
     }
 
     return (
-    <div>
-        <svg width={width} height={height}>
+    <svg width={width} height={height}>
+        <CircleMarker/>
+        <TransCircleMarker/>
         <rect x={0} y={0} width={width} height={height} fill={background} rx={14}/>
         <Group left={margin.left} top={margin.top}>
             <GridRows scale={y_axis_scale} width={xMax} height={yMax} stroke="#e0e0e0"/>
             <GridColumns scale={x_axis_scale} width={xMax} height={yMax} stroke="#e0e0e0"/>
             <line x1={xMax} x2={xMax} y1={0} y2={yMax} stroke="#e0e0e0"/>
             <AxisBottom top={yMax} scale={x_axis_scale} numTicks={width > 520 ? 10 : 5}/>
-            <AxisLeft 
-                scale={y_axis_scale} 
+            <AxisLeft
+                scale={y_axis_scale}
                 tickFormat={field_config.show_diff ? (value, index) => {
                     return timeToString(typeof value === "number" ? value : value.valueOf(), false, true);
                 } : null}
             />
             {content}
         </Group>
-        </svg>
-    </div>
+    </svg>
     );
 }

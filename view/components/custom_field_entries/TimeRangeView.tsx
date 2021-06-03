@@ -2,7 +2,7 @@ import { DatePicker, DefaultButton, Label, Stack, Text, TooltipHost } from "@flu
 import React from "react"
 import { TimeRange } from "../../api/custom_field_entry_types";
 import { CustomFieldTypeName, TimeRange as TimeRangeField } from "../../api/custom_field_types";
-import { displayDate } from "../../time";
+import { displayDate } from "../../util/time";
 import TimeInput from "../TimeInput";
 
 interface DetailsTextProps {

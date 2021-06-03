@@ -1,13 +1,13 @@
-import React, { Fragment, useMemo } from 'react'
+import React, { Fragment } from 'react'
 import { Group } from '@visx/group'
-import { curveBasis } from '@visx/curve'
-import { LinePath } from '@visx/shape'
 import { Threshold } from '@visx/threshold'
 import { scaleTime, scaleLinear } from '@visx/scale'
 import { AxisLeft, AxisBottom } from '@visx/axis'
 import { GridRows, GridColumns } from '@visx/grid'
 import { FloatRange } from "../../api/custom_field_entry_types"
 import { CustomFieldJson, EntryJson } from '../../api/types'
+import { DashedLinePath, SolidLinePath } from './line_paths'
+import { CircleMarker } from './markers'
 
 export const background = '#f3f3f3';
 
@@ -102,8 +102,8 @@ export default function FloatRangeGraph({
     x_axis_scale.range([0, xMax]);
 
     return (
-    <div>
-        <svg width={width} height={height}>
+    <svg width={width} height={height}>
+        <CircleMarker/>
         <rect x={0} y={0} width={width} height={height} fill={background} rx={14} />
         <Group left={margin.left} top={margin.top}>
             <GridRows scale={y_axis_scale} width={xMax} height={yMax} stroke="#e0e0e0" />
@@ -113,7 +113,7 @@ export default function FloatRangeGraph({
             <AxisLeft scale={y_axis_scale} />
             {data_groups.map(set => {
                 return <Fragment key={Math.random()}>
-                    <Threshold<EntryJson>
+                    <Threshold
                         id={`${Math.random()}`}
                         data={set}
                         x={d => x_axis_scale(getX(d))}
@@ -121,34 +121,26 @@ export default function FloatRangeGraph({
                         y1={d => y_axis_scale(getY1(d, field_id))}
                         clipAboveTo={0}
                         clipBelowTo={yMax}
-                        curve={curveBasis}
                         belowAreaProps={{
                             fill: 'green',
                             fillOpacity: 0.4,
                         }}
                     />
-                    <LinePath
+                    <DashedLinePath
                         data={set}
-                        curve={curveBasis}
-                        x={d => x_axis_scale(getX(d))}
-                        y={d => y_axis_scale(getY0(d, field_id))}
-                        stroke="#222"
-                        strokeWidth={1.5}
-                        strokeOpacity={0.8}
-                        strokeDasharray="1,2"
+                        xGetter={d => x_axis_scale(getX(d))}
+                        yGetter={d => y_axis_scale(getY0(d, field_id))}
+                        marker={CircleMarker.url}
                     />
-                    <LinePath
+                    <SolidLinePath
                         data={set}
-                        curve={curveBasis}
-                        x={d => x_axis_scale(getX(d))}
-                        y={d => y_axis_scale(getY1(d, field_id))}
-                        stroke="#222"
-                        strokeWidth={1.5}
+                        xGetter={d => x_axis_scale(getX(d))}
+                        yGetter={d => y_axis_scale(getY1(d, field_id))}
+                        marker={CircleMarker.url}
                     />
                 </Fragment>
             })}
         </Group>
-        </svg>
-    </div>
+    </svg>
     );
 }

@@ -1,12 +1,13 @@
 import React, { Fragment } from "react"
 import { Group } from '@visx/group'
-import { curveBasis } from '@visx/curve'
-import { LinePath } from '@visx/shape'
 import { AxisLeft, AxisBottom } from '@visx/axis'
 import { GridRows, GridColumns } from '@visx/grid'
 import { scaleTime, scaleLinear } from '@visx/scale'
+import * as CurveType from "@visx/curve"
 import { Integer } from "../../api/custom_field_entry_types";
 import { CustomFieldJson, EntryJson } from "../../api/types";
+import { CircleMarker, TransCircleMarker } from "./markers"
+import { DashedLinePath, SolidLinePath } from "./line_paths"
 
 export const background = '#f3f3f3';
 
@@ -70,14 +71,14 @@ export default function IntegerGraph({
 
             field_entries.push(entry);
         } else {
-            if (field_entries.length > 1) {
+            if (field_entries.length > 0) {
                 data_groups.push(field_entries.slice());
                 field_entries = [];
             }
         }
     }
 
-    if (field_entries.length > 1) {
+    if (field_entries.length > 0) {
         data_groups.push(field_entries);
         field_entries = [];
     }
@@ -97,29 +98,34 @@ export default function IntegerGraph({
     x_axis_scale.range([0, xMax]);
 
     return (
-        <div>
-            <svg width={width} height={height}>
-                <rect x={0} y={0} width={width} height={height} fill={background} rx={14}/>
-                <Group left={margin.left} top={margin.top}>
-                    <GridRows scale={y_axis_scale} width={xMax} height={yMax} stroke="#e0e0e0"/>
-                    <GridColumns scale={x_axis_scale} width={xMax} height={yMax} stroke="#e0e0e0"/>
-                    <line x1={xMax} x2={xMax} y1={0} y2={yMax} stroke="#e0e0e0"/>
-                    <AxisBottom top={yMax} scale={x_axis_scale} numTicks={width > 520 ? 10 : 5}/>
-                    <AxisLeft scale={y_axis_scale}/>
-                    {data_groups.map(set => {
-                        return <Fragment key={Math.random()}>
-                            <LinePath
-                                data={set}
-                                curve={curveBasis}
-                                x={d => x_axis_scale(getX(d))}
-                                y={d => y_axis_scale(getY(d, field_id))}
-                                stroke="#222"
-                                strokeWidth={1.5}
-                            />
-                        </Fragment>
-                    })}
-                </Group>
-            </svg>
-        </div>
+    <svg width={width} height={height}>
+        <CircleMarker/>
+        <TransCircleMarker/>
+        <rect x={0} y={0} width={width} height={height} fill={background} rx={14}/>
+        <Group left={margin.left} top={margin.top}>
+            <GridRows scale={y_axis_scale} width={xMax} height={yMax} stroke="#e0e0e0"/>
+            <GridColumns scale={x_axis_scale} width={xMax} height={yMax} stroke="#e0e0e0"/>
+            <line x1={xMax} x2={xMax} y1={0} y2={yMax} stroke="#e0e0e0"/>
+            <AxisBottom top={yMax} scale={x_axis_scale} numTicks={width > 520 ? 10 : 5}/>
+            <AxisLeft scale={y_axis_scale} tickFormat={(value) => value.toString()}/>
+            {data_groups.map(set => {
+                return <Fragment key={Math.random()}>
+                    <DashedLinePath
+                        data={set}
+                        xGetter={d => x_axis_scale(getX(d))}
+                        yGetter={d => y_axis_scale(getY(d, field_id))}
+                        marker={TransCircleMarker.url}
+                    />
+                    <SolidLinePath
+                        data={set}
+                        curve={CurveType.curveBasis}
+                        xGetter={d => x_axis_scale(getX(d))}
+                        yGetter={d => y_axis_scale(getY(d, field_id))}
+                        marker={CircleMarker.url}
+                    />
+                </Fragment>
+            })}
+        </Group>
+    </svg>
     )
 }

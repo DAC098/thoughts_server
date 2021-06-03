@@ -1,88 +1,19 @@
 import { CommandBar, DatePicker, Dropdown, IColumn, ICommandBarItemProps, Icon, IconButton, IContextualMenuItem, ScrollablePane, ShimmeredDetailsList, Stack, Sticky, StickyPositionType, Text, TooltipHost, TooltipOverflowMode } from "@fluentui/react"
-import React, { useEffect, useMemo, useRef, useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import { Link, useHistory } from "react-router-dom"
 import ParentSize from "@visx/responsive/lib/components/ParentSize"
 import { useLoadEntries } from "../../hooks/useLoadEntries"
 import { useLoadFields } from "../../hooks/useLoadFields"
 import { useOwner } from "../../hooks/useOwner"
 import { CustomFieldJson, EntryJson } from "../../api/types"
-import { CustomFieldEntryType } from "../../api/custom_field_entry_types"
-import { diffDates, displayDate, get12hrStr, get24hrStr, sameDate } from "../../time"
 import { useAppDispatch, useAppSelector } from "../../hooks/useApp"
-import { CustomFieldType, CustomFieldTypeName, Float, FloatRange, Time, TimeRange } from "../../api/custom_field_types"
 import { tags_actions } from "../../redux/slices/tags"
 import TagToken from "../../components/tags/TagItem"
 import { downloadLink } from "../../util/downloadLink"
 import { getURL } from "../../api"
-import IntegerRangeGraph from "../../components/graphs/IntegerRange"
-import IntegerGraph from "../../components/graphs/Integer"
-import FloatGraph from "../../components/graphs/Float"
-import FloatRangeGraph from "../../components/graphs/FloatRange"
-import TimeGraph from "../../components/graphs/Time"
-import TimeRangeGraph from "../../components/graphs/TimeRange"
-
-function renderCustomFieldType(value: CustomFieldEntryType, config: CustomFieldType) {
-    switch (value.type) {
-        case "Integer":
-            return `${value.value}`;
-        case "IntegerRange":
-            return `${value.low} - ${value.high}`;
-        case "Float": {
-            let conf = config as Float;
-            return `${value.value.toFixed(conf.precision)}`;
-        }
-        case "FloatRange": {
-            let conf = config as FloatRange;
-            return `${value.low.toFixed(conf.precision)} - ${value.high.toFixed(conf.precision)}`;
-        }
-        case "Time": {
-            return `${displayDate(new Date(value.value), !(config as Time).as_12hr)}`;
-        }
-        case "TimeRange": {
-            let conf = config as TimeRange;
-            let low = new Date(value.low);
-            let high = new Date(value.high);
-
-            if (conf.show_diff) {
-                return diffDates(high, low, false, true);
-            } else {
-                return sameDate(low, high) ? 
-                       `${displayDate(low, !conf.as_12hr)} - ${conf.as_12hr ? get12hrStr(high) : get24hrStr(high)}` :
-                       `${displayDate(low, !conf.as_12hr)} - ${displayDate(high, !conf.as_12hr)}`;
-            }
-        }
-    }
-}
-
-interface CustomFieldGraphProps {
-    field: CustomFieldJson
-
-    entries: EntryJson[]
-
-    width: number
-    height: number
-}
-
-function CustomFieldGraph({
-    field,
-    entries,
-    width, height
-}: CustomFieldGraphProps) {
-    switch (field.config.type) {
-        case CustomFieldTypeName.Integer:
-            return <IntegerGraph width={width} height={height} field={field} entries={entries}/>
-        case CustomFieldTypeName.IntegerRange:
-            return <IntegerRangeGraph width={width} height={height} field={field} entries={entries}/>
-        case CustomFieldTypeName.Float:
-            return <FloatGraph width={width} height={height} field={field} entries={entries}/>
-        case CustomFieldTypeName.FloatRange:
-            return <FloatRangeGraph width={width} height={height} field={field} entries={entries}/>
-        case CustomFieldTypeName.Time:
-            return <TimeGraph width={width} height={height} field={field} entries={entries}/>
-        case CustomFieldTypeName.TimeRange:
-            return <TimeRangeGraph width={width} height={height} field={field} entries={entries}/>
-    }
-}
+import { CustomFieldGraph } from "../../components/graphs"
+import { CustomFieldEntryCell } from "../../components/CustomFieldEntryCell"
+import { common_ratios, containRatio } from "../../util/math"
 
 interface EntriesGraphViewProps {
     field: CustomFieldJson
@@ -96,15 +27,27 @@ const EntriesGraphView = ({field, entries}: EntriesGraphViewProps) => {
 
     const loading_state = custom_fields_state.loading || entries_state.loading || tags_state.loading;
 
-    return <Stack.Item grow shrink styles={{root: {overflow: "hidden"}}}>
-        <ParentSize debounceTime={10}>
-            {({width, height}) => loading_state ?
-                null
-                :
-                <CustomFieldGraph field={field} entries={entries} width={width} height={400}/>
+    return <ParentSize 
+        className="ms-StackItem"
+        debounceTime={20}
+        parentSizeStyles={{
+            width: "auto", height: "400px", 
+            flexGrow: 1, flexShrink: 1, 
+            position: "relative", 
+            overflow: "hidden"
+        }}
+    >
+        {({width: w, height: h}) => {
+            let {width, height} = containRatio(w, h, common_ratios.r_16_9);
+
+            return loading_state ? null :
+                <CustomFieldGraph 
+                    field={field} entries={entries} 
+                    width={width} height={height}
+                />
             }
-        </ParentSize>
-    </Stack.Item>
+        }
+    </ParentSize>
 }
 
 interface EntriesTableViewProps {
@@ -155,7 +98,7 @@ const EntriesTableView = ({user_specific, owner, visible_fields}: EntriesTableVi
                     }
 
                     let content = <>
-                        {renderCustomFieldType(custom_field_entry.value, field.config)}
+                        <CustomFieldEntryCell value={custom_field_entry.value} config={field.config}/>
                         {custom_field_entry.comment && custom_field_entry.comment.length > 0 ?
                             <Icon style={{paddingLeft: 4}} iconName="Info"/>
                             :

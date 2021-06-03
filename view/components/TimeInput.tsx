@@ -1,6 +1,6 @@
 import { Dropdown, MaskedTextField } from "@fluentui/react";
 import React, { useEffect, useState } from "react";
-import { get12hrStr, get24hrStr } from "../time";
+import { get12hrStr, get24hrStr } from "../util/time";
 
 const mask_types = {
     "hr_min": {

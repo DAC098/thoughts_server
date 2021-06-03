@@ -7,6 +7,8 @@ import { GridRows, GridColumns } from '@visx/grid'
 import { scaleTime, scaleLinear } from '@visx/scale'
 import { Time } from "../../api/custom_field_entry_types";
 import { CustomFieldJson, EntryJson } from "../../api/types";
+import { SolidLinePath } from "./line_paths"
+import { CircleMarker } from "./markers"
 
 export const background = '#f3f3f3';
 
@@ -97,29 +99,26 @@ export default function TimeGraph({
     x_axis_scale.range([0, xMax]);
 
     return (
-        <div>
-            <svg width={width} height={height}>
-                <rect x={0} y={0} width={width} height={height} fill={background} rx={14}/>
-                <Group left={margin.left} top={margin.top}>
-                    <GridRows scale={y_axis_scale} width={xMax} height={yMax} stroke="#e0e0e0"/>
-                    <GridColumns scale={x_axis_scale} width={xMax} height={yMax} stroke="#e0e0e0"/>
-                    <line x1={xMax} x2={xMax} y1={0} y2={yMax} stroke="#e0e0e0"/>
-                    <AxisBottom top={yMax} scale={x_axis_scale} numTicks={width > 520 ? 10 : 5}/>
-                    <AxisLeft scale={y_axis_scale}/>
-                    {data_groups.map(set => {
-                        return <Fragment key={Math.random()}>
-                            <LinePath
-                                data={set}
-                                curve={curveBasis}
-                                x={d => x_axis_scale(getX(d))}
-                                y={d => y_axis_scale(getY(d, field_id))}
-                                stroke="#222"
-                                strokeWidth={1.5}
-                            />
-                        </Fragment>
-                    })}
-                </Group>
-            </svg>
-        </div>
+    <svg width={width} height={height}>
+        <CircleMarker/>
+        <rect x={0} y={0} width={width} height={height} fill={background} rx={14}/>
+        <Group left={margin.left} top={margin.top}>
+            <GridRows scale={y_axis_scale} width={xMax} height={yMax} stroke="#e0e0e0"/>
+            <GridColumns scale={x_axis_scale} width={xMax} height={yMax} stroke="#e0e0e0"/>
+            <line x1={xMax} x2={xMax} y1={0} y2={yMax} stroke="#e0e0e0"/>
+            <AxisBottom top={yMax} scale={x_axis_scale} numTicks={width > 520 ? 10 : 5}/>
+            <AxisLeft scale={y_axis_scale}/>
+            {data_groups.map(set => {
+                return <Fragment key={Math.random()}>
+                    <SolidLinePath
+                        data={set}
+                        xGetter={d => x_axis_scale(getX(d))}
+                        yGetter={d => y_axis_scale(getY(d, field_id))}
+                        marker={CircleMarker.url}
+                    />
+                </Fragment>
+            })}
+        </Group>
+    </svg>
     )
 }
