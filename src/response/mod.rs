@@ -2,6 +2,7 @@ use actix_web::{http, HttpRequest, HttpResponse, Responder};
 use serde_json::{to_string};
 
 pub mod json;
+pub mod error;
 
 use crate::db::users;
 

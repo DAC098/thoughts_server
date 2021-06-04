@@ -5,7 +5,8 @@ use lettre::message::{Mailbox};
 use crate::request::from;
 use crate::response;
 use crate::state;
-use crate::error;
+
+use response::error;
 
 pub async fn handle_get(
     initiator: from::Initiator,

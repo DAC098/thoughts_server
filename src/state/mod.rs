@@ -4,9 +4,9 @@ use lettre::message::{Mailbox};
 use lettre::transport::smtp::{SmtpTransport};
 use lettre::transport::smtp::authentication::{Credentials};
 
-use crate::error;
 use crate::config;
 use crate::email;
+use crate::response::error;
 
 #[derive(Clone)]
 pub struct ServerInfoState {

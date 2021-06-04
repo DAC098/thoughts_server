@@ -5,10 +5,6 @@ use lettre::transport::smtp::authentication::{Credentials};
 
 pub mod message_body;
 
-pub fn valid_email_address(email: &String) -> bool {
-    email.parse::<Address>().is_ok()
-}
-
 pub fn get_mailbox(email: String, name: Option<String>) -> Result<Mailbox, AddressError> {
     Ok(Mailbox::new(
         name,

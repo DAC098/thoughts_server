@@ -4,14 +4,14 @@ use serde::{Deserialize};
 use lettre::{Message, Transport};
 use lettre::message::{Mailbox};
 
-use crate::error;
 use crate::state;
 use crate::request::from;
 use crate::response;
 use crate::email;
 use crate::util;
-use crate::time;
 use crate::db;
+
+use response::error;
 
 pub async fn handle_get(
     req: HttpRequest,
@@ -119,7 +119,7 @@ pub async fn handle_put(
         let mut rand_bytes: [u8; 32] = [0; 32];
         openssl::rand::rand_bytes(&mut rand_bytes)?;
         let hex_str = util::hex_string(&rand_bytes)?;
-        let issued = time::now();
+        let issued = util::time::now();
 
         conn.execute(
             r#"

@@ -2,10 +2,11 @@ use actix_web::{web, http, Responder};
 use serde::{Deserialize};
 
 use crate::security;
-use crate::error;
 use crate::state;
 use crate::request::from;
 use crate::response;
+
+use response::error;
 
 pub struct ChangeUserPasswordJson {
     password: String

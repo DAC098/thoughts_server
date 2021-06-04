@@ -3,8 +3,9 @@ use actix_session::{Session};
 
 use crate::response;
 use crate::request::from;
-use crate::error as app_error;
 use crate::state;
+
+use response::error as app_error;
 
 pub mod auth;
 pub mod entries;

@@ -2,7 +2,7 @@ use tokio_postgres::{GenericClient};
 use serde::{Serialize, Deserialize};
 
 use crate::db::custom_field_entries::CustomFieldEntryType;
-use crate::error;
+use crate::response::error;
 
 pub struct CustomField {
     pub id: i32,

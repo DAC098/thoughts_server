@@ -1,5 +1,7 @@
 use std::fmt::{Write};
 
+pub mod time;
+
 pub fn clone_option<T>(opt: &Option<T>) -> Option<T>
 where
     T: Clone

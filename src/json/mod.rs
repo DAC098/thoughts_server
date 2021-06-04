@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::db::custom_fields;
 use crate::db::custom_field_entries;
-use crate::error;
+use crate::response::error;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct CustomFieldEntryJson {

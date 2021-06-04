@@ -1,7 +1,7 @@
 use actix_web::{http, HttpResponse, dev::HttpResponseBuilder};
 use serde::{Serialize};
 
-use crate::time;
+use crate::util;
 
 #[derive(Serialize)]
 pub struct ErrorJSON {
@@ -19,7 +19,7 @@ impl ErrorJSON {
         ErrorJSON {
             r#type: t.to_string(),
             message: m.into(),
-            date: time::now_rfc3339(),
+            date: util::time::now_rfc3339(),
             error: None
         }
     }
@@ -32,7 +32,7 @@ impl ErrorJSON {
         ErrorJSON {
             r#type: t.to_string(),
             message: m.into(),
-            date: time::now_rfc3339(),
+            date: util::time::now_rfc3339(),
             error: Some(e.to_string())
         }
     }
@@ -53,7 +53,7 @@ impl<T: Serialize> MessageDataJSON<T> {
     {
         MessageDataJSON {
             message: m.into(),
-            date: time::now_rfc3339(),
+            date: util::time::now_rfc3339(),
             data: d
         }
     }

@@ -6,13 +6,14 @@ use serde::{Deserialize};
 
 pub mod user_id;
 
-use crate::error;
 use crate::request::from;
 use crate::response;
 use crate::state;
 use crate::security;
 use crate::db;
 use crate::json;
+
+use response::error;
 
 #[derive(Deserialize)]
 pub struct UserSearchQuery {

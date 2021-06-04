@@ -1,56 +1,22 @@
 use postgres::{Client, NoTls};
 
-#[path = "../config/mod.rs"]
+mod cli;
 mod config;
 
 fn main() {
-    let mut config_files: Vec<std::path::PathBuf> = vec!();
-    let mut args = std::env::args();
-    args.next();
+    let config_files = match cli::init_from_cli() {
+        Ok(files) => files,
+        Err(error) => panic!("{}", error)
+    };
 
-    while let Some(arg) = args.next() {
-        if arg.starts_with("--") {
-            if arg.len() <= 2 {
-                println!("incomplete argument given");
-                return;
-            }
+    let server_config = match config::load_server_config(config_files) {
+        Ok(config) => config,
+        Err(error) => panic!("{}", error)
+    };
 
-            let (_, arg_substring) = arg.split_at(2);
-
-            if arg_substring == "debug" {
-                std::env::set_var("RUST_LOG", "debug");
-            } else if arg_substring == "backtrace" {
-                std::env::set_var("RUST_BACKTRACE", "full");
-            } else if arg_substring == "info" {
-                std::env::set_var("RUST_LOG", "info");
-            } else {
-                println!("unknown argument given. {}", arg_substring);
-                return;
-            }
-        } else {
-            if let Ok(canonical_path) = std::fs::canonicalize(arg.clone()) {
-                if !canonical_path.is_file() {
-                    println!("specified configuration file is not a file. {:?}", canonical_path.into_os_string());
-                    return;
-                }
-    
-                config_files.push(canonical_path);
-            } else {
-                println!("failed to locate given file. {}", arg);
-                return;
-            }
-        }
+    if let Err(err) = config::validate_server_config(&server_config) {
+        panic!("{}", err);
     }
-
-    env_logger::init();
-
-    let config_check = config::load_server_config(config_files);
-
-    if config_check.is_err() {
-        panic!("failed to load server configuration\n{:?}", config_check.unwrap_err());
-    }
-
-    let server_config = config_check.unwrap();
 
     let mut db_config = Client::configure();
     db_config.user(server_config.db.username.as_ref());
@@ -87,8 +53,8 @@ fn main() {
         };
         let mut openssl_salt: [u8; 64] = [0; 64];
 
-        if let Err(e) = openssl::rand::rand_bytes(&mut openssl_salt) {
-            panic!("error generating hash salt\n{:?}", e);
+        if let Err(error) = openssl::rand::rand_bytes(&mut openssl_salt) {
+            panic!("error generating hash salt\n{:?}", error);
         };
 
         let hash = match argon2::hash_encoded(&password.as_bytes(), &openssl_salt, &argon2_config) {

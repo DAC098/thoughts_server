@@ -6,12 +6,13 @@ use serde::{Deserialize};
 
 use crate::db;
 use crate::response;
-use crate::{error as app_error};
 use crate::state;
 use crate::request::from;
 use crate::json;
 use crate::security;
 use crate::util;
+
+use response::error as app_error;
 
 #[derive(Deserialize)]
 pub struct PutTextEntryJson {

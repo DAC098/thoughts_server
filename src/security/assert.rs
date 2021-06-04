@@ -1,6 +1,6 @@
 use tokio_postgres::{GenericClient};
 
-use crate::error;
+use crate::response::error;
 
 pub async fn is_owner_for_entry(
     conn: &impl GenericClient,

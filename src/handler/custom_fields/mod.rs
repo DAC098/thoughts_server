@@ -4,12 +4,13 @@ use serde::{Deserialize};
 
 pub mod field_id;
 
-use crate::error::{Result, ResponseError};
 use crate::request::from;
 use crate::response;
 use crate::state;
 use crate::json;
 use crate::db;
+
+use response::error::{Result, ResponseError};
 
 pub async fn handle_get(
     req: HttpRequest,

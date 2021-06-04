@@ -1,10 +1,11 @@
 use actix_web::{web, Responder};
 use serde::{Deserialize};
 
-use crate::error;
 use crate::state;
 use crate::response;
-use crate::time;
+use crate::util;
+
+use response::error;
 
 #[derive(Deserialize)]
 pub struct QueryOptions {
@@ -33,7 +34,7 @@ pub async fn handle_get(
     }
 
     let owner: i32 = record[0].get(0);
-    let now = time::now();
+    let now = util::time::now();
     let issued: chrono::DateTime<chrono::Local> = record[0].get(1);
 
     let transaction = conn.transaction().await?;

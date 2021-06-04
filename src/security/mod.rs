@@ -1,6 +1,6 @@
 use argon2::{Config, ThreadMode, Variant, Version};
 
-use crate::error;
+use crate::response::error;
 
 pub mod assert;
 

@@ -4,11 +4,12 @@ use serde::{Deserialize};
 
 use crate::db::users;
 use crate::db::user_sessions;
-use crate::error;
 use crate::response;
 use crate::state;
 use crate::request::from;
 use crate::security;
+
+use response::error;
 
 /**
  * GET /auth/login

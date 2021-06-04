@@ -6,8 +6,8 @@ use futures::Future;
 
 use crate::db::users;
 use crate::db::user_sessions;
-use crate::error;
 use crate::state;
+use crate::response::error;
 
 pub struct Initiator {
     pub user: users::User

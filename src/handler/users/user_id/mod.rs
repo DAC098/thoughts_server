@@ -5,13 +5,14 @@ pub mod entries;
 pub mod custom_fields;
 pub mod tags;
 
-use crate::error;
 use crate::request::from;
 use crate::response;
 use crate::state;
 use crate::parsing::url_paths;
 use crate::security;
 use crate::db;
+
+use response::error;
 
 pub async fn handle_get(
     req: HttpRequest,

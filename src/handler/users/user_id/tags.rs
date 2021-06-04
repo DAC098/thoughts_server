@@ -1,13 +1,14 @@
 use actix_web::{web, http, HttpRequest, Responder};
 use actix_session::{Session};
 
-use crate::error;
 use crate::request::from;
 use crate::response;
 use crate::state;
 use crate::db;
 use crate::security;
 use crate::parsing;
+
+use response::error;
 
 pub async fn handle_get(
     req: HttpRequest,
