@@ -1,5 +1,9 @@
-use tokio_postgres::{GenericClient, Error as PGError};
+use tokio_postgres::{GenericClient};
 use serde::{Serialize, Deserialize};
+
+use crate::db::error;
+
+use error::Result;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Tag {
@@ -10,10 +14,10 @@ pub struct Tag {
     pub comment: Option<String>
 }
 
-pub async fn get_via_id(
+pub async fn find_via_id(
     conn: &impl GenericClient,
     id: i32
-) -> Result<Option<Tag>, PGError> {
+) -> Result<Option<Tag>> {
     let result = conn.query(
         "select id, title, color, owner, comment from tags where id = $1",
         &[&id]
@@ -32,10 +36,10 @@ pub async fn get_via_id(
     }
 }
 
-pub async fn get_via_owner(
+pub async fn find_via_owner(
     conn: &impl GenericClient,
     owner: i32
-) -> Result<Vec<Tag>, PGError> {
+) -> Result<Vec<Tag>> {
     let result = conn.query(
         "select id, title, color, owner, comment from tags where owner = $1",
         &[&owner]

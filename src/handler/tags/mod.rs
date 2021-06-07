@@ -35,7 +35,7 @@ pub async fn handle_get(
             http::StatusCode::OK,
             response::json::MessageDataJSON::build(
                 "successful",
-                db::tags::get_via_owner(conn, initiator.user.id).await?
+                db::tags::find_via_owner(conn, initiator.user.id).await?
             )
         ))
     }

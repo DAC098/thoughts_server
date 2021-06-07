@@ -11,6 +11,7 @@ use crate::request::from;
 use crate::json;
 use crate::security;
 use crate::util;
+use crate::getters;
 
 use response::error as app_error;
 
@@ -121,7 +122,7 @@ pub async fn handle_put(
         let mut ids: Vec<i32> = vec!();
 
         for custom_field_entry in m {
-            let field = db::custom_fields::get_via_id(&transaction, custom_field_entry.field, Some(initiator.user.id)).await?;
+            let field = getters::custom_fields::get_via_id(&transaction, custom_field_entry.field, Some(initiator.user.id)).await?;
 
             db::custom_fields::verifiy(&field.config, &custom_field_entry.value)?;
 

@@ -8,6 +8,8 @@ import { IntegerRange } from "../../api/custom_field_entry_types"
 import { CustomFieldJson, EntryJson } from '../../api/types'
 import { CircleMarker, TransCircleMarker } from './markers'
 import { DashedLinePath, SolidLinePath } from './line_paths'
+import { defaultGetX } from './getters'
+import { getDateZeroHMSM } from '../../util/time'
 
 export const background = '#f3f3f3';
 
@@ -17,10 +19,6 @@ const getY0 = (entry: EntryJson, field_id: string) => {
 
 const getY1 = (entry: EntryJson, field_id: string) => {
     return (entry.custom_field_entries[field_id]?.value as IntegerRange)?.high ?? 0;
-}
-
-const getX = (entry: EntryJson) => {
-    return new Date(entry.created).getTime();
 }
 
 const defaultMargin = { top: 40, right: 30, bottom: 50, left: 40 };
@@ -52,7 +50,7 @@ export default function IntegerRangeGraph({
     let field_entries: EntryJson[] = [];
 
     for (let entry of entries) {
-        let date = new Date(entry.created).getTime();
+        let date = getDateZeroHMSM(entry.created).getTime();
 
         if (min_x_domain > date) {
             min_x_domain = date;
@@ -117,7 +115,7 @@ export default function IntegerRangeGraph({
                     <Threshold
                         id={`${Math.random()}`}
                         data={set}
-                        x={d => x_axis_scale(getX(d))}
+                        x={d => x_axis_scale(defaultGetX(d))}
                         y0={d => y_axis_scale(getY0(d, field_id))}
                         y1={d => y_axis_scale(getY1(d, field_id))}
                         clipAboveTo={0}
@@ -129,13 +127,13 @@ export default function IntegerRangeGraph({
                     />
                     <DashedLinePath
                         data={set}
-                        xGetter={d => x_axis_scale(getX(d))}
+                        xGetter={d => x_axis_scale(defaultGetX(d))}
                         yGetter={d => y_axis_scale(getY0(d, field_id))}
                         marker={TransCircleMarker.url}
                     />
                     <SolidLinePath
                         data={set}
-                        xGetter={d => x_axis_scale(getX(d))}
+                        xGetter={d => x_axis_scale(defaultGetX(d))}
                         yGetter={d => y_axis_scale(getY1(d, field_id))}
                         marker={CircleMarker.url}
                     />

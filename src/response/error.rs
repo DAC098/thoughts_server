@@ -7,6 +7,7 @@ use actix_web::{
     HttpResponse
 };
 
+use crate::db;
 use crate::response;
 
 pub type Result<R> = std::result::Result<R, ResponseError>;
@@ -310,6 +311,17 @@ impl From<serde_json::Error> for ResponseError {
     
     fn from(error: serde_json::Error) -> Self {
         ResponseError::SerdeJsonError(error)
+    }
+    
+}
+
+impl From<db::error::DbError> for ResponseError {
+
+    fn from(error: db::error::DbError) -> Self {
+        match error {
+            db::error::DbError::Validation(msg) => ResponseError::Validation(msg),
+            db::error::DbError::Postgres(err) => ResponseError::PostgresError(err)
+        }
     }
     
 }

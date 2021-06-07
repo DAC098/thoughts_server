@@ -19,6 +19,7 @@ mod json;
 mod parsing;
 mod util;
 mod email;
+mod getters;
 
 use error::{AppError, Result};
 
@@ -149,26 +150,18 @@ async fn server_runner(config: config::ServerConfig) -> Result {
     );
 
     if ssl_config.enable {
-        let cert_file = ssl_config.cert.ok_or(
-            AppError::SslError(format!("cert file not given"))
-        )?;
-        let key_file = ssl_config.key.ok_or(
-            AppError::SslError(format!("key file not given"))
-        )?;
+        let cert_file = ssl_config.cert.ok_or(AppError::SslError(format!("cert file not given")))?;
+        let key_file = ssl_config.key.ok_or(AppError::SslError(format!("key file not given")))?;
 
         let key_path = Path::new(&key_file);
         let cert_path = Path::new(&cert_file);
 
         if !key_path.exists() {
-            return Err(AppError::SslError(
-                format!("key file given does not exist: {}", key_file)
-            ));
+            return Err(AppError::SslError(format!("key file given does not exist: {}", key_file)));
         }
 
         if !cert_path.exists() {
-            return Err(AppError::SslError(
-                format!("cert file given does not exist: {}", cert_file)
-            ));
+            return Err(AppError::SslError(format!("cert file given does not exist: {}", cert_file)));
         }
 
         for bind_value in bind_iter {

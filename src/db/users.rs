@@ -1,5 +1,9 @@
-use tokio_postgres::{GenericClient, Error as PGError};
+use tokio_postgres::{GenericClient};
 use serde::{Serialize, Deserialize};
+
+use crate::db::error;
+
+use error::Result;
 
 #[derive(Serialize, Deserialize)]
 pub struct User {
@@ -15,7 +19,7 @@ pub async fn check_username_email(
     client: &impl GenericClient,
     username: &String,
     email: &String
-) -> Result<(bool, bool), PGError> {
+) -> Result<(bool, bool)> {
     let result = client.query(
         r#"
         select username = $1 as same_username, 
@@ -41,10 +45,10 @@ pub async fn check_username_email(
     Ok((found_username, found_email))
 }
 
-pub async fn get_via_id(
+pub async fn find_via_id(
     client: &impl GenericClient,
     id: i32
-) -> Result<Option<User>, PGError> {
+) -> Result<Option<User>> {
     let result = client.query(
         r#"
         select id, 

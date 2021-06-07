@@ -48,7 +48,7 @@ pub async fn handle_get(
         let initiator = initiator_opt.unwrap();
         let data = BackupDataJson {
             custom_fields: json::search_custom_fields(conn, initiator.user.id).await?, 
-            tags: db::tags::get_via_owner(conn, initiator.user.id).await?, 
+            tags: db::tags::find_via_owner(conn, initiator.user.id).await?, 
             entries: json::search_entries(conn, json::SearchEntriesOptions { 
                 from: info.from,
                 to: info.to,

@@ -8,15 +8,13 @@ import { Integer } from "../../api/custom_field_entry_types";
 import { CustomFieldJson, EntryJson } from "../../api/types";
 import { CircleMarker, TransCircleMarker } from "./markers"
 import { DashedLinePath, SolidLinePath } from "./line_paths"
+import { defaultGetX } from "./getters"
+import { getDateZeroHMSM } from "../../util/time"
 
 export const background = '#f3f3f3';
 
 const getY = (entry: EntryJson, field_id: string) => {
     return (entry.custom_field_entries[field_id].value as Integer).value;
-}
-
-const getX = (entry: EntryJson) => {
-    return new Date(entry.created).getTime();
 }
 
 const defaultMargin = { top: 40, right: 30, bottom: 50, left: 40 };
@@ -48,7 +46,7 @@ export default function IntegerGraph({
     let field_entries: EntryJson[] = [];
 
     for (let entry of entries) {
-        let date = new Date(entry.created).getTime();
+        let date = getDateZeroHMSM(entry.created).getTime();
 
         if (min_x_domain > date) {
             min_x_domain = date;
@@ -112,14 +110,14 @@ export default function IntegerGraph({
                 return <Fragment key={Math.random()}>
                     <DashedLinePath
                         data={set}
-                        xGetter={d => x_axis_scale(getX(d))}
+                        xGetter={d => x_axis_scale(defaultGetX(d))}
                         yGetter={d => y_axis_scale(getY(d, field_id))}
                         marker={TransCircleMarker.url}
                     />
                     <SolidLinePath
                         data={set}
                         curve={CurveType.curveBasis}
-                        xGetter={d => x_axis_scale(getX(d))}
+                        xGetter={d => x_axis_scale(defaultGetX(d))}
                         yGetter={d => y_axis_scale(getY(d, field_id))}
                         marker={CircleMarker.url}
                     />

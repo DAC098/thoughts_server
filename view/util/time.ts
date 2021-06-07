@@ -23,6 +23,20 @@ export function compareDates(a: Date, b: Date) {
     return a.getTime() === b.getTime();
 }
 
+export function zeroHMSM(date: Date) {
+    date.setHours(0);
+    date.setMinutes(0);
+    date.setSeconds(0);
+    date.setMilliseconds(0);
+}
+
+export function getDateZeroHMSM(time: string) {
+    let rtn = new Date(time);
+    zeroHMSM(rtn);
+
+    return rtn;
+}
+
 export function unixNow() {
     return Math.trunc(Date.now() / 1000)
 }

@@ -15,7 +15,14 @@ path = "src/make_admin.rs"
 name = "server"
 path = "src/server.rs"
 
+[[bin]]
+name = "make_test_data"
+path = "src/make_test_data.rs"
+
 [dependencies]
+lipsum = { version = "0.8.0" }
+rand = { version = "0.8.3", features = ["small_rng", "std"] }
+
 futures = { version = "0.3" }
 
 base64 = { version = "0.13.0" }

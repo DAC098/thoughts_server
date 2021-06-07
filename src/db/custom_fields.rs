@@ -2,7 +2,7 @@ use tokio_postgres::{GenericClient};
 use serde::{Serialize, Deserialize};
 
 use crate::db::custom_field_entries::CustomFieldEntryType;
-use crate::response::error;
+use crate::db::error;
 
 pub struct CustomField {
     pub id: i32,
@@ -36,26 +36,6 @@ pub async fn find_id(
             owner: result[0].get(2),
             config: serde_json::from_value(result[0].get(3)).unwrap()
         }))
-    }
-}
-
-pub async fn get_via_id(
-    conn: &impl GenericClient,
-    id: i32,
-    initiator_opt: Option<i32>,
-) -> error::Result<CustomField> {
-    if let Some(field) = find_id(conn, id).await? {
-        if let Some(initiator) = initiator_opt {
-            if field.owner != initiator {
-                return Err(error::ResponseError::PermissionDenied(
-                    format!("you do not haver permission to create a custom field entry using this field id: {}", field.owner)
-                ))
-            }
-        }
-
-        Ok(field)
-    } else {
-        Err(error::ResponseError::CustomFieldNotFound(id))
     }
 }
 
@@ -123,7 +103,7 @@ where
 {
     if let Some(min) = minimum {
         if value < min {
-            return Err(error::ResponseError::Validation(
+            return Err(error::DbError::Validation(
                 format!("given value is less than the minimum specified. value[{}] minimum[{}]", value, min)
             ));
         }
@@ -131,7 +111,7 @@ where
 
     if let Some(max) = maximum {
         if value > max {
-            return Err(error::ResponseError::Validation(
+            return Err(error::DbError::Validation(
                 format!("given value is higher than the minimum specified. value[{}] maximum[{}]", value, max)
             ));
         }
@@ -145,14 +125,14 @@ where
     T: PartialOrd + std::fmt::Display
 {
     if low > high {
-        return Err(error::ResponseError::Validation(
+        return Err(error::DbError::Validation(
             format!("given low is greater than the high. low[{}] high[{}]", low, high)
         ));
     }
 
     if let Some(min) = minimum {
         if low < min {
-            return Err(error::ResponseError::Validation(
+            return Err(error::DbError::Validation(
                 format!("given low is less than the minimum specified. low[{}] minimum[{}]", low, min)
             ));
         }
@@ -160,7 +140,7 @@ where
 
     if let Some(max) = maximum {
         if high > max {
-            return Err(error::ResponseError::Validation(
+            return Err(error::DbError::Validation(
                 format!("given high is greater than the minimum specified. high[{}] maximum[{}]", high, max)
             ));
         }
@@ -176,7 +156,7 @@ pub fn verifiy(config: &CustomFieldType, value: &CustomFieldEntryType) -> error:
                 CustomFieldEntryType::Integer {value} => {
                     verify_range(value, minimum, maximum)
                 },
-                _ => Err(error::ResponseError::Validation(
+                _ => Err(error::DbError::Validation(
                     "Integer mood field can only validate a Integer mood entry".to_owned()
                 ))
             }
@@ -186,7 +166,7 @@ pub fn verifiy(config: &CustomFieldType, value: &CustomFieldEntryType) -> error:
                 CustomFieldEntryType::IntegerRange {low, high} => {
                     verify_range_bound(low, high, minimum, maximum)
                 },
-                _ => Err(error::ResponseError::Validation(
+                _ => Err(error::DbError::Validation(
                     "IntegerRange mood field can only validate a IntergerRange mood entry".to_owned()
                 ))
             }
@@ -196,7 +176,7 @@ pub fn verifiy(config: &CustomFieldType, value: &CustomFieldEntryType) -> error:
                 CustomFieldEntryType::Float {value} => {
                     verify_range(value, minimum, maximum)
                 },
-                _ => Err(error::ResponseError::Validation(
+                _ => Err(error::DbError::Validation(
                     "Float mood field can only validate a Float mood entry".to_owned()
                 ))
             }
@@ -206,7 +186,7 @@ pub fn verifiy(config: &CustomFieldType, value: &CustomFieldEntryType) -> error:
                 CustomFieldEntryType::FloatRange {low, high} => {
                     verify_range_bound(low, high, minimum, maximum)
                 },
-                _ => Err(error::ResponseError::Validation(
+                _ => Err(error::DbError::Validation(
                     "FloatRange mood field can only validate a FloatRange mood entry".to_owned()
                 ))
             }
@@ -214,7 +194,7 @@ pub fn verifiy(config: &CustomFieldType, value: &CustomFieldEntryType) -> error:
         CustomFieldType::Time {as_12hr: _} => {
             match value {
                 CustomFieldEntryType::Time {value: _} => Ok(()),
-                _ => Err(error::ResponseError::Validation(
+                _ => Err(error::DbError::Validation(
                     "Time mood field can only validate a Time mood entry".to_owned()
                 ))
             }
@@ -225,7 +205,7 @@ pub fn verifiy(config: &CustomFieldType, value: &CustomFieldEntryType) -> error:
                     let none_opt = None;
                     verify_range_bound(low, high, &none_opt, &none_opt)
                 },
-                _ => Err(error::ResponseError::Validation(
+                _ => Err(error::DbError::Validation(
                     "TimeRange mood field can only validate a TimeRange mood entry".to_owned()
                 ))
             }

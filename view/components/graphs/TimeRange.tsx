@@ -8,9 +8,10 @@ import { GridRows, GridColumns } from '@visx/grid'
 import { TimeRange as TimeRangeField } from "../../api/custom_field_types"
 import { TimeRange } from "../../api/custom_field_entry_types"
 import { CustomFieldJson, EntryJson } from '../../api/types'
-import { timeToString } from '../../util/time'
+import { getDateZeroHMSM, timeToString } from '../../util/time'
 import { CircleMarker, TransCircleMarker } from './markers'
 import { DashedLinePath, SolidLinePath } from './line_paths'
+import { defaultGetX } from './getters'
 
 export const background = '#f3f3f3';
 
@@ -24,10 +25,6 @@ const getY1 = (entry: EntryJson, field_id: string) => {
 
 const getY = (entry: EntryJson, field_id: string) => {
     return getY1(entry, field_id) - getY0(entry, field_id);
-}
-
-const getX = (entry: EntryJson) => {
-    return new Date(entry.created).getTime();
 }
 
 const defaultMargin = { top: 40, right: 30, bottom: 50, left: 80 };
@@ -60,7 +57,7 @@ export default function TimeRangeGraph({
     let field_entries: EntryJson[] = [];
 
     for (let entry of entries) {
-        let date = new Date(entry.created).getTime();
+        let date = getDateZeroHMSM(entry.created).getTime();
 
         if (min_x_domain > date) {
             min_x_domain = date;
@@ -131,7 +128,7 @@ export default function TimeRangeGraph({
                 <Threshold
                     id={`${Math.random()}`}
                     data={set}
-                    x={d => x_axis_scale(getX(d))}
+                    x={d => x_axis_scale(defaultGetX(d))}
                     y0={d => y_axis_scale(getY0(d, field_id))}
                     y1={d => y_axis_scale(getY1(d, field_id))}
                     clipAboveTo={0}
@@ -143,13 +140,13 @@ export default function TimeRangeGraph({
                 />
                 <DashedLinePath
                     data={set}
-                    xGetter={d => x_axis_scale(getX(d))}
+                    xGetter={d => x_axis_scale(defaultGetX(d))}
                     yGetter={d => y_axis_scale(getY0(d, field_id))}
                     marker={TransCircleMarker.url}
                 />
                 <SolidLinePath
                     data={set}
-                    xGetter={d => x_axis_scale(getX(d))}
+                    xGetter={d => x_axis_scale(defaultGetX(d))}
                     yGetter={d => y_axis_scale(getY1(d, field_id))}
                     marker={CircleMarker.url}
                 />
@@ -160,14 +157,14 @@ export default function TimeRangeGraph({
             return <Fragment key={Math.random()}>
                 <DashedLinePath
                     data={set}
-                    xGetter={d => x_axis_scale(getX(d))}
+                    xGetter={d => x_axis_scale(defaultGetX(d))}
                     yGetter={d => y_axis_scale(getY(d, field_id))}
                     marker={TransCircleMarker.url}
                 />
                 <SolidLinePath
                     data={set}
                     curve={CurveType.curveBasis}
-                    xGetter={d => x_axis_scale(getX(d))}
+                    xGetter={d => x_axis_scale(defaultGetX(d))}
                     yGetter={d => y_axis_scale(getY(d, field_id))}
                     marker={CircleMarker.url}
                 />

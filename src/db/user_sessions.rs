@@ -1,11 +1,14 @@
-use tokio_postgres::{Client, GenericClient, Error as PGError};
+use tokio_postgres::{GenericClient};
 
 use crate::db::users;
+use crate::db::error;
+
+use error::Result;
 
 pub async fn find_token_user(
-    client: &Client,
+    client: &impl GenericClient,
     token: uuid::Uuid
-) -> Result<Option<users::User>, PGError> {
+) -> Result<Option<users::User>> {
     let result = client.query(
         r#"
         select users.id, 
@@ -39,7 +42,7 @@ pub async fn insert(
     client: &impl GenericClient,
     token: uuid::Uuid,
     owner: i32
-) -> Result<bool, PGError> {
+) -> Result<bool> {
     let result = client.query_one(
         r#"
         insert into user_sessions (token, owner) values
@@ -59,7 +62,7 @@ pub async fn insert(
 pub async fn delete(
     client: &impl GenericClient,
     token: uuid::Uuid,
-) -> Result<u64, PGError> {
+) -> Result<u64> {
     Ok(client.execute(
         "delete from user_sessions where token = $1",
         &[&token]

@@ -69,7 +69,7 @@ pub async fn handle_post(
         http::StatusCode::OK,
         response::json::MessageDataJSON::build(
             "login successful",
-            users::get_via_id(conn, result[0].get(0)).await?
+            users::find_via_id(conn, result[0].get(0)).await?
         )
     ))
 }

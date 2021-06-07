@@ -37,7 +37,7 @@ pub async fn handle_get(
     } else {
         let initiator = initiator_opt.unwrap();
 
-        if let Some(tag) = db::tags::get_via_id(conn, path.tag_id).await? {
+        if let Some(tag) = db::tags::find_via_id(conn, path.tag_id).await? {
             if tag.owner != initiator.user.id {
                 Err(error::ResponseError::PermissionDenied(
                     format!("you do not have permission to view this tag. id: {}", tag.id)

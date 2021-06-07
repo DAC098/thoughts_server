@@ -36,7 +36,7 @@ pub async fn handle_get(
     } else {
         let initiator = initiator_opt.unwrap();
         security::assert::permission_to_read(conn, initiator.user.get_id(), path.user_id).await?;
-        let user_opt = db::users::get_via_id(conn, path.user_id).await?;
+        let user_opt = db::users::find_via_id(conn, path.user_id).await?;
 
         Ok(response::json::respond_json(
             http::StatusCode::OK,
