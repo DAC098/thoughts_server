@@ -11,6 +11,7 @@ import { SolidLinePath } from "./line_paths"
 import { CircleMarker } from "./markers"
 import { defaultGetX } from "./getters"
 import { getDateZeroHMSM } from "../../util/time"
+import { entryIterator } from "./util"
 
 export const background = '#f3f3f3';
 
@@ -38,55 +39,29 @@ export default function TimeGraph({
 }: TimeGraphProps) {
     if (width < 10) return null;
 
-    let min_y_domain = Infinity;
-    let max_y_domain = -Infinity;
-    let min_x_domain = Infinity;
-    let max_x_domain = -Infinity;
     let field_id = field.id.toString();
-    let data_groups: EntryJson[][] = [];
-    let field_entries: EntryJson[] = [];
 
-    for (let entry of entries) {
-        let date = getDateZeroHMSM(entry.created).getTime();
+    const {
+        min_x, min_y,
+        max_x, max_y,
+        data_groups
+    } = entryIterator<Time>(entries, field, (rtn, entry, field, value) => {
+        let time = new Date(value.value).getTime();
 
-        if (min_x_domain > date) {
-            min_x_domain = date;
+        if (rtn.min_y > time) {
+            rtn.min_y = time;
         }
 
-        if (max_x_domain < date) {
-            max_x_domain = date;
+        if (rtn.max_y < time) {
+            rtn.max_y = time;
         }
-        
-        if (field_id in entry.custom_field_entries) {
-            let value = new Date((entry.custom_field_entries[field_id].value as Time).value).getTime();
-
-            if (min_y_domain > value) {
-                min_y_domain = value;
-            }
-
-            if (max_y_domain < value) {
-                max_y_domain = value;
-            }
-
-            field_entries.push(entry);
-        } else {
-            if (field_entries.length > 1) {
-                data_groups.push(field_entries.slice());
-                field_entries = [];
-            }
-        }
-    }
-
-    if (field_entries.length > 1) {
-        data_groups.push(field_entries);
-        field_entries = [];
-    }
+    });
 
     const y_axis_scale = scaleTime<number>({
-        domain:[min_y_domain, max_y_domain]
+        domain:[min_y, max_y]
     });
     const x_axis_scale = scaleTime<number>({
-        domain: [min_x_domain, max_x_domain]
+        domain: [min_x, max_x]
     });
 
     // bounds

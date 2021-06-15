@@ -27,6 +27,7 @@ pub enum ResponseError {
     TextEntryNotFound(i32),
     CustomFieldNotFound(i32),
     TagNotFound(i32),
+    EntryMarkerNotFound(i32),
 
     UsernameExists(String),
     EmailExists(String),
@@ -72,6 +73,7 @@ impl ResponseError {
             ResponseError::TextEntryNotFound(_) => "TextEntryNotFound",
             ResponseError::CustomFieldNotFound(_) => "CustomFieldNotFound",
             ResponseError::TagNotFound(_) => "TagNotFound",
+            ResponseError::EntryMarkerNotFound(_) => "EntryMarkerNotFound",
 
             ResponseError::UsernameExists(_) => "UsernameExists",
             ResponseError::EmailExists(_) => "EmailExists",
@@ -115,6 +117,7 @@ impl ResponseError {
             ResponseError::TextEntryNotFound(id) => format!("failed to find the requested text entry id: {}", id),
             ResponseError::CustomFieldNotFound(id) => format!("failed to find the requested custom field id: {}", id),
             ResponseError::TagNotFound(id) => format!("failed to find the requested tag id: {}", id),
+            ResponseError::EntryMarkerNotFound(id) => format!("failed to find the requested marker id: {}", id),
 
             ResponseError::UsernameExists(_) => format!("given username already exist"),
             ResponseError::EmailExists(_) => format!("given email already exists"),
@@ -180,6 +183,7 @@ impl ActixResponseError for ResponseError {
             ResponseError::TextEntryNotFound(_) => StatusCode::NOT_FOUND,
             ResponseError::CustomFieldNotFound(_) => StatusCode::NOT_FOUND,
             ResponseError::TagNotFound(_) => StatusCode::NOT_FOUND,
+            ResponseError::EntryMarkerNotFound(_) => StatusCode::NOT_FOUND,
 
             ResponseError::UsernameExists(_) => StatusCode::BAD_REQUEST,
             ResponseError::EmailExists(_) => StatusCode::BAD_REQUEST,

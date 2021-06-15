@@ -1,10 +1,10 @@
 use std::fmt::{Write};
 use std::collections::{HashMap};
-use std::marker::{Sync};
 
-use tokio_postgres::{GenericClient, types::ToSql};
+use tokio_postgres::{GenericClient};
 use serde::{Deserialize, Serialize};
 
+use crate::db::query::QueryParams;
 use crate::db::custom_fields;
 use crate::db::custom_field_entries;
 use crate::response::error;
@@ -27,13 +27,10 @@ pub struct TextEntryJson {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct EntryTagJson {
+pub struct EntryMarker {
     pub id: i32,
-    pub tag_id: i32,
     pub title: String,
-    pub color: String,
-    pub owner: i32,
-    pub entry: i32
+    pub comment: Option<String>
 }
 
 #[derive(Serialize, Deserialize)]
@@ -42,6 +39,7 @@ pub struct EntryJson {
     pub created: chrono::DateTime<chrono::Utc>,
     pub owner: i32,
     pub tags: Vec<i32>,
+    pub markers: Vec<EntryMarker>,
     pub custom_field_entries: HashMap<i32, CustomFieldEntryJson>,
     pub text_entries: Vec<TextEntryJson>
 }
@@ -175,8 +173,7 @@ pub async fn search_custom_field(
 fn search_text_entries_query_slice<'a>(
     entry_ids: &'a Vec<i32>,
     is_private: &'a Option<bool>
-) -> error::Result<(String, Vec<&'a (dyn ToSql + Sync)>)> {
-    let arg_count: u32 = 2;
+) -> error::Result<(String, QueryParams<'a>)> {
     let mut query_str = r#"
     select text_entries.id as id,
            text_entries.thought as thought,
@@ -184,7 +181,7 @@ fn search_text_entries_query_slice<'a>(
            text_entries.private as private
     from text_entries
     where "#.to_owned();
-    let mut query_slice: Vec<&(dyn ToSql + Sync)> = vec!();
+    let mut query_slice: QueryParams<'a> = QueryParams::new();
 
     if entry_ids.len() == 1 {
         write!(&mut query_str, "text_entries.entry = $1")?;
@@ -195,7 +192,7 @@ fn search_text_entries_query_slice<'a>(
     }
 
     if let Some(private) = is_private {
-        write!(&mut query_str, " and text_entries.private = ${}", arg_count)?;
+        write!(&mut query_str, " and text_entries.private = ${}", query_slice.next())?;
         query_slice.push(private);
     }
 
@@ -206,7 +203,7 @@ fn search_text_entries_query_slice<'a>(
 
 fn search_custom_field_entries_query_slice<'a>(
     entry_ids: &'a Vec<i32>,
-) -> error::Result<(String, Vec<&'a(dyn ToSql + Sync)>)> {
+) -> error::Result<(String, QueryParams<'a>)> {
     let mut query_str = r#"
     select custom_fields.id as field,
            custom_fields.name as name,
@@ -216,7 +213,7 @@ fn search_custom_field_entries_query_slice<'a>(
     from custom_field_entries
     join custom_fields on custom_field_entries.field = custom_fields.id
     where "#.to_owned();
-    let mut query_slice: Vec<&(dyn ToSql + Sync)> = vec!();
+    let mut query_slice: QueryParams = QueryParams::with_capacity(1);
 
     if entry_ids.len() == 1 {
         write!(&mut query_str, "custom_field_entries.entry = $1")?;
@@ -233,9 +230,9 @@ fn search_custom_field_entries_query_slice<'a>(
 
 fn search_tag_entries_query_slice<'a>(
     entry_ids: &'a Vec<i32>,
-) -> error::Result<(String, Vec<&'a(dyn ToSql + Sync)>)> {
+) -> error::Result<(String, QueryParams<'a>)> {
     let mut query_str = "select tag, entry from entries2tags where ".to_owned();
-    let mut query_slice: Vec<&(dyn ToSql + Sync)> = Vec::with_capacity(1);
+    let mut query_slice: QueryParams = QueryParams::with_capacity(1);
 
     if entry_ids.len() == 1 {
         write!(&mut query_str, "entry = $1")?;
@@ -248,6 +245,23 @@ fn search_tag_entries_query_slice<'a>(
     Ok((query_str, query_slice))
 }
 
+fn search_entry_markers_query_slice<'a>(
+    entry_ids: &'a Vec<i32>,
+) -> error::Result<(String, QueryParams<'a>)> {
+    let mut query_str = "select id, title, comment, entry from entry_markers where ".to_owned();
+    let mut query_params: QueryParams = QueryParams::with_capacity(1);
+
+    if entry_ids.len() == 1 {
+        write!(&mut query_str, "entry = $1")?;
+        query_params.push(&entry_ids[0]);
+    } else {
+        write!(&mut query_str, "entry = any($1)")?;
+        query_params.push(entry_ids);
+    }
+
+    Ok((query_str, query_params))
+}
+
 pub async fn search_text_entries(
     conn: &impl GenericClient,
     entry_id: &i32,
@@ -256,7 +270,7 @@ pub async fn search_text_entries(
     let entry_ids: Vec<i32> = vec!(*entry_id);
     let (query_str, query_slice) = search_text_entries_query_slice(&entry_ids, &is_private)?;
 
-    Ok(conn.query(query_str.as_str(), &query_slice[..])
+    Ok(conn.query(query_str.as_str(), query_slice.slice())
         .await?
         .iter()
         .map(|row| TextEntryJson{
@@ -275,7 +289,7 @@ pub async fn search_custom_field_entries(
     let entry_ids: Vec<i32> = vec!(*entry_id);
     let (query_str, query_slice) = search_custom_field_entries_query_slice(&entry_ids)?;
 
-    Ok(conn.query(query_str.as_str(), &query_slice[..])
+    Ok(conn.query(query_str.as_str(), query_slice.slice())
         .await?
         .iter()
         .map(|row| (row.get(0), CustomFieldEntryJson {
@@ -295,10 +309,28 @@ pub async fn search_tag_entries(
     let entry_ids: Vec<i32> = vec!(*entry_id);
     let (query_str, query_slice) = search_tag_entries_query_slice(&entry_ids)?;
 
-    Ok(conn.query(query_str.as_str(), &query_slice[..])
+    Ok(conn.query(query_str.as_str(), query_slice.slice())
         .await?
         .iter()
         .map(|row| row.get::<usize, i32>(0))
+        .collect())
+}
+
+pub async fn search_entry_markers(
+    conn: &impl GenericClient,
+    entry_id: &i32,
+) -> error::Result<Vec<EntryMarker>> {
+    let entry_ids: Vec<i32> = vec!(*entry_id);
+    let (query_str, query_slice) = search_entry_markers_query_slice(&entry_ids)?;
+
+    Ok(conn.query(query_str.as_str(), query_slice.slice())
+        .await?
+        .iter()
+        .map(|row| EntryMarker {
+            id: row.get(0),
+            title: row.get(1),
+            comment: row.get(2)
+        })
         .collect())
 }
 
@@ -320,24 +352,21 @@ pub async fn search_entries(
     options: SearchEntriesOptions
 ) -> error::Result<Vec<EntryJson>> {
     let rows = {
-        let mut arg_count: u32 = 2;
         let mut query_str = "select id, day, owner from entries where owner = $1".to_owned();
-        let mut query_slice: Vec<&(dyn ToSql + Sync)> = vec!(&options.owner);
+        let mut query_slice: QueryParams = QueryParams::with_capacity(1);
+        query_slice.push(&options.owner);
 
         if let Some(from) = options.from.as_ref() {
-            write!(&mut query_str, " and day >= ${}", arg_count)?;
-            query_slice.push(from);
-            arg_count += 1;
+            write!(&mut query_str, " and day >= ${}", query_slice.push(from))?;
         }
 
         if let Some(to) = options.to.as_ref() {
-            write!(&mut query_str, " and day <= ${}", arg_count)?;
-            query_slice.push(to);
+            write!(&mut query_str, " and day <= ${}", query_slice.push(to))?;
         }
 
         write!(&mut query_str, " order by day desc")?;
 
-        conn.query(query_str.as_str(), &query_slice[..]).await?
+        conn.query(query_str.as_str(), query_slice.slice()).await?
     };
     let mut entry_ids: Vec<i32> = Vec::with_capacity(rows.len());
     let mut entry_hash_map: HashMap<i32, usize> = HashMap::with_capacity(rows.len());
@@ -356,6 +385,7 @@ pub async fn search_entries(
             created: row.get(1),
             owner: row.get(2),
             tags: vec!(),
+            markers: vec!(),
             custom_field_entries: HashMap::new(),
             text_entries: vec!()
         });
@@ -367,7 +397,7 @@ pub async fn search_entries(
         let custom_field_entries = {
             let (query_str, query_slice) = search_custom_field_entries_query_slice(&entry_ids)?;
 
-            conn.query(query_str.as_str(), &query_slice[..]).await?
+            conn.query(query_str.as_str(), query_slice.slice()).await?
         };
         let mut current_set: HashMap<i32, CustomFieldEntryJson> = HashMap::new();
         let mut current_entry_id: i32 = 0;
@@ -402,7 +432,7 @@ pub async fn search_entries(
         let text_entries = {
             let (query_str, query_slice) = search_text_entries_query_slice(&entry_ids, &options.is_private)?;
 
-            conn.query(query_str.as_str(), &query_slice[..]).await?
+            conn.query(query_str.as_str(), query_slice.slice()).await?
         };
         let mut current_set: Vec<TextEntryJson> = vec!();
         let mut current_entry_id: i32 = 0;
@@ -436,7 +466,7 @@ pub async fn search_entries(
         let entries_tags = {
             let (query_str, query_slice) = search_tag_entries_query_slice(&entry_ids)?;
 
-            conn.query(query_str.as_str(), &query_slice[..]).await?
+            conn.query(query_str.as_str(), query_slice.slice()).await?
         };
         let mut current_set: Vec<i32> = vec!();
         let mut current_entry_id: i32 = 0;
@@ -458,6 +488,39 @@ pub async fn search_entries(
         if entry_ids.len() > 0 && current_entry_id != 0 {
             let borrow = entry_hash_map.get(&current_entry_id).unwrap();
             std::mem::swap(&mut rtn[*borrow].tags, &mut current_set);
+        }
+    }
+
+    {
+        let entry_markers = {
+            let (query_str, query_slice) = search_entry_markers_query_slice(&entry_ids)?;
+
+            conn.query(query_str.as_str(), query_slice.slice()).await?
+        };
+        let mut current_set: Vec<EntryMarker> = vec!();
+        let mut current_entry_id: i32 = 0;
+
+        for row in entry_markers {
+            let entry_id: i32 = row.get(3);
+
+            if current_entry_id == 0 {
+                current_entry_id = entry_id;
+            } else if entry_id != current_entry_id {
+                let borrow = entry_hash_map.get(&current_entry_id).unwrap();
+                std::mem::swap(&mut rtn[*borrow].markers, &mut current_set);
+                current_entry_id = entry_id;
+            }
+
+            current_set.push(EntryMarker {
+                id: row.get(0),
+                title: row.get(1),
+                comment: row.get(2)
+            });
+        }
+
+        if entry_ids.len() > 0 && current_entry_id != 0 {
+            let borrow = entry_hash_map.get(&current_entry_id).unwrap();
+            std::mem::swap(&mut rtn[*borrow].markers, &mut current_set);
         }
     }
 
@@ -486,6 +549,7 @@ pub async fn search_entry(
             created: rows[0].get(1),
             owner: rows[0].get(2),
             tags,
+            markers: search_entry_markers(conn, &entry_id).await?,
             custom_field_entries: search_custom_field_entries(conn, &entry_id).await?,
             text_entries: search_text_entries(conn, &entry_id, is_private).await?
         }))

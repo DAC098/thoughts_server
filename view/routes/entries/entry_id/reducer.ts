@@ -1,7 +1,7 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { createContext, Dispatch, Reducer } from "react"
 import { CustomFieldEntryType } from "../../../api/custom_field_entry_types";
-import { cloneEntryJson, EntryJson, makeEntryJson, makeCustomFieldEntryJson, makeTextEntry, CustomFieldEntryJson, TextEntryJson } from "../../../api/types"
+import { cloneEntryJson, EntryJson, makeEntryJson, makeCustomFieldEntryJson, makeTextEntry, CustomFieldEntryJson, TextEntryJson, EntryMarkerJson, makeEntryMarkerJson } from "../../../api/types"
 import { store } from "../../../redux/store";
 import { SliceActionTypes } from "../../../redux/types";
 
@@ -11,13 +11,16 @@ interface UIKey {
 
 export interface TextEntryUI extends UIKey, TextEntryJson {}
 
-export interface MoodEntryUI extends UIKey, CustomFieldEntryJson {
+export interface EntryMarkerUI extends UIKey, EntryMarkerJson {}
+
+export interface CustomFieldEntryUI extends UIKey, CustomFieldEntryJson {
     error_msg?: string
 }
 
 export interface EntryUIState extends EntryJson {
+    markers: EntryMarkerUI[],
     text_entries: TextEntryUI[]
-    custom_field_entries: {[id: string]: MoodEntryUI}
+    custom_field_entries: {[id: string]: CustomFieldEntryUI}
 }
 
 export interface EntryIdViewState {
@@ -145,6 +148,24 @@ export const entryIdViewSlice = createSlice({
         },
         delete_text_entry: (state, action: PayloadAction<number>) => {
             state.current.text_entries.splice(action.payload, 1);
+            state.changes_made = true;
+        },
+
+        create_entry_marker: (state) => {
+            let entry_marker: EntryMarkerUI = makeEntryMarkerJson();
+            entry_marker.key = Date.now().toString();
+
+            state.current.markers.push(entry_marker);
+            state.changes_made = true;
+        },
+        update_entry_marker: (state, action: PayloadAction<{index: number, title: string, comment: string}>) => {
+            state.current.markers[action.payload.index].title = action.payload.title;
+            state.current.markers[action.payload.index].comment = action.payload.comment != null && action.payload.comment.length > 0 ? 
+                action.payload.comment : null;
+            state.changes_made = true;
+        },
+        delete_entry_marker: (state, action: PayloadAction<number>) => {
+            state.current.markers.splice(action.payload, 1);
             state.changes_made = true;
         },
 

@@ -31,11 +31,18 @@ export interface TextEntryJson {
     private: boolean
 }
 
+export interface EntryMarkerJson {
+    id: number
+    title: string
+    comment?: string
+}
+
 export interface EntryJson {
     id: number
     created: string
     owner: number
     tags: number[]
+    markers: EntryMarkerJson[]
     custom_field_entries: {[id: string]: CustomFieldEntryJson}
     text_entries: TextEntryJson[]
 }
@@ -63,11 +70,17 @@ export interface PostTextEntry {
     thought: string
 }
 
+export interface PostEntryMarker {
+    title: string
+    comment?: string
+}
+
 export interface PostEntry {
     created: string
     tags?: number[]
     custom_field_entries?: PostCustomFieldEntry[]
     text_entries?: PostTextEntry[]
+    markers?: PostEntryMarker[]
 }
 
 export interface PutTextEntry {
@@ -81,11 +94,18 @@ export interface PutCustomFieldEntry {
     comment?: string
 }
 
+export interface PutEntryMarker {
+    id?: number
+    title: string
+    comment?: string
+}
+
 export interface PutEntry {
     created: string,
     tags: number[]
     custom_field_entries?: PutCustomFieldEntry[]
     text_entries?: PutTextEntry[]
+    markers: PutEntryMarker[]
 }
 
 export interface PostCustomField {
@@ -184,6 +204,7 @@ export function makeEntryJson(): EntryJson {
         created: "",
         owner: 0,
         tags: [],
+        markers: [],
         custom_field_entries: {},
         text_entries: []
     }
@@ -195,6 +216,7 @@ export function cloneEntryJson(entry: EntryJson) {
         created: cloneString(entry.created),
         owner: cloneInteger(entry.owner),
         tags: [],
+        markers: [],
         custom_field_entries: {},
         text_entries: []
     };
@@ -215,7 +237,29 @@ export function cloneEntryJson(entry: EntryJson) {
         );
     }
 
+    for (let m of entry.markers) {
+        rtn.markers.push(
+            cloneEntryMarkerJson(m)
+        );
+    }
+
     return rtn;
+}
+
+export function makeEntryMarkerJson(): EntryMarkerJson {
+    return {
+        id: null,
+        title: "",
+        comment: null
+    }
+}
+
+export function cloneEntryMarkerJson(marker: EntryMarkerJson): EntryMarkerJson {
+    return {
+        id: optionalCloneInteger(marker.id),
+        title: cloneString(marker.title),
+        comment: optionalCloneString(marker.comment)
+    }
 }
 
 export function makeIssuedByJson(): IssuedByJson {

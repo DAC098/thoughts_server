@@ -218,14 +218,13 @@ pub async fn handle_put(
         let first_arg = if user_level == 10 { "allowed_for" } else { "owner" };
         // the dynamic field that will assigned for the user_access list given
         let second_arg = if user_level == 10 { "owner" } else { "allowed_for" };
-        let mut insert_arg_count: usize = 3;
         let mut insert_query_list: Vec<String> = vec!();
-        let mut insert_query_slice: Vec<&(dyn tokio_postgres::types::ToSql + std::marker::Sync)> = vec![&path.user_id, &ability];
+        let mut insert_query_slice: db::query::QueryParams = db::query::QueryParams::with_capacity(2);
+        insert_query_slice.push(&path.user_id);
+        insert_query_slice.push(&ability);
 
         for (id, _user) in &user_mapping {
-            insert_query_list.push(format!("($1, $2, ${})", insert_arg_count));
-            insert_query_slice.push(id);
-            insert_arg_count += 1;
+            insert_query_list.push(format!("($1, $2, ${})", insert_query_slice.push(id)));
         }
 
         let insert_query_str = format!(
@@ -235,7 +234,7 @@ pub async fn handle_put(
 
         let inserted_records = transaction.query(
             insert_query_str.as_str(),
-            &insert_query_slice[..]
+            insert_query_slice.slice()
         ).await?;
 
         for record in inserted_records {

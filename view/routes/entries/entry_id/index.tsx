@@ -1,12 +1,12 @@
 import { ContextualMenuItemType, DatePicker, DefaultButton, Dialog, DialogFooter, DialogType, IBasePicker, IconButton, IContextualMenuItem, ITag, Label, ScrollablePane, Separator, Stack, Sticky, StickyPositionType, TagItem, TagItemSuggestion, TagPicker, Text, TextField, Toggle } from "@fluentui/react"
-import React, { useContext, useEffect, useReducer, useRef } from "react"
+import React, { Fragment, useContext, useEffect, useReducer, useRef } from "react"
 import { useHistory, useLocation, useParams } from "react-router-dom"
 import api from "../../../api"
 import { CustomFieldEntryType } from "../../../api/custom_field_entry_types"
 import { EntryJson, CustomFieldEntryJson, CustomFieldJson, TagJson, TextEntryJson } from "../../../api/types"
 import { CustomFieldEntryTypeEditView, CustomFieldEntryTypeReadView } from "../../../components/custom_field_entries"
 import { useAppDispatch, useAppSelector } from "../../../hooks/useApp"
-import { entryIdViewSlice, EntryIdViewContext, initialState, TextEntryUI, entry_id_view_actions, EntryIdViewReducer } from "./reducer"
+import { entryIdViewSlice, EntryIdViewContext, initialState, TextEntryUI, entry_id_view_actions, EntryIdViewReducer, EntryMarkerUI } from "./reducer"
 import { actions as entries_actions } from "../../../redux/slices/entries"
 import arrayFilterMap from "../../../util/arrayFilterMap"
 import { getBrightness } from "../../../util/colors"
@@ -60,7 +60,7 @@ const TextEntryReadView = ({text_entries}: TextEntryReadViewProps) => {
     </Stack>
 }
 
-interface MoodEntryInputProps {
+interface CustomFieldEntryInputProps {
     field: CustomFieldJson
     entry: CustomFieldEntryJson
 
@@ -68,21 +68,23 @@ interface MoodEntryInputProps {
     onChange?: (entry: {comment: string, value: CustomFieldEntryType}) => void
 }
 
-const MoodEntryInputs = ({
+const CustomFieldEntryInputs = ({
     field,
     entry,
     onDelete,
     onChange
-}: MoodEntryInputProps) => {
+}: CustomFieldEntryInputProps) => {
     let similar_types = entry.value.type === field.config.type;
 
     return <Stack tokens={{childrenGap: 8}}>
-        <Stack horizontal tokens={{childrenGap: 8}}>
-            <Label title={similar_types ? field.comment : ""}>{field.name}</Label>
-            <IconButton iconProps={{iconName: "Delete"}} onClick={() => {
-                onDelete?.();
-            }}/>
-        </Stack>
+        <Separator alignContent="start">
+            <Stack horizontal tokens={{childrenGap: 8}}>
+                <Label title={field.comment}>{field.name}</Label>
+                <IconButton iconProps={{iconName: "Delete"}} onClick={() => {
+                    onDelete?.();
+                }}/>
+            </Stack>
+        </Separator>
         <CustomFieldEntryTypeEditView value={entry.value} config={similar_types ? field.config : null} onChange={value => {
             onChange?.({comment: entry.comment, value});
         }}/>
@@ -102,7 +104,7 @@ const CustomFieldEntriesEditView = ({custom_fields, custom_field_entries}: Custo
 
     return <Stack tokens={{childrenGap: 8}}>
         {custom_fields.filter(field => field.id in custom_field_entries).map((field, index) =>
-            <MoodEntryInputs
+            <CustomFieldEntryInputs
                 key={field.id}
                 field={field}
                 entry={custom_field_entries[field.id]}
@@ -124,13 +126,79 @@ const CustomFieldEntriesReadView = ({custom_fields, custom_field_entries}: Custo
         {custom_fields.filter(field => field.id in custom_field_entries).map((field) => 
             <Stack key={field.id} tokens={{childrenGap: 8}}>
                 <Stack tokens={{childrenGap: 8}}>
-                    <Separator alignContent="start">{field.name}</Separator>
+                    <Separator alignContent="start">
+                        <Label title={field.comment}>{field.name}</Label>
+                    </Separator>
                     <CustomFieldEntryTypeReadView 
                         value={custom_field_entries[field.id].value}
                         config={field.config}
                     />
                 </Stack>
                 <Text>{custom_field_entries[field.id].comment}</Text>
+            </Stack>
+        )}
+    </Stack>
+}
+
+interface EntryMarkerEditViewProps {
+    markers: EntryMarkerUI[]
+}
+
+const EntryMarkerEditView = ({markers}: EntryMarkerEditViewProps) => {
+    const dispatch = useContext(EntryIdViewContext);
+
+    return <Stack tokens={{childrenGap: 8}}>
+        {markers.length > 0 ?
+            <Separator alignContent="start">
+                <Label>Markers</Label>
+            </Separator>
+            :
+            null
+        }
+        {markers.map((marker, index) =>
+            <Stack key={marker.id ?? marker.key} horizontal tokens={{childrenGap: 8}} verticalAlign="end">
+                <TextField
+                    label="Title"
+                    type="text"
+                    value={marker.title}
+                    onChange={(e, v) => 
+                        dispatch(entry_id_view_actions.update_entry_marker({index, title: v, comment: marker.comment}))
+                    }
+                />
+                <TextField
+                    label="Comment"
+                    type="text"
+                    value={marker.comment ?? ""}
+                    styles={{root: {flex: 1}}}
+                    onChange={(e, v) =>
+                        dispatch(entry_id_view_actions.update_entry_marker({index, title: marker.title, comment: v}))
+                    }
+                />
+                <IconButton iconProps={{iconName: "Delete"}} onClick={() =>
+                    dispatch(entry_id_view_actions.delete_entry_marker(index))
+                }/>
+            </Stack>
+        )}
+    </Stack>
+}
+
+interface EntryMarkerReadViewProps {
+    markers: EntryMarkerUI[]
+}
+
+const EntryMarkerReadView = ({markers}: EntryMarkerReadViewProps) => {
+    return <Stack tokens={{childrenGap: 8}}>
+        {markers.length > 0 ?
+            <Separator alignContent="start">
+                <Label>Markers</Label>
+            </Separator>
+            :
+            null
+        }
+        {markers.map((marker) =>
+            <Stack key={marker.id ?? marker.key} horizontal tokens={{childrenGap: 8}} verticalAlign="end">
+                <Text>{marker.title}</Text>
+                <Text variant="small">{marker.comment?.length ? marker.comment : ""}</Text>
             </Stack>
         )}
     </Stack>
@@ -190,16 +258,17 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
             promise = api.entries.id.put(state.current.id, {
                 created: state.current.created,
                 tags: state.current.tags,
-                custom_field_entries: Object.values(state.current.custom_field_entries).map(v => {
-                    return {
+                markers: state.current.markers,
+                custom_field_entries: Object.values(
+                    state.current.custom_field_entries
+                    ).map(v => ({
                         field: v.field,
                         value: v.value,
                         comment: v.comment
-                    }
-                }),
-                text_entries: state.current.text_entries.map(v => {
-                    return {id: v.id, thought: v.thought, private: v.private}
-                })
+                    })),
+                text_entries: state.current.text_entries.map(v => ({
+                    id: v.id, thought: v.thought, private: v.private}
+                ))
             }).then(entry => {
                 dispatch(entryIdViewSlice.actions.set_entry(entry));
                 appDispatch(entries_actions.update_entry(entry));
@@ -208,16 +277,17 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
             promise = api.entries.post({
                 created: state.current.created,
                 tags: state.current.tags,
-                custom_field_entries: Object.values(state.current.custom_field_entries).map(v => {
-                    return {
+                markers: state.current.markers,
+                custom_field_entries: Object.values(
+                    state.current.custom_field_entries
+                    ).map(v => ({
                         field: v.field,
                         value: v.value,
                         comment: v.comment
-                    }
-                }),
-                text_entries: state.current.text_entries.map(v => {
-                    return {thought: v.thought, private: v.private}
-                })
+                    })),
+                text_entries: state.current.text_entries.map(v => ({
+                    thought: v.thought, private: v.private
+                }))
             }).then(entry => {
                 history.push(`/entries/${entry.id}`);
                 dispatch(entry_id_view_actions.set_entry(entry));
@@ -311,6 +381,13 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
             text: "Text Entry", 
             onClick: () => {
                 dispatch(entry_id_view_actions.create_text_entry());
+            }
+        },
+        {
+            key: "new-marker",
+            text: "Marker",
+            onClick: () => {
+                dispatch(entry_id_view_actions.create_entry_marker())
             }
         },
         {
@@ -452,6 +529,7 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
                                 }}
                             />
                             <TextEntryEditView text_entries={state.current.text_entries}/>
+                            <EntryMarkerEditView markers={state.current.markers}/>
                             {!custom_fields_state.loading ?
                                 <CustomFieldEntriesEditView 
                                     custom_fields={custom_fields_state.custom_fields} 
@@ -469,6 +547,7 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
                                 />) : null}
                             </Stack>
                             <TextEntryReadView text_entries={state.current.text_entries}/>
+                            <EntryMarkerReadView markers={state.current.markers}/>
                             {!custom_fields_state.loading ?
                                 <CustomFieldEntriesReadView 
                                     custom_fields={custom_fields_state.custom_fields}

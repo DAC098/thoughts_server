@@ -11,7 +11,6 @@ use crate::response;
 use crate::state;
 use crate::request::from;
 use crate::json;
-use crate::util;
 use crate::getters;
 
 use response::error as app_error;
@@ -30,11 +29,18 @@ pub struct PostCustomFieldEntryJson {
 }
 
 #[derive(Deserialize)]
+pub struct PostEntryMarker {
+    title: String,
+    comment: Option<String>
+}
+
+#[derive(Deserialize)]
 pub struct PostEntryJson {
     created: chrono::DateTime<chrono::Utc>,
     tags: Option<Vec<i32>>,
     custom_field_entries: Option<Vec<PostCustomFieldEntryJson>>,
-    text_entries: Option<Vec<PostTextEntryJson>>
+    text_entries: Option<Vec<PostTextEntryJson>>,
+    markers: Option<Vec<PostEntryMarker>>
 }
 
 /**
@@ -86,8 +92,9 @@ pub async fn handle_get(
 pub async fn handle_post(
     initiator: from::Initiator,
     app_data: web::Data<state::AppState>,
-    posted: web::Json<PostEntryJson>
+    posted_cntr: web::Json<PostEntryJson>
 ) -> app_error::Result<impl Responder> {
+    let posted = posted_cntr.into_inner();
     let app = app_data.into_inner();
     let conn = &mut *app.get_conn().await?;
 
@@ -111,7 +118,7 @@ pub async fn handle_post(
 
     let mut custom_field_entries: HashMap<i32, json::CustomFieldEntryJson> = HashMap::new();
 
-    if let Some(m) = &posted.custom_field_entries {
+    if let Some(m) = posted.custom_field_entries {
         for custom_field_entry in m {
             let field = getters::custom_fields::get_via_id(&transaction, custom_field_entry.field, Some(initiator.user.id)).await?;
 
@@ -129,8 +136,8 @@ pub async fn handle_post(
             custom_field_entries.insert(field.id, json::CustomFieldEntryJson {
                 field: field.id,
                 name: field.name,
-                value: custom_field_entry.value.clone(),
-                comment: util::clone_option(&custom_field_entry.comment),
+                value: custom_field_entry.value,
+                comment: custom_field_entry.comment,
                 entry: entry_id
             });
         }
@@ -138,32 +145,52 @@ pub async fn handle_post(
 
     let mut text_entries: Vec<json::TextEntryJson> = vec!();
 
-    if let Some(t) = &posted.text_entries {
+    if let Some(t) = posted.text_entries {
         for text_entry in t {
             let result = transaction.query_one(
-                "insert into text_entries (thought, private, entry) values ($1, $2, $3) returning id, thought, private",
+                "insert into text_entries (thought, private, entry) values ($1, $2, $3) returning id",
                 &[&text_entry.thought, &text_entry.private, &entry_id]
             ).await?;
 
             text_entries.push(json::TextEntryJson {
                 id: result.get(0),
-                thought: result.get(1),
+                thought: text_entry.thought,
                 entry: entry_id,
-                private: result.get(2)
+                private: text_entry.private
             });
         }
     }
 
     let mut entry_tags: Vec<i32> = vec!();
 
-    if let Some(tags) = &posted.tags {
+    if let Some(tags) = posted.tags {
         for tag_id in tags {
             let _result = transaction.execute(
                 "insert into entries2tags (tag, entry) values ($1, $2)",
                 &[&tag_id, &entry_id]
             ).await?;
 
-            entry_tags.push(*tag_id);
+            entry_tags.push(tag_id);
+        }
+    }
+
+    let mut entry_markers: Vec<json::EntryMarker> = vec!();
+
+    if let Some(markers) = posted.markers {
+        for marker in markers {
+            let result = transaction.query_one(
+                r#"
+                insert into entry_markers (title, comment, entry) values
+                ($1, $2, $3)
+                returning id"#,
+                &[&marker.title, &marker.comment, &entry_id]
+            ).await?;
+
+            entry_markers.push(json::EntryMarker {
+                id: result.get(0),
+                title: marker.title,
+                comment: marker.comment
+            });
         }
     }
 
@@ -178,6 +205,7 @@ pub async fn handle_post(
                 created: result.get(1),
                 owner: initiator.user.get_id(),
                 tags: entry_tags,
+                markers: entry_markers,
                 custom_field_entries,
                 text_entries
             }
