@@ -1,12 +1,12 @@
 import { useAppDispatch, useAppSelector } from "./useApp";
-import { actions, EntriesState } from "../redux/slices/entries"
+import { actions } from "../redux/slices/entries"
 import { GetEntriesQuery } from "../api/types";
 
-export function useLoadEntries(): [EntriesState, (owner: number | string, user_specific?: boolean, query?: GetEntriesQuery) => void] {
+export function useLoadEntries(): (owner: number | string, user_specific?: boolean, query?: GetEntriesQuery) => void {
     const entries_state = useAppSelector(state => state.entries);
     const dispatch = useAppDispatch();
 
-    return [entries_state, (owner: number | string, user_specific: boolean = false, query: GetEntriesQuery = {}) => {
+    return (owner: number | string, user_specific: boolean = false, query: GetEntriesQuery = {}) => {
         if (entries_state.loading) {
             return;
         }
@@ -14,5 +14,5 @@ export function useLoadEntries(): [EntriesState, (owner: number | string, user_s
         dispatch(actions.fetchEntries({
             owner, user_specific, query
         }));
-    }];
+    };
 }

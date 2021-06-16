@@ -45,6 +45,10 @@ export function unixTime(date: Date) {
     return Math.trunc(date.getTime() / 1000)
 }
 
+export function tsISOString(ts: number) {
+    return (new Date(ts)).toISOString();
+}
+
 export function get24hrStr(date: Date, include_seconds: boolean = false) {
     return date.getHours().toString().padStart(2, "0") + ":" + date.getMinutes().toString().padStart(2, "0") + (include_seconds ? ":" + date.getSeconds().toString().padStart(2, "0") : "");
 }
