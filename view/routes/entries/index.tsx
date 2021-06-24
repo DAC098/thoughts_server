@@ -64,7 +64,7 @@ const EntriesView = ({user_specific = false}: EntriesViewProps) => {
                 <>
                     <CommandBarView owner={owner} user_specific={user_specific} entries_view_state={state}/>
                     {!loading_state && state.selected_field != null ?
-                        <GraphView field={state.selected_field}/>
+                        <GraphView owner={owner} user_specific={user_specific} field={state.selected_field}/>
                         :
                         null
                     }

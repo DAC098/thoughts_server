@@ -86,6 +86,34 @@ const week = days_in_week * day;
 const month = days_in_month * day;
 const year = days_in_year * day;
 
+export function durationSeconds(seconds: number) {
+    return seconds * second;
+}
+
+export function durationMinutes(minutes: number) {
+    return minutes * minute;
+}
+
+export function durationHours(hours: number) {
+    return hours * hour;
+}
+
+export function durationDays(days: number) {
+    return days * day;
+}
+
+export function durationWeek(weeks: number) {
+    return weeks * week;
+}
+
+export function durationMonth(months: number) {
+    return months * month;
+}
+
+export function durationYears(years: number) {
+    return years * year;
+}
+
 const diff_names = ["years", "months", "weeks", "days", "hours", "minutes", "seconds", "milliseconds"];
 const diff_names_short = ["y", "m", "w", "d", "h", "min", "s", "ms"];
 const diff_order = [year, month, week, day, hour, minute, second, millisecond];

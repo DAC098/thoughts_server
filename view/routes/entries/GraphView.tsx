@@ -1,14 +1,15 @@
-import React, { Fragment, useMemo } from "react"
+import React, { Fragment, useMemo, useState } from "react"
 import { scaleTime, scaleLinear} from "@visx/scale"
 import { AxisBottom, AxisLeft } from "@visx/axis"
 import { Group } from '@visx/group'
 import * as CurveType from '@visx/curve'
 import { Threshold } from "@visx/threshold"
 import { Line, Bar } from "@visx/shape"
+import { localPoint } from "@visx/event"
+import { TooltipWithBounds } from "@visx/tooltip"
 import GridColumns from "@visx/grid/lib/grids/GridColumns"
 import GridRows from "@visx/grid/lib/grids/GridRows"
 import ParentSize from "@visx/responsive/lib/components/ParentSize"
-import { bisector } from "d3-array"
 import { CustomFieldJson, EntryJson } from "../../api/types"
 import { useAppSelector } from "../../hooks/useApp"
 import { common_ratios, containRatio } from "../../util/math"
@@ -17,9 +18,11 @@ import * as CustomFieldEntryTypes from "../../api/custom_field_entry_types"
 import * as CustomFieldTypes from "../../api/custom_field_types"
 import { background } from "../../components/graphs/Float"
 import { CircleMarker, TransCircleMarker } from "../../components/graphs/markers"
-import { getDateZeroHMSM, timeToString } from "../../util/time"
+import { durationDays, getDateZeroHMSM, timeToString, zeroHMSM } from "../../util/time"
 import { defaultGetX } from "../../components/graphs/getters"
 import { DashedLinePath, SolidLinePath } from "../../components/graphs/line_paths"
+import { bisectorFind } from "../../util/search"
+import { useHistory } from "react-router-dom"
 
 const entryIteratorInteger: EntryIteratorCB<CustomFieldEntryTypes.Integer> = (rtn, entry, field, value) => {
     if (rtn.min_y > value.value) {
@@ -129,17 +132,18 @@ function getYScale(type: CustomFieldTypes.CustomFieldTypeName, min: number, max:
     }
 }
 
-const bisectDate = bisector<EntryJson, Date>(entry => getDateZeroHMSM(entry.created)).left;
-
 export interface GraphViewProps {
     field: CustomFieldJson
+    user_specific: boolean
+    owner: number
 }
 
-export const GraphView = ({field}: GraphViewProps) => {
+export const GraphView = ({field, user_specific, owner}: GraphViewProps) => {
     const margin = { top: 40, right: 30, bottom: 50, left: 80 };
     const custom_fields_state = useAppSelector(state => state.custom_fields);
     const entries_state = useAppSelector(state => state.entries);
     const tags_state = useAppSelector(state => state.tags);
+    const history = useHistory();
 
     const loading_state = custom_fields_state.loading || entries_state.loading || tags_state.loading;
 
@@ -217,6 +221,44 @@ export const GraphView = ({field}: GraphViewProps) => {
         }
     }, [field.config.type]);
 
+    const get_tooltip_y = useMemo(() => {
+        switch (field.config.type) {
+            case CustomFieldTypes.CustomFieldTypeName.Integer:
+                return (entry: EntryJson) => {
+                    return (entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.Integer).value;
+                }
+            case CustomFieldTypes.CustomFieldTypeName.IntegerRange:
+                return (entry: EntryJson) => {
+                    return (((entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.IntegerRange).high -
+                             (entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.IntegerRange).low) / 2) +
+                             (entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.IntegerRange).low;
+                }
+            case CustomFieldTypes.CustomFieldTypeName.Float:
+                return (entry: EntryJson) => {
+                    return (entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.Float).value;
+                }
+            case CustomFieldTypes.CustomFieldTypeName.FloatRange:
+                return (entry: EntryJson) => {
+                    return (((entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.FloatRange).high -
+                             (entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.FloatRange).low) / 2) +
+                             (entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.FloatRange).low;
+                }
+            case CustomFieldTypes.CustomFieldTypeName.Time:
+                return (entry: EntryJson) => {
+                    return new Date((entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.Time).value).getTime();
+                }
+            case CustomFieldTypes.CustomFieldTypeName.TimeRange:
+                return field.config.show_diff ? (entry: EntryJson) => {
+                    return new Date((entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.TimeRange).high).getTime() - 
+                           new Date((entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.TimeRange).low).getTime();
+                } : (entry: EntryJson) => {
+                    let low_value = new Date((entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.TimeRange).low).getTime();
+                    let high_value = new Date((entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.TimeRange).high).getTime()
+                    return ((high_value - low_value) / 2) + low_value;
+                }
+        }
+    }, [field.config.type]);
+
     const y_axis_scale = getYScale(field.config.type, min_y, max_y);
     const x_axis_scale = scaleTime<number>({domain: [min_x, max_x]});
 
@@ -231,6 +273,8 @@ export const GraphView = ({field}: GraphViewProps) => {
         }}
     >
         {({width: w, height: h}) => {
+            const [tooltip_index, setTooltipIndex] = useState(-1);
+
             if (loading_state)
                 return null;
             
@@ -240,6 +284,32 @@ export const GraphView = ({field}: GraphViewProps) => {
 
             y_axis_scale.range([yMax, 0]);
             x_axis_scale.range([0, xMax]);
+
+            const handleToolTip = (event: React.TouchEvent<SVGRectElement> | React.MouseEvent<SVGRectElement>) => {
+                const {x} = localPoint(event) || {x: 0};
+                const x0 = x_axis_scale.invert(x - margin.left);
+                let x_check = x0.getHours() > 12 ?
+                    new Date(x0.getTime() + durationDays(1)) :
+                    x0;
+
+                zeroHMSM(x_check);
+
+                let index = bisectorFind(entries_state.entries, x_check.getTime(), (f, v) => {
+                    let v_time = getDateZeroHMSM(v.created).getTime();
+
+                    if (v_time === f) {
+                        return 0;
+                    } else if (v_time < f) {
+                        return -1;
+                    } else {
+                        return 1;
+                    }
+                });
+
+                if (tooltip_index !== index) {
+                    setTooltipIndex(index);
+                }
+            }
 
             let content = [];
 
@@ -361,21 +431,22 @@ export const GraphView = ({field}: GraphViewProps) => {
                     break;
             }
 
-            return(
+            let tooltip_y = 0;
+            let tooltip_x = 0;
+
+            if (tooltip_index !== -1) {
+                tooltip_x = x_axis_scale(getDateZeroHMSM(entries_state.entries[tooltip_index].created));
+
+                if (field.id in entries_state.entries[tooltip_index].custom_field_entries) {
+                    tooltip_y = y_axis_scale(get_tooltip_y(entries_state.entries[tooltip_index]));
+                }
+            }
+
+            return(<>
             <svg width={width} height={height}>
                 <CircleMarker/>
                 <TransCircleMarker/>
                 <rect x={0} y={0} width={width} height={height} fill={background}/>
-                <Bar
-                    x={margin.left}
-                    y={margin.top}
-                    width={xMax}
-                    height={yMax}
-                    fill="transparent"
-                    onMouseMove={(e) => {
-                        
-                    }}
-                />
                 <Group left={margin.left} top={margin.top}>
                     <GridRows scale={y_axis_scale} width={xMax} height={yMax} stroke="#e0e0e0"/>
                     <GridColumns scale={x_axis_scale} width={xMax} height={yMax} stroke="#e0e0e0"/>
@@ -399,9 +470,48 @@ export const GraphView = ({field}: GraphViewProps) => {
                             <circle cx={x_pos} cy={yMax} r={2} fill="black"/>
                         </Fragment>
                     })}
+                    {tooltip_index !== -1 ?
+                        <Fragment>
+                            <Line
+                                from={{x: tooltip_x, y: 0}}
+                                to={{x: tooltip_x, y: yMax}}
+                                stroke="#222"
+                                strokeWidth={1.5}
+                                strokeOpacity={0.8}
+                                strokeDasharray="1,5"
+                            />
+                            <circle cx={tooltip_x} cy={0} r={2} fill="black"/>
+                            <circle cx={tooltip_x} cy={yMax} r={2} fill="black"/>
+                        </Fragment>
+                        :
+                        null
+                    }
+                    <Bar
+                        width={xMax}
+                        height={yMax}
+                        fill="transparent"
+                        onMouseMove={handleToolTip}
+                        onMouseLeave={() => {
+                            setTooltipIndex(-1);
+                        }}
+                        onClick={() => {
+                            if (tooltip_index !== -1) {
+                                history.push(
+                                    `${user_specific ? `/users/${owner}` : ""}/entries/${entries_state.entries[tooltip_index].id}`
+                                );
+                            }
+                        }}
+                    />
                 </Group>
             </svg>
-            )
+            {tooltip_index !== -1 ?
+                <TooltipWithBounds top={tooltip_y} left={tooltip_x}>
+                    {(new Date(entries_state.entries[tooltip_index].created)).toLocaleDateString()}
+                </TooltipWithBounds>
+                :
+                null
+            }
+            </>)
         }}
     </ParentSize>
 }
