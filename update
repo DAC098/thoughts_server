@@ -17,7 +17,7 @@ function gitStatus() {
     if (result.status == null) {
         return null;
     } else if (result.status === 0) {
-        return result.stdout.split(/\n/);
+        return result.stdout.toString("utf-8").split(/\n/);
     } else {
         return [];
     }
@@ -158,9 +158,9 @@ function cargoBuild(type) {
 }
 
 async function main() {
-    let update_type = "debug";
+    let update_type = "release";
 
-    for (let argc = 1; argc < process.argv.length; ++argc) {
+    for (let argc = 2; argc < process.argv.length; ++argc) {
         let arg = process.argv[argc];
         
         if (arg !== "release" || arg !== "debug") {
