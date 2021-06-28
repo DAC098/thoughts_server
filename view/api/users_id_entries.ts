@@ -21,9 +21,7 @@ export async function get(user: number | string, query: GetEntriesQuery = {}) {
         }
     }
 
-    let {body} = await json.get<EntryJson[]>(url);
-
-    return body.data;
+    return json.get<EntryJson[]>(url);
 }
 
 export * as id from "./users_id_entries_id"

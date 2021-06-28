@@ -10,7 +10,7 @@ import { TooltipWithBounds } from "@visx/tooltip"
 import GridColumns from "@visx/grid/lib/grids/GridColumns"
 import GridRows from "@visx/grid/lib/grids/GridRows"
 import ParentSize from "@visx/responsive/lib/components/ParentSize"
-import { CustomFieldJson, EntryJson } from "../../api/types"
+import { CustomFieldJson, EntryJson, TagJson } from "../../api/types"
 import { useAppSelector } from "../../hooks/useApp"
 import { common_ratios, containRatio } from "../../util/math"
 import { entryIterator, EntryIteratorCB } from "../../components/graphs/util"
@@ -23,6 +23,9 @@ import { defaultGetX } from "../../components/graphs/getters"
 import { DashedLinePath, SolidLinePath } from "../../components/graphs/line_paths"
 import { bisectorFind } from "../../util/search"
 import { useHistory } from "react-router-dom"
+import { CustomFieldEntryCell } from "../../components/CustomFieldEntryCell"
+import TagToken from "../../components/tags/TagItem"
+import { Stack, Separator } from "@fluentui/react"
 
 const entryIteratorInteger: EntryIteratorCB<CustomFieldEntryTypes.Integer> = (rtn, entry, field, value) => {
     if (rtn.min_y > value.value) {
@@ -132,6 +135,51 @@ function getYScale(type: CustomFieldTypes.CustomFieldTypeName, min: number, max:
     }
 }
 
+interface TooltipDataProps {
+    entry: EntryJson
+    field: CustomFieldJson
+    tags: {[key: string]: TagJson}
+}
+
+const TooltipData = ({entry, field, tags}: TooltipDataProps) => {
+    return <Stack>
+        <div>{(new Date(entry.created)).toLocaleDateString()}</div>
+        {field.id in entry.custom_field_entries ?
+            <>
+                <Separator/>
+                <CustomFieldEntryCell 
+                    value={entry.custom_field_entries[field.id].value} 
+                    config={field.config}
+                />
+            </>
+            :
+            null
+        }
+        {entry.markers.length > 0 ?
+            <>
+                <Separator/>
+                <div>{entry.markers.map(v => v.title).join(" | ")}</div>
+            </>
+            :
+            null
+        }
+        {entry.tags.length > 0 ?
+            <>
+                <Separator/>
+                <div>{entry.tags.map(v => <TagToken
+                    key={v}
+                    color={tags[v].color}
+                    title={tags[v].title}
+                    fontSize={null}
+                    lineHeight={20}
+                />)}</div>
+            </>
+            :
+            null
+        }
+    </Stack>
+}
+
 export interface GraphViewProps {
     field: CustomFieldJson
     user_specific: boolean
@@ -170,7 +218,7 @@ export const GraphView = ({field, user_specific, owner}: GraphViewProps) => {
             default:
                 return null;
         }
-    }, [field.config.type]);
+    }, [field.id]);
 
     const get_y0_cb = useMemo(() => {
         switch (field.config.type) {
@@ -202,7 +250,7 @@ export const GraphView = ({field, user_specific, owner}: GraphViewProps) => {
                     return new Date((entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.TimeRange).low).getTime();
                 }
         }
-    }, [field.config.type]);
+    }, [field.id]);
 
     const get_y1_cb = useMemo(() => {
         switch (field.config.type) {
@@ -219,7 +267,7 @@ export const GraphView = ({field, user_specific, owner}: GraphViewProps) => {
                     return new Date((entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.TimeRange).low).getTime();
                 }
         }
-    }, [field.config.type]);
+    }, [field.id]);
 
     const get_tooltip_y = useMemo(() => {
         switch (field.config.type) {
@@ -257,21 +305,12 @@ export const GraphView = ({field, user_specific, owner}: GraphViewProps) => {
                     return ((high_value - low_value) / 2) + low_value;
                 }
         }
-    }, [field.config.type]);
+    }, [field.id]);
 
     const y_axis_scale = getYScale(field.config.type, min_y, max_y);
     const x_axis_scale = scaleTime<number>({domain: [min_x, max_x]});
 
-    return <ParentSize 
-        className="ms-StackItem"
-        debounceTime={20}
-        parentSizeStyles={{
-            width: "auto", height: "400px",
-            flexGrow: 1, flexShrink: 1,
-            position: "relative",
-            overflow: "hidden"
-        }}
-    >
+    return <ParentSize debounceTime={20}>
         {({width: w, height: h}) => {
             const [tooltip_index, setTooltipIndex] = useState(-1);
 
@@ -506,7 +545,11 @@ export const GraphView = ({field, user_specific, owner}: GraphViewProps) => {
             </svg>
             {tooltip_index !== -1 ?
                 <TooltipWithBounds top={tooltip_y} left={tooltip_x}>
-                    {(new Date(entries_state.entries[tooltip_index].created)).toLocaleDateString()}
+                    <TooltipData 
+                        entry={entries_state.entries[tooltip_index]} 
+                        field={field}  
+                        tags={tags_state.mapping}
+                    />
                 </TooltipWithBounds>
                 :
                 null

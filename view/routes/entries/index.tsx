@@ -19,10 +19,6 @@ const EntriesView = ({user_specific = false}: EntriesViewProps) => {
     const tags_state = useAppSelector(state => state.tags);
     const entries_state = useAppSelector(state => state.entries);
     const custom_fields_state = useAppSelector(state => state.custom_fields);
-    const appDispatch = useAppDispatch();
-
-    const loadEntries = useLoadEntries();
-    const loadFields = useLoadFields();
     
     const [state, dispatch] = useReducer<EntriesViewReducer>(
         entriesViewSlice.reducer, 
@@ -32,51 +28,29 @@ const EntriesView = ({user_specific = false}: EntriesViewProps) => {
 
     useEffect(() => {
         dispatch(entries_view_actions.set_fields(custom_fields_state.custom_fields))
-    }, [custom_fields_state.custom_fields])
-    
-    useEffect(() => {
-        if (entries_state.owner !== owner) {
-            loadEntries(
-                owner, user_specific, 
-                {
-                    from: entries_state.from != null ? new Date(entries_state.from) : null, 
-                    to: entries_state.to != null ? new Date(entries_state.to) : null
-                }
-            );
-        }
-
-        if (custom_fields_state.owner !== owner) {
-            loadFields(owner, user_specific);
-        }
-
-        if (tags_state.owner !== owner) {
-            appDispatch(tags_actions.fetchTags({owner, user_specific}));
-        }
-    }, [owner]);
+    }, [custom_fields_state.custom_fields]);
 
     return <EntriesViewContext.Provider value={dispatch}>
         <Stack style={{
-            position: "relative",
+            position: "absolute",
             width: "100%",
             height: "100%"
         }}>
-            {state.view_graph ?
-                <>
-                    <CommandBarView owner={owner} user_specific={user_specific} entries_view_state={state}/>
-                    {!loading_state && state.selected_field != null ?
+            <Stack.Item id={"entries_command_bar"}>
+                <CommandBarView owner={owner} user_specific={user_specific} entries_view_state={state}/>
+            </Stack.Item>
+            <Stack.Item id={"entries_data"} grow styles={{root: {position: "relative", overflow: state.view_graph ? "hidden" : null}}}>
+                {state.view_graph ?
+                    !loading_state && state.selected_field != null ?
                         <GraphView owner={owner} user_specific={user_specific} field={state.selected_field}/>
                         :
                         null
-                    }
-                </>
-                :
-                <ScrollablePane styles={{"contentContainer": {height: "100%"}}}>
-                    <Sticky stickyPosition={StickyPositionType.Header} stickyBackgroundColor={"white"}>
-                        <CommandBarView owner={owner} user_specific={user_specific} entries_view_state={state}/>
-                    </Sticky>
-                    <TableView user_specific={user_specific} owner={owner} visible_fields={state.visible_fields}/>
-                </ScrollablePane>
-            }
+                    :
+                    <ScrollablePane>
+                        <TableView user_specific={user_specific} owner={owner} visible_fields={state.visible_fields}/>
+                    </ScrollablePane>
+                }
+            </Stack.Item>
         </Stack>
     </EntriesViewContext.Provider>
 }

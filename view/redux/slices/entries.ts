@@ -1,10 +1,14 @@
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
 import api from "../../api"
 import { EntryJson, GetEntriesQuery } from "../../api/types"
+import { ResponseJSON } from "../../request";
 import { compareDates } from "../../util/compare";
 import { rand } from "../../util/rand";
 
-const fetchEntries = createAsyncThunk<EntryJson[],{owner: number | string, user_specific?: boolean, query?: GetEntriesQuery}>(
+type FetchEntriesReturned = { body: ResponseJSON<EntryJson[]>; response: Response; status: number; };
+type FetchEntriesThunkArg = {owner: number | string, user_specific?: boolean, query?: GetEntriesQuery};
+
+const fetchEntries = createAsyncThunk<FetchEntriesReturned, FetchEntriesThunkArg>(
     "entries/fetch_entries",
     ({owner, user_specific = false, query = {}}) => {
         return user_specific ?
@@ -90,13 +94,18 @@ export const entries = createSlice({
             state.loading = true;
         }).addCase(fetchEntries.fulfilled, (state, {payload, meta}) => {
             state.loading = false;
-            state.entries = payload;
+            state.entries = payload.body.data;
             state.owner = typeof meta.arg.owner === "string" ? parseInt(meta.arg.owner) : meta.arg.owner;
             state.from = meta.arg.query?.from?.getTime();
             state.to = meta.arg.query?.to?.getTime();
             state.key = rand();
-        }).addCase(fetchEntries.rejected, (state, {}) => {
+        }).addCase(fetchEntries.rejected, (state, {payload, meta}) => {
             state.loading = false;
+            state.entries = [];
+            state.owner = typeof meta.arg.owner === "string" ? parseInt(meta.arg.owner) : meta.arg.owner;
+            state.from = meta.arg.query?.from?.getTime();
+            state.to = meta.arg.query?.to?.getTime();
+            state.key = rand();
         });
     }
 });

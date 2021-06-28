@@ -2,7 +2,7 @@ import { useAppDispatch, useAppSelector } from "./useApp";
 import { actions } from "../redux/slices/entries"
 import { GetEntriesQuery } from "../api/types";
 
-export function useLoadEntries(): (owner: number | string, user_specific?: boolean, query?: GetEntriesQuery) => void {
+export function useLoadEntries() {
     const entries_state = useAppSelector(state => state.entries);
     const dispatch = useAppDispatch();
 
@@ -11,7 +11,7 @@ export function useLoadEntries(): (owner: number | string, user_specific?: boole
             return;
         }
 
-        dispatch(actions.fetchEntries({
+        return dispatch(actions.fetchEntries({
             owner, user_specific, query
         }));
     };

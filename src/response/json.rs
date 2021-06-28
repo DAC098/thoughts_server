@@ -1,4 +1,6 @@
-use actix_web::{http, HttpResponse, dev::HttpResponseBuilder};
+use actix_web::{http, HttpResponse};
+use actix_web::dev::{HttpResponseBuilder};
+use actix_web::http::header::{IntoHeaderPair};
 use serde::{Serialize};
 
 use crate::util;
@@ -12,25 +14,27 @@ pub struct ErrorJSON {
 }
 
 impl ErrorJSON {
-    pub fn build<M>(m: M, t: &str) -> ErrorJSON
+    pub fn build<M, T>(m: M, t: T) -> ErrorJSON
     where
-        M: Into<String>
+        M: Into<String>,
+        T: Into<String>
     {
         ErrorJSON {
-            r#type: t.to_string(),
+            r#type: t.into(),
             message: m.into(),
             date: util::time::now_rfc3339(),
             error: None
         }
     }
 
-    pub fn build_with_err<M, E>(m: M, t: &str, e: E) -> ErrorJSON
+    pub fn build_with_err<M, T, E>(m: M, t: T, e: E) -> ErrorJSON
     where
         M: Into<String>,
+        T: Into<String>,
         E: ToString
     {
         ErrorJSON {
-            r#type: t.to_string(),
+            r#type: t.into(),
             message: m.into(),
             date: util::time::now_rfc3339(),
             error: Some(e.to_string())
@@ -75,9 +79,26 @@ pub fn build_json_response(status: http::StatusCode) -> HttpResponseBuilder {
 
 pub fn respond_json<T>(status: http::StatusCode, data: T) -> HttpResponse
 where
-    T: Serialize
+    T: Serialize 
 {
-    build_json_response(status).json(data)
+    let mut builder = HttpResponse::build(status);
+    builder.insert_header((http::header::CONTENT_TYPE, "application/json"));
+    builder.json(data)
+}
+
+pub fn respond_json_headers<T, H>(status: http::StatusCode, data: T, headers: Vec<H>) -> HttpResponse
+where
+    T: Serialize,
+    H: IntoHeaderPair
+{
+    let mut builder = HttpResponse::build(status);
+
+    for header in headers {
+        builder.insert_header(header);
+    }
+
+    builder.insert_header((http::header::CONTENT_TYPE, "application/json"));
+    builder.json(data)
 }
 
 pub fn respond_okay() -> HttpResponse {

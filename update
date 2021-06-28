@@ -1,0 +1,217 @@
+#!/usr/bin/env node
+
+const fs = require("fs");
+const child_process = require("child_process");
+const path = require("path");
+const crypto = require("crypto");
+
+function hashData(data) {
+    let hash = crypto.createHash("sha256");
+    hash.update(data);
+    return hash.digest("hex");
+}
+
+function gitStatus() {
+    let result = child_process.spawnSync("git", ["status", "-s"]);
+
+    if (result.status == null) {
+        return null;
+    } else if (result.status === 0) {
+        return result.stdout.split(/\n/);
+    } else {
+        return [];
+    }
+}
+
+function gitPull() {
+    return new Promise((resolve, reject) => {
+        const result = child_process.spawn("git", ["pull"]);
+
+        const onStdoutData = chunk => {
+            process.stdout.write(chunk);
+        };
+        const onStderrData = chunk => {
+            process.stderr.write(chunk);
+        };
+        const onClose = (code, signal) => {
+            result.stdout.off("data", onStdoutData);
+            result.stderr.off("data", onStderrData);
+            resolve(code === 0);
+        };
+
+        result.stdout.on("data", onStdoutData);
+        result.stderr.on("data", onStderrData);
+        result.once("close", onClose);
+    });
+}
+
+function loadNpmDeps() {
+    return new Promise((resolve, reject) => {
+        fs.readFile(path.resolve(process.cwd(), "./package.json"), (err, data) => {
+            if (err) {
+                reject(err);
+                return;
+            };
+
+            try {
+                let json = JSON.parse(data.toString("utf-8"));
+                let dependencies = JSON.stringify(json.dependencies != null ? json.dependencies : {});
+                let devDependencies = JSON.stringify(json.devDependencies != null ? json.devDependencies : {});
+
+                resolve({
+                    dependencies: hashData(dependencies),
+                    devDependencies: hashData(devDependencies),
+                    both: hashData(dependencies + " " + devDependencies)
+                });
+            } catch(err) {
+                reject(err);
+            }
+        });
+    });
+}
+
+function npmInstall() {
+    return new Promise((resolve, reject) => {
+        let result = child_process.spawn("npm", ["install"]);
+
+        const onStdoutData = chunk => {
+            process.stdout.write(chunk);
+        };
+        const onStderrData = chunk => {
+            process.stderr.write(chunk);
+        };
+        const onClose = (code, signal) => {
+            process.stdout.off("data", onStdoutData);
+            process.stderr.off("data", onStderrData);
+            resolve(code === 0);
+        };
+
+        result.stdout.on("data", onStdoutData);
+        result.stderr.on("data", onStderrData);
+        result.once("close", onClose);
+    });
+}
+
+function npmWebpack(type) {
+    return new Promise((resolve, reject) => {
+        let arg_list = ["run"];
+
+        switch (type) {
+            case "release":
+                arg_list.push("webpack-production");
+                break;
+            case "debug":
+                arg_list.push("webpack");
+                break;
+        }
+
+        let result = child_process.spawn("npm", arg_list);
+
+        const onStdoutData = chunk => {
+            process.stdout.write(chunk);
+        };
+        const onStderrData = chunk => {
+            process.stderr.write(chunk);
+        };
+        const onClose = (code, signal) => {
+            process.stdout.off("data", onStdoutData);
+            process.stderr.off("data", onStderrData);
+            resolve(code === 0);
+        };
+
+        result.stdout.on("data", onStdoutData);
+        result.stderr.on("data", onStderrData);
+        result.once("close", onClose);
+    });
+}
+
+function cargoBuild(type) {
+    return new Promise((resolve, reject) => {
+        let arg_list = ["build", "--bins"];
+
+        switch (type) {
+            case "release":
+                arg_list.push("--release");
+                break;
+            case "debug":
+                break;
+        }
+
+        let result = child_process.spawn("npm", arg_list);
+
+        const onStdoutData = chunk => {
+            process.stdout.write(chunk);
+        };
+        const onStderrData = chunk => {
+            process.stderr.write(chunk);
+        };
+        const onClose = (code, signal) => {
+            process.stdout.off("data", onStdoutData);
+            process.stderr.off("data", onStderrData);
+            resolve(code === 0);
+        };
+
+        result.stdout.on("data", onStdoutData);
+        result.stderr.on("data", onStderrData);
+        result.once("close", onClose);
+    });
+}
+
+async function main() {
+    let update_type = "debug";
+
+    for (let argc = 1; argc < process.argv.length; ++argc) {
+        let arg = process.argv[argc];
+        
+        if (arg !== "release" || arg !== "debug") {
+            console.log("unknown update command given:", arg);
+            return 1;
+        } else {
+            update_type = arg;
+        }
+    }
+
+    let git_status = gitStatus();
+
+    if (git_status && git_status.length > 0) {
+        console.log("repo is not clean");
+        return 1;
+    }
+
+    let npm_hashes = await loadNpmDeps();
+
+    if (!await gitPull()) {
+        console.log("failed to pull from repo");
+        return 1;
+    }
+
+    let pulled_npm_hashes = await loadNpmDeps();
+
+    if (npm_hashes.both !== pulled_npm_hashes.both) {
+        if (!await npmInstall()) {
+            console.log("failed to install new packages");
+            return 1;
+        }
+    }
+
+    if (!await npmWebpack(update_type)) {
+        console.log("failed to run webpack");
+        return 1;
+    }
+
+    if (!await cargoBuild(update_type)) {
+        console.log("failed to run cargo build");
+        return 1;
+    }
+
+    return 0;
+}
+
+main().catch(err => {
+    console.error(err);
+    return 1;
+}).then(code => {
+    process.exit(code);
+});
+
+

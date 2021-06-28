@@ -1,8 +1,7 @@
-import NotFound from "./error/request/NotFound";
 import RequestError from "./error/RequestError";
 
-type Method = "GET" | "POST" | "PUT" | "DELETE";
-type Path = URL | string;
+export type Method = "GET" | "POST" | "PUT" | "DELETE";
+export type Path = URL | string;
 
 export function getNewRequest(method: Method, url: Path, headers: HeadersInit, body?: BodyInit) {
     if (typeof url === "string") {
@@ -16,14 +15,14 @@ export function getNewRequest(method: Method, url: Path, headers: HeadersInit, b
     });
 }
 
-interface ResponseJSON<T = any> {
+export interface ResponseJSON<T = any> {
     type?: string,
     message: string
     date: string,
     data?: T
 }
 
-type JSONResponse<T> = T extends ResponseJSON ? T : ResponseJSON<T>;
+export type JSONResponse<T> = T extends ResponseJSON ? T : ResponseJSON<T>;
 
 async function handleResponse<T = any>(response: Response) : Promise<{body: JSONResponse<T>, response: Response, status: number}> {
     const content_type = response.headers.get("content-type");

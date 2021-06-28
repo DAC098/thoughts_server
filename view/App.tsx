@@ -78,18 +78,18 @@ const App = () => {
         breadcrumb_items.push(crumb);
     }
 
-    return <Stack horizontal style={{position: "relative", width: "100vw", height: "100vh"}}>
-        <Stack.Item shrink={0} grow={0}>
+    return <Stack id={"main"} horizontal style={{position: "relative", width: "100vw", height: "100vh"}}>
+        <Stack.Item id={"nav_section"} shrink={0} grow={0}>
             <NavSection/>
         </Stack.Item>
-        <Stack.Item grow styles={{root: {
+        <Stack.Item id={"content_and_header"} grow styles={{root: {
             maxWidth: view_state.is_min_width ? "100vw" : (
                 view_state.visible ? "calc(100vw - 200px)" : "100vw"
             ),
             maxHeight: "100vh"
         }}}>
-            <Stack style={{position: "relative", width: "100%", height: "100%"}}>
-                <Stack.Item shrink={0} grow={0} styles={{root: {backgroundColor: "black"}}}>
+            <Stack styles={{root: {position: "relative", width: "100%", height: "100%"}}}>
+                <Stack.Item id={"header"} shrink={0} grow={0} styles={{root: {backgroundColor: "black"}}}>
                     <Stack horizontal verticalAlign="center" tokens={{childrenGap: 8, padding: "4 8px"}}>
                         <IconButton
                             iconProps={{iconName: "GlobalNavButton"}} 
@@ -100,7 +100,9 @@ const App = () => {
                         </Stack.Item>
                     </Stack>
                 </Stack.Item>
-                <Stack.Item id="main_content" grow style={{position: "relative"}}>
+                <Stack.Item id="content" grow styles={{root: {
+                    position: "relative"
+                }}}>
                     <Switch>
                         <Route path="/account" exact component={AccountView}/>
                         <Route path="/settings" exact component={SettingsView}/>
@@ -130,12 +132,9 @@ const App = () => {
                         }/>
                         <Route path="/users" children={({match}) =>
                             match ? <Switch>
-                                <Route path={["/users/:user_id/custom_fields", "/users/:user_id/custom_fields/:field_id"]} exact children={({match}) =>
+                                <Route path={["/users/:user_id/custom_fields"]} exact children={({match}) =>
                                     match ? <>
                                         <CustomFieldsView user_specific/>
-                                        <Route path="/users/:user_id/custom_fields/:field_id" exact children={({match}) => 
-                                            match ? <FieldIdView user_specific/> : null
-                                        }/>
                                     </> : null
                                 }/>
                                 <Route path={["/users/:user_id/entries", "/users/:user_id/entries/:entry_id"]} exact children={({match}) => 
@@ -146,12 +145,9 @@ const App = () => {
                                         }/>
                                     </> : null
                                 }/>
-                                <Route path={["/users/:user_id/tags", "/users/:user_id/tags/:tag_id"]} exact children={({match}) => 
+                                <Route path={["/users/:user_id/tags"]} exact children={({match}) => 
                                     match ? <>
                                         <TagsView user_specific/>
-                                        <Route path="/tags/:tag_id" exact children={({match}) => 
-                                            match ? <TagsIDView/> : null
-                                        }/>
                                     </> : null
                                 }/>
                                 <Route path={["/users", "/users/:user_id"]} exact children={({match}) => 

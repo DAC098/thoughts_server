@@ -88,7 +88,11 @@ export const TableView = ({user_specific, owner, visible_fields}: TableViewProps
                         />);
                     }
     
-                    return <TooltipHost overflowMode={TooltipOverflowMode.Parent} content={content} children={content}/>
+                    return <TooltipHost 
+                        overflowMode={TooltipOverflowMode.Parent} 
+                        content={content} 
+                        children={content}
+                    />
                 }
             })
         }

@@ -20,10 +20,8 @@ export async function get(query: GetEntriesQuery = {}) {
             url.searchParams.append("to", query.to.toISOString());
         }
     }
-    
-    let {body} = await json.get<EntryJson[]>(url);
 
-    return body.data;
+    return json.get<EntryJson[]>(url);
 }
 
 export async function post(post: PostEntry) {
