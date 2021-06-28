@@ -17,7 +17,13 @@ function gitStatus() {
     if (result.status == null) {
         return null;
     } else if (result.status === 0) {
-        return result.stdout.toString("utf-8").split(/\n/);
+        let output = result.stdout.toString("utf-8");
+
+        if (output.length > 0) {
+            return output.split(/\n/).filter(v => v.length > 0);
+        } else {
+            return [];
+        }
     } else {
         return [];
     }
@@ -25,22 +31,12 @@ function gitStatus() {
 
 function gitPull() {
     return new Promise((resolve, reject) => {
-        const result = child_process.spawn("git", ["pull"]);
-
-        const onStdoutData = chunk => {
-            process.stdout.write(chunk);
-        };
-        const onStderrData = chunk => {
-            process.stderr.write(chunk);
-        };
+        const result = child_process.spawn("git", ["pull"], {stdio: "inherit"});
+        
         const onClose = (code, signal) => {
-            result.stdout.off("data", onStdoutData);
-            result.stderr.off("data", onStderrData);
             resolve(code === 0);
         };
-
-        result.stdout.on("data", onStdoutData);
-        result.stderr.on("data", onStderrData);
+        
         result.once("close", onClose);
     });
 }
@@ -72,22 +68,12 @@ function loadNpmDeps() {
 
 function npmInstall() {
     return new Promise((resolve, reject) => {
-        let result = child_process.spawn("npm", ["install"]);
+        const result = child_process.spawn("npm", ["install"], {stdio: "inherit"});
 
-        const onStdoutData = chunk => {
-            process.stdout.write(chunk);
-        };
-        const onStderrData = chunk => {
-            process.stderr.write(chunk);
-        };
         const onClose = (code, signal) => {
-            process.stdout.off("data", onStdoutData);
-            process.stderr.off("data", onStderrData);
             resolve(code === 0);
         };
 
-        result.stdout.on("data", onStdoutData);
-        result.stderr.on("data", onStderrData);
         result.once("close", onClose);
     });
 }
@@ -105,22 +91,12 @@ function npmWebpack(type) {
                 break;
         }
 
-        let result = child_process.spawn("npm", arg_list);
+        const result = child_process.spawn("npm", arg_list, {stdio: "inherit"});
 
-        const onStdoutData = chunk => {
-            process.stdout.write(chunk);
-        };
-        const onStderrData = chunk => {
-            process.stderr.write(chunk);
-        };
         const onClose = (code, signal) => {
-            process.stdout.off("data", onStdoutData);
-            process.stderr.off("data", onStderrData);
             resolve(code === 0);
         };
-
-        result.stdout.on("data", onStdoutData);
-        result.stderr.on("data", onStderrData);
+        
         result.once("close", onClose);
     });
 }
@@ -137,43 +113,40 @@ function cargoBuild(type) {
                 break;
         }
 
-        let result = child_process.spawn("npm", arg_list);
-
-        const onStdoutData = chunk => {
-            process.stdout.write(chunk);
-        };
-        const onStderrData = chunk => {
-            process.stderr.write(chunk);
-        };
+        const result = child_process.spawn("cargo", arg_list, {stdio: "inherit"});
+        
         const onClose = (code, signal) => {
-            process.stdout.off("data", onStdoutData);
-            process.stderr.off("data", onStderrData);
             resolve(code === 0);
         };
-
-        result.stdout.on("data", onStdoutData);
-        result.stderr.on("data", onStderrData);
+        
         result.once("close", onClose);
     });
 }
 
 async function main() {
-    let update_type = "release";
+    let update_type = null;
 
     for (let argc = 2; argc < process.argv.length; ++argc) {
         let arg = process.argv[argc];
         
-        if (arg !== "release" || arg !== "debug") {
-            console.log("unknown update command given:", arg);
+        if (arg !== "release" && arg !== "debug") {
+            console.log("unknown update command given: \"%s\"", arg);
             return 1;
-        } else {
+        } else if (update_type == null) {
             update_type = arg;
+        } else {
+            console.log("update command already given");
+            return 1;
         }
+    }
+
+    if (update_type == null) {
+        update_type = "release";
     }
 
     let git_status = gitStatus();
 
-    if (git_status && git_status.length > 0) {
+    if (git_status && git_status.length > 1) {
         console.log("repo is not clean");
         return 1;
     }
