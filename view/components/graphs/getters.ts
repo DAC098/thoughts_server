@@ -1,6 +1,9 @@
 import { EntryJson } from "../../api/types";
-import { getDateZeroHMSM } from "../../util/time";
+import { dateFromUnixTime, getDateZeroHMSM, unixTimeFromDate, zeroHMSM } from "../../util/time";
 
 export function defaultGetX(entry: EntryJson) {
-    return getDateZeroHMSM(entry.created).getTime();
+    let day = dateFromUnixTime(entry.day);
+    zeroHMSM(day);
+    
+    return day.getTime();
 }

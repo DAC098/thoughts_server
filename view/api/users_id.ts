@@ -1,8 +1,9 @@
 import { json } from "../request"
+import { urlFromString } from "../util/url";
 import { UserDataJson } from "./types";
 
 export async function get(user_id: number | string) {
-    let {body} = await json.get<UserDataJson>(`/users/${user_id}`);
+    let {body} = await json.get<UserDataJson>(urlFromString(`/users/${user_id}`));
 
     return body.data;
 }

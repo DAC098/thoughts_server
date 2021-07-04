@@ -6,6 +6,11 @@ export function noOriginUrlString(url: URL | string) {
     return `${url.password}${url.search}${url.hash}`;
 } 
 
+export interface Options {
+    encode?: boolean
+    decode_search?: boolean
+}
+
 export interface Location {
     pathname: string
     search: string
@@ -13,12 +18,27 @@ export interface Location {
     origin?: string
 }
 
-export function urlFromLocation(obj: Location) {
-    return new URL(location.pathname + location.search + location.hash, location.origin ?? window.location.origin);
+export function urlFromString(no_origin_url: string) {
+    return new URL(no_origin_url, window.location.origin);
 }
 
-export function stringFromLocation(obj: Location) {
-    return location.pathname + location.search + location.hash;
+export function urlFromLocation(
+    obj: Location,
+    {encode = false, decode_search = false}: Options = {}
+) {
+    let search = decode_search ? decodeURIComponent(obj.search) : obj.search;
+
+    return new URL(obj.pathname + search + obj.hash, obj.origin ?? window.location.origin);
+}
+
+export function stringFromLocation(
+    obj: Location, 
+    {encode = false, decode_search = false}: Options = {}
+) {
+    let search = decode_search ? decodeURIComponent(obj.search) : obj.search;
+    let rtn = obj.pathname + search + obj.hash; 
+
+    return encode ? encodeURIComponent(rtn) : rtn;
 }
 
 export function currentUrl() {

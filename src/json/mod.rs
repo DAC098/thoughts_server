@@ -3,6 +3,7 @@ use std::collections::{HashMap};
 
 use tokio_postgres::{GenericClient};
 use serde::{Deserialize, Serialize};
+use chrono::serde::{ts_seconds};
 
 use crate::db::query::QueryParams;
 use crate::db::custom_fields;
@@ -36,7 +37,8 @@ pub struct EntryMarker {
 #[derive(Serialize, Deserialize)]
 pub struct EntryJson {
     pub id: i32,
-    pub created: chrono::DateTime<chrono::Utc>,
+    #[serde(with = "ts_seconds")]
+    pub day: chrono::DateTime<chrono::Utc>,
     pub owner: i32,
     pub tags: Vec<i32>,
     pub markers: Vec<EntryMarker>,
@@ -223,7 +225,7 @@ fn search_custom_field_entries_query_slice<'a>(
         query_slice.push(entry_ids);
     }
 
-    write!(&mut query_str, "    order by custom_field_entries.entry asc, custom_fields.\"order\", custom_fields.name")?;
+    write!(&mut query_str, "\n    order by custom_field_entries.entry asc, custom_fields.\"order\", custom_fields.name")?;
 
     Ok((query_str, query_slice))
 }
@@ -334,16 +336,11 @@ pub async fn search_entry_markers(
         .collect())
 }
 
-#[derive(Deserialize)]
-pub struct QueryEntries {
-    pub from: Option<chrono::DateTime<chrono::Utc>>,
-    pub to: Option<chrono::DateTime<chrono::Utc>>
-}
-
 pub struct SearchEntriesOptions {
     pub owner: i32,
     pub from: Option<chrono::DateTime<chrono::Utc>>,
     pub to: Option<chrono::DateTime<chrono::Utc>>,
+    pub tags: Option<Vec<i32>>,
     pub is_private: Option<bool>
 }
 
@@ -364,6 +361,10 @@ pub async fn search_entries(
             write!(&mut query_str, " and day <= ${}", query_slice.push(to))?;
         }
 
+        if let Some(tags) = options.tags.as_ref() {
+            write!(&mut query_str, " and id in (select entry from entries2tags where tag = any(${}))", query_slice.push(tags))?;
+        }
+
         write!(&mut query_str, " order by day desc")?;
 
         conn.query(query_str.as_str(), query_slice.slice()).await?
@@ -382,7 +383,7 @@ pub async fn search_entries(
         entry_ids.push(entry_id);
         rtn.push(EntryJson {
             id: entry_id,
-            created: row.get(1),
+            day: row.get(1),
             owner: row.get(2),
             tags: vec!(),
             markers: vec!(),
@@ -546,7 +547,7 @@ pub async fn search_entry(
 
         Ok(Some(EntryJson {
             id: entry_id,
-            created: rows[0].get(1),
+            day: rows[0].get(1),
             owner: rows[0].get(2),
             tags,
             markers: search_entry_markers(conn, &entry_id).await?,

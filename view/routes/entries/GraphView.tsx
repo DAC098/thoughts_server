@@ -18,14 +18,16 @@ import * as CustomFieldEntryTypes from "../../api/custom_field_entry_types"
 import * as CustomFieldTypes from "../../api/custom_field_types"
 import { background } from "../../components/graphs/Float"
 import { CircleMarker, TransCircleMarker } from "../../components/graphs/markers"
-import { durationDays, getDateZeroHMSM, timeToString, zeroHMSM } from "../../util/time"
+import { dateFromUnixTime, getDateZeroHMSM, timeToString, zeroHMSM } from "../../util/time"
+import { durationDays } from "../../util/duration"
 import { defaultGetX } from "../../components/graphs/getters"
 import { DashedLinePath, SolidLinePath } from "../../components/graphs/line_paths"
 import { bisectorFind } from "../../util/search"
-import { useHistory } from "react-router-dom"
+import { useHistory, useLocation } from "react-router-dom"
 import { CustomFieldEntryCell } from "../../components/CustomFieldEntryCell"
 import TagToken from "../../components/tags/TagItem"
 import { Stack, Separator } from "@fluentui/react"
+import { stringFromLocation } from "../../util/url"
 
 const entryIteratorInteger: EntryIteratorCB<CustomFieldEntryTypes.Integer> = (rtn, entry, field, value) => {
     if (rtn.min_y > value.value) {
@@ -143,7 +145,7 @@ interface TooltipDataProps {
 
 const TooltipData = ({entry, field, tags}: TooltipDataProps) => {
     return <Stack>
-        <div>{(new Date(entry.created)).toLocaleDateString()}</div>
+        <div>{(dateFromUnixTime(entry.day)).toLocaleDateString()}</div>
         {field.id in entry.custom_field_entries ?
             <>
                 <Separator/>
@@ -191,6 +193,7 @@ export const GraphView = ({field, user_specific, owner}: GraphViewProps) => {
     const custom_fields_state = useAppSelector(state => state.custom_fields);
     const entries_state = useAppSelector(state => state.entries);
     const tags_state = useAppSelector(state => state.tags);
+    const location = useLocation();
     const history = useHistory();
 
     const loading_state = custom_fields_state.loading || entries_state.loading || tags_state.loading;
@@ -334,7 +337,9 @@ export const GraphView = ({field, user_specific, owner}: GraphViewProps) => {
                 zeroHMSM(x_check);
 
                 let index = bisectorFind(entries_state.entries, x_check.getTime(), (f, v) => {
-                    let v_time = getDateZeroHMSM(v.created).getTime();
+                    let v_day = dateFromUnixTime(v.day);
+                    zeroHMSM(v_day);
+                    let v_time = v_day.getTime();
 
                     if (v_time === f) {
                         return 0;
@@ -474,7 +479,9 @@ export const GraphView = ({field, user_specific, owner}: GraphViewProps) => {
             let tooltip_x = 0;
 
             if (tooltip_index !== -1) {
-                tooltip_x = x_axis_scale(getDateZeroHMSM(entries_state.entries[tooltip_index].created));
+                let day = dateFromUnixTime(entries_state.entries[tooltip_index].day);
+                zeroHMSM(day);
+                tooltip_x = x_axis_scale(day);
 
                 if (field.id in entries_state.entries[tooltip_index].custom_field_entries) {
                     tooltip_y = y_axis_scale(get_tooltip_y(entries_state.entries[tooltip_index]));
@@ -536,7 +543,7 @@ export const GraphView = ({field, user_specific, owner}: GraphViewProps) => {
                         onClick={() => {
                             if (tooltip_index !== -1) {
                                 history.push(
-                                    `${user_specific ? `/users/${owner}` : ""}/entries/${entries_state.entries[tooltip_index].id}`
+                                    `${location.pathname}/${entries_state.entries[tooltip_index].id}?prev=${stringFromLocation(location)}`
                                 );
                             }
                         }}

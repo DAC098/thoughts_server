@@ -43,8 +43,10 @@ pub enum ResponseError {
 
     ActixError(actix_web::error::Error),
     HeaderError(actix_web::http::header::ToStrError),
+
     PostgresError(tokio_postgres::Error),
     BB8Error(bb8_postgres::bb8::RunError<tokio_postgres::Error>),
+
     Argon2Error(argon2::Error),
 
     OpensslError(openssl::error::Error),
@@ -53,7 +55,9 @@ pub enum ResponseError {
     UuidError(uuid::Error),
 
     EmailSmtpError(lettre::transport::smtp::Error),
-    EmailBuilderError(lettre::error::Error)
+    EmailBuilderError(lettre::error::Error),
+
+    ChronoParserError(chrono::ParseError),
 }
 
 impl ResponseError {
@@ -61,11 +65,11 @@ impl ResponseError {
     fn error_type(&self) -> &str {
         match &*self {
 
-            ResponseError::Session => "SessionError",
+            ResponseError::Session => "Session",
             ResponseError::InvalidPassword => "InvalidPassword",
 
             ResponseError::PermissionDenied(_) => "PermissionDenied",
-            ResponseError::Validation(_) => "ValidationError",
+            ResponseError::Validation(_) => "Validation",
 
             ResponseError::UsernameNotFound(_) => "UsernameNotFound",
             ResponseError::UserIDNotFound(_) => "UserIDNotFound",
@@ -80,30 +84,34 @@ impl ResponseError {
             ResponseError::EntryExists(_) => "EntryExists",
             ResponseError::CustomFieldExists(_) => "MoodFieldExists",
 
-            ResponseError::RustFMTError(_) => "InternalError",
-            ResponseError::RustIOError(_) => "InternalError",
-
-            ResponseError::SerdeJsonError(_) => "InternalError",
-
-            ResponseError::ActixError(_) => "InternalError",
-            ResponseError::HeaderError(_) => "InternalError",
-
-            ResponseError::PostgresError(_) => "DatabaseError",
+            ResponseError::PostgresError(_) |
             ResponseError::BB8Error(_) => "DatabaseError",
-            ResponseError::Argon2Error(_) => "InternalError",
 
-            ResponseError::OpensslError(_) => "InternalError",
-            ResponseError::OpensslErrorStack(_) => "InternalError",
+            ResponseError::RustFMTError(_) |
+            ResponseError::RustIOError(_) |
 
-            ResponseError::UuidError(_) => "InternalError",
+            ResponseError::SerdeJsonError(_) |
 
-            ResponseError::EmailSmtpError(_) => "InternalError",
-            ResponseError::EmailBuilderError(_) => "InternalError"
+            ResponseError::ActixError(_) |
+            ResponseError::HeaderError(_) |
+
+            ResponseError::Argon2Error(_) |
+
+            ResponseError::OpensslError(_) |
+            ResponseError::OpensslErrorStack(_) |
+
+            ResponseError::UuidError(_) |
+
+            ResponseError::EmailSmtpError(_) |
+            ResponseError::EmailBuilderError(_) |
+            
+            ResponseError::ChronoParserError(_) => "InternalError"
         }
     }
 
     fn get_msg(&self) -> String {
         match &*self {
+
         
             ResponseError::Session => "no session found for request".to_owned(),
             ResponseError::InvalidPassword => "invalid password given for account".to_owned(),
@@ -124,25 +132,28 @@ impl ResponseError {
             ResponseError::EntryExists(created) => format!("given entry date already exists. date: {}", created),
             ResponseError::CustomFieldExists(name) => format!("given mood field already exists. name: {}", name),
 
-            ResponseError::RustFMTError(_) => "internal server error".to_owned(),
-            ResponseError::RustIOError(_) => "internal server error".to_owned(),
-
-            ResponseError::SerdeJsonError(_) => "internal server error".to_owned(),
-
-            ResponseError::ActixError(_) => "internal server error".to_owned(),
-            ResponseError::HeaderError(_) => "internal server error".to_owned(),
-
-            ResponseError::PostgresError(_) => "database server error".to_owned(),
+            ResponseError::PostgresError(_) |
             ResponseError::BB8Error(_) => "database server error".to_owned(),
-            ResponseError::Argon2Error(_) => "internal server error".to_owned(),
 
-            ResponseError::OpensslError(_) => "internal server error".to_owned(),
-            ResponseError::OpensslErrorStack(_) => "internal server error".to_owned(),
+            ResponseError::RustFMTError(_) |
+            ResponseError::RustIOError(_) |
 
-            ResponseError::UuidError(_) => "internal server error".to_owned(),
+            ResponseError::SerdeJsonError(_) |
 
-            ResponseError::EmailSmtpError(_) => "internal server error".to_owned(),
-            ResponseError::EmailBuilderError(_) => "internal server error".to_owned()
+            ResponseError::ActixError(_) |
+            ResponseError::HeaderError(_) |
+
+            ResponseError::Argon2Error(_) |
+
+            ResponseError::OpensslError(_) |
+            ResponseError::OpensslErrorStack(_) |
+
+            ResponseError::UuidError(_) |
+
+            ResponseError::EmailSmtpError(_) |
+            ResponseError::EmailBuilderError(_) |
+            
+            ResponseError::ChronoParserError(_) => "internal server error".to_owned()
         }
     }
     
@@ -171,44 +182,46 @@ impl ActixResponseError for ResponseError {
     fn status_code(&self) -> StatusCode {
         match &*self {
 
-            ResponseError::Session => StatusCode::UNAUTHORIZED,
-            ResponseError::InvalidPassword => StatusCode::UNAUTHORIZED,
-
+            ResponseError::Session |
+            ResponseError::InvalidPassword |
             ResponseError::PermissionDenied(_) => StatusCode::UNAUTHORIZED,
-            ResponseError::Validation(_) => StatusCode::BAD_REQUEST,
 
-            ResponseError::UsernameNotFound(_) => StatusCode::NOT_FOUND,
-            ResponseError::UserIDNotFound(_) => StatusCode::NOT_FOUND,
-            ResponseError::EntryNotFound(_) => StatusCode::NOT_FOUND,
-            ResponseError::TextEntryNotFound(_) => StatusCode::NOT_FOUND,
-            ResponseError::CustomFieldNotFound(_) => StatusCode::NOT_FOUND,
-            ResponseError::TagNotFound(_) => StatusCode::NOT_FOUND,
+            ResponseError::UsernameNotFound(_) |
+            ResponseError::UserIDNotFound(_) |
+            ResponseError::EntryNotFound(_) |
+            ResponseError::TextEntryNotFound(_) |
+            ResponseError::CustomFieldNotFound(_) |
+            ResponseError::TagNotFound(_) |
             ResponseError::EntryMarkerNotFound(_) => StatusCode::NOT_FOUND,
 
-            ResponseError::UsernameExists(_) => StatusCode::BAD_REQUEST,
-            ResponseError::EmailExists(_) => StatusCode::BAD_REQUEST,
-            ResponseError::EntryExists(_) => StatusCode::BAD_REQUEST,
+            ResponseError::Validation(_) |
+            ResponseError::UsernameExists(_) |
+            ResponseError::EmailExists(_) |
+            ResponseError::EntryExists(_) |
             ResponseError::CustomFieldExists(_) => StatusCode::BAD_REQUEST,
 
-            ResponseError::RustFMTError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            ResponseError::RustIOError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ResponseError::RustFMTError(_) |
+            ResponseError::RustIOError(_) |
 
-            ResponseError::SerdeJsonError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ResponseError::SerdeJsonError(_) |
 
-            ResponseError::ActixError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            ResponseError::HeaderError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ResponseError::ActixError(_) |
+            ResponseError::HeaderError(_) |
 
-            ResponseError::PostgresError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            ResponseError::BB8Error(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            ResponseError::Argon2Error(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ResponseError::PostgresError(_) |
+            ResponseError::BB8Error(_) |
 
-            ResponseError::OpensslError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            ResponseError::OpensslErrorStack(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ResponseError::Argon2Error(_) |
 
-            ResponseError::UuidError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ResponseError::OpensslError(_) |
+            ResponseError::OpensslErrorStack(_) |
 
-            ResponseError::EmailSmtpError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            ResponseError::EmailBuilderError(_) => StatusCode::INTERNAL_SERVER_ERROR
+            ResponseError::UuidError(_) |
+
+            ResponseError::EmailSmtpError(_) |
+            ResponseError::EmailBuilderError(_) |
+
+            ResponseError::ChronoParserError(_) => StatusCode::INTERNAL_SERVER_ERROR
         }
     }
 }
@@ -328,6 +341,14 @@ impl From<db::error::DbError> for ResponseError {
         }
     }
     
+}
+
+impl From<chrono::ParseError> for ResponseError {
+
+    fn from(error: chrono::ParseError) -> Self {
+        ResponseError::ChronoParserError(error)
+    }
+
 }
 
 #[derive(Debug)]

@@ -5,7 +5,7 @@ use actix_session::{Session};
 use serde::{Serialize, Deserialize};
 
 use crate::response;
-use crate::request::from;
+use crate::request::{from, url_query};
 use crate::state;
 use crate::json;
 use crate::db;
@@ -30,8 +30,9 @@ pub async fn handle_get(
     req: HttpRequest,
     session: Session,
     app: web::Data<state::AppState>,
-    info: web::Query<json::QueryEntries>,
+    info: web::Query<url_query::QueryEntries>,
 ) -> error::Result<impl Responder> {
+    let info = info.into_inner();
     let accept_html = response::check_if_html_req(&req, true)?;
     let conn = &*app.get_conn().await?;
     let initiator_opt = from::get_initiator(conn, &session).await?;
@@ -50,8 +51,9 @@ pub async fn handle_get(
             custom_fields: json::search_custom_fields(conn, initiator.user.id).await?, 
             tags: db::tags::find_via_owner(conn, initiator.user.id).await?, 
             entries: json::search_entries(conn, json::SearchEntriesOptions { 
-                from: info.from,
-                to: info.to,
+                from: info.get_from()?,
+                to: info.get_to()?,
+                tags: info.get_tags(),
                 owner: initiator.user.id,
                 is_private: None
             }).await?
@@ -131,7 +133,7 @@ pub async fn handle_post(
             on conflict on constraint unique_day_owner_key do nothing
             returning id
             "#,
-            &[&entry.created, &initiator.user.id]
+            &[&entry.day, &initiator.user.id]
         ).await?;
 
         if result.is_empty() {

@@ -1,6 +1,6 @@
 import { CustomFieldEntryType } from "../../api/custom_field_entry_types";
 import { CustomFieldJson, EntryJson, EntryMarkerJson } from "../../api/types";
-import { getDateZeroHMSM } from "../../util/time";
+import { dateFromUnixTimeZeroHMSM, getDateZeroHMSM } from "../../util/time";
 
 interface EntryMarkerInfo {
     day: number
@@ -40,7 +40,7 @@ export function entryIterator<T extends CustomFieldEntryType>(
     };
 
     for (let entry of entries) {
-        let date = getDateZeroHMSM(entry.created).getTime();
+        let date = dateFromUnixTimeZeroHMSM(entry.day).getTime();
 
         if (rtn.min_x > date) {
             rtn.min_x = date;

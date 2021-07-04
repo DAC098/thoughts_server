@@ -1,3 +1,9 @@
+import { year, month, week, day, hour, minute, second, millisecond } from "./duration"
+
+export const max_date_number = Math.trunc(Number.MAX_SAFE_INTEGER / 1000);
+
+export type DateType = string | number | Date;
+
 function padISONum(number: number) {
     let normal = Math.floor(Math.abs(number));
     return (normal < 10 ? '0' : '') + normal;
@@ -17,8 +23,6 @@ export function toISOOffsetString(date: Date) {
         ':' + padISONum(tzo % 60);
 }
 
-window["toISOOffsetString"] = toISOOffsetString;
-
 export function compareDates(a: Date, b: Date) {
     return a.getTime() === b.getTime();
 }
@@ -30,7 +34,7 @@ export function zeroHMSM(date: Date) {
     date.setMilliseconds(0);
 }
 
-export function getDateZeroHMSM(time: string) {
+export function getDateZeroHMSM(time: DateType) {
     let rtn = new Date(time);
     zeroHMSM(rtn);
 
@@ -41,12 +45,32 @@ export function unixNow() {
     return Math.trunc(Date.now() / 1000)
 }
 
-export function unixTime(date: Date) {
+export function unixTimeFromDate(date: Date) {
     return Math.trunc(date.getTime() / 1000)
 }
 
-export function tsISOString(ts: number) {
-    return (new Date(ts)).toISOString();
+export function unixTimeStrFromDate(date: Date) {
+    return unixTimeFromDate(date).toString();
+}
+
+export function dateFromUnixTime(date: number) {
+    if (!Number.isInteger(date) || date > max_date_number) {
+        return null;
+    }
+
+    return new Date(Math.trunc(date * 1000));
+}
+
+export function dateFromUnixTimeZeroHMSM(date: number) {
+    let rtn = dateFromUnixTime(date);
+
+    if (rtn == null) {
+        return null;
+    }
+
+    zeroHMSM(rtn);
+
+    return rtn;
 }
 
 export function get24hrStr(date: Date, include_seconds: boolean = false) {
@@ -67,51 +91,6 @@ export function sameDate(lhs: Date, rhs: Date) {
 
 export function displayDate(date: Date, as_24hr: boolean = true, include_seconds: boolean = false) {
     return `${date.toDateString()} ${as_24hr ? get24hrStr(date, include_seconds) : get12hrStr(date, true, include_seconds)}`
-}
-
-const milliseconds_in_second = 1000;
-const seconds_in_minute = 60;
-const minutes_in_hour = 60;
-const hours_in_day = 24;
-const days_in_week = 7;
-const days_in_month = 30;
-const days_in_year = 365;
-
-const millisecond = 1
-const second = milliseconds_in_second * millisecond;
-const minute = seconds_in_minute * second;
-const hour = minutes_in_hour * minute;
-const day = hours_in_day * hour;
-const week = days_in_week * day;
-const month = days_in_month * day;
-const year = days_in_year * day;
-
-export function durationSeconds(seconds: number) {
-    return seconds * second;
-}
-
-export function durationMinutes(minutes: number) {
-    return minutes * minute;
-}
-
-export function durationHours(hours: number) {
-    return hours * hour;
-}
-
-export function durationDays(days: number) {
-    return days * day;
-}
-
-export function durationWeek(weeks: number) {
-    return weeks * week;
-}
-
-export function durationMonth(months: number) {
-    return months * month;
-}
-
-export function durationYears(years: number) {
-    return years * year;
 }
 
 const diff_names = ["years", "months", "weeks", "days", "hours", "minutes", "seconds", "milliseconds"];

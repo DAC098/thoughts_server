@@ -2,10 +2,10 @@ import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
 import api from "../../api"
 import { EntryJson, GetEntriesQuery } from "../../api/types"
 import { ResponseJSON } from "../../request";
-import { compareDates } from "../../util/compare";
+import { compareDates, compareNumbers } from "../../util/compare";
 import { rand } from "../../util/rand";
 
-type FetchEntriesReturned = { body: ResponseJSON<EntryJson[]>; response: Response; status: number; };
+type FetchEntriesReturned = EntryJson[];
 type FetchEntriesThunkArg = {owner: number | string, user_specific?: boolean, query?: GetEntriesQuery};
 
 const fetchEntries = createAsyncThunk<FetchEntriesReturned, FetchEntriesThunkArg>(
@@ -24,6 +24,7 @@ export interface EntriesState {
     entries: EntryJson[]
     from?: number
     to?: number
+    tags?: number[]
 }
 
 const initialState: EntriesState = {
@@ -32,7 +33,8 @@ const initialState: EntriesState = {
     loading: false,
     entries: [],
     from: null,
-    to: null
+    to: null,
+    tags: null
 };
 
 export const entries = createSlice({
@@ -44,21 +46,32 @@ export const entries = createSlice({
             state.entries = [];
             state.from = null;
             state.to = null;
+            state.tags = null;
             state.key = 0;
         },
-        add_entry: (state, payload: PayloadAction<EntryJson>) => {
-            let new_entry_date = new Date(payload.payload.created);
+        add_entry: (state, action: PayloadAction<EntryJson>) => {
+            let new_entry_date = action.payload.day;
             let i = 0;
 
-            for (; i < state.entries.length; ++i) {
-                let entry_date = new Date(state.entries[i].created);
+            if (state.from != null) {
+                if (new_entry_date < state.from) {
+                    return;
+                }
+            }
 
-                if (new_entry_date.getTime() > entry_date.getTime()) {
+            if (state.to != null) {
+                if (new_entry_date > state.to) {
+                    return;
+                }
+            }
+
+            for (; i < state.entries.length; ++i) {
+                if (new_entry_date > state.entries[i].day) {
                     break;
                 }
             }
 
-            state.entries.splice(i, 0, payload.payload);
+            state.entries.splice(i, 0, action.payload);
             state.key = rand();
         },
         update_entry: (state, action: PayloadAction<EntryJson>) => {
@@ -70,7 +83,7 @@ export const entries = createSlice({
             }
 
             state.entries.sort((a, b) => {
-                return compareDates(new Date(a.created), new Date(b.created));
+                return -compareNumbers(a.day, b.day);
             });
             state.key = rand();
         },
@@ -94,7 +107,7 @@ export const entries = createSlice({
             state.loading = true;
         }).addCase(fetchEntries.fulfilled, (state, {payload, meta}) => {
             state.loading = false;
-            state.entries = payload.body.data;
+            state.entries = payload;
             state.owner = typeof meta.arg.owner === "string" ? parseInt(meta.arg.owner) : meta.arg.owner;
             state.from = meta.arg.query?.from?.getTime();
             state.to = meta.arg.query?.to?.getTime();

@@ -12,6 +12,8 @@ import arrayFilterMap from "../../../util/arrayFilterMap"
 import { getBrightness } from "../../../util/colors"
 import TagToken from "../../../components/tags/TagItem"
 import OverlayedPage from "../../../components/OverlayedPage"
+import { stringFromLocation, urlFromLocation } from "../../../util/url"
+import { dateFromUnixTime, unixTimeFromDate } from "../../../util/time"
 
 interface TextEntryEditViewProps {
     text_entries: TextEntryUI[]
@@ -209,7 +211,7 @@ interface EntryIdProps {
 }
 
 const EntryId = ({user_specific = false}: EntryIdProps) => {
-    const location = useLocation<{entry?: EntryJson}>();
+    const location = useLocation();
     const history = useHistory();
     const params = useParams<{entry_id: string, user_id?: string}>();
     
@@ -256,7 +258,7 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
         
         if (state.current.id) {
             promise = api.entries.id.put(state.current.id, {
-                created: state.current.created,
+                day: state.current.day,
                 tags: state.current.tags,
                 markers: state.current.markers,
                 custom_field_entries: Object.values(
@@ -275,7 +277,7 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
             })
         } else {
             promise = api.entries.post({
-                created: state.current.created,
+                day: state.current.day,
                 tags: state.current.tags,
                 markers: state.current.markers,
                 custom_field_entries: Object.values(
@@ -289,7 +291,14 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
                     thought: v.thought, private: v.private
                 }))
             }).then(entry => {
-                history.push(`/entries/${entry.id}`);
+                let base_path = location.pathname.split("/");
+                base_path.pop();
+                base_path.push(entry.id.toString());
+
+                history.push(stringFromLocation({
+                    ...location, 
+                    pathname: base_path.join("/")
+                }));
                 dispatch(entry_id_view_actions.set_entry(entry));
                 appDispatch(entries_actions.add_entry(entry));
             });
@@ -317,7 +326,16 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
 
         api.entries.id.del(state.current.id).then(() => {
             appDispatch(entries_actions.delete_entry(state.current.id));
-            history.push("/entries");
+            let url = urlFromLocation(location);
+            
+            if (url.searchParams.has("prev")) {
+                history.push(url.searchParams.get("prev"));
+            } else {
+                let new_path = location.pathname.split("/");
+                new_path.pop();
+                
+                history.push(new_path.join("/"));
+            }
         }).catch((e) => {
             console.error(e);
             dispatch(entry_id_view_actions.set_deleting(false));
@@ -418,9 +436,9 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
                     <Stack horizontal tokens={{childrenGap: 8, padding: 8}}>
                         <DatePicker
                             disabled={!state.edit_view}
-                            value={new Date(state.current.created)}
+                            value={dateFromUnixTime(state.current.day)}
                             onSelectDate={d => {
-                                dispatch(entry_id_view_actions.update_entry(d.toISOString()))
+                                dispatch(entry_id_view_actions.update_entry(unixTimeFromDate(d)))
                             }}
                         />
                         {allow_edit ?
@@ -477,10 +495,16 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
                     iconProps={{iconName: "Cancel"}} 
                     style={{position: "absolute", top: 0, right: 0}}
                     onClick={() => {
-                        let new_path = location.pathname.split("/");
-                        new_path.pop();
+                        let url = urlFromLocation(location);
 
-                        history.push(new_path.join("/"));
+                        if (url.searchParams.has("prev")) {
+                            history.push(url.searchParams.get("prev"));
+                        } else {
+                            let new_path = location.pathname.split("/");
+                            new_path.pop();
+
+                            history.push(new_path.join("/"));
+                        }
                     }}
                 />
             </Sticky>

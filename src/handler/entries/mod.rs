@@ -3,13 +3,14 @@ use std::collections::{HashMap};
 use actix_web::{web, http, HttpRequest, Responder};
 use actix_session::{Session};
 use serde::{Deserialize};
+use chrono::serde::{ts_seconds};
 
 pub mod entry_id;
 
 use crate::db;
 use crate::response;
 use crate::state;
-use crate::request::from;
+use crate::request::{from, url_query};
 use crate::json;
 use crate::getters;
 
@@ -36,7 +37,8 @@ pub struct PostEntryMarker {
 
 #[derive(Deserialize)]
 pub struct PostEntryJson {
-    created: chrono::DateTime<chrono::Utc>,
+    #[serde(with = "ts_seconds")]
+    day: chrono::DateTime<chrono::Utc>,
     tags: Option<Vec<i32>>,
     custom_field_entries: Option<Vec<PostCustomFieldEntryJson>>,
     text_entries: Option<Vec<PostTextEntryJson>>,
@@ -52,8 +54,9 @@ pub async fn handle_get(
     req: HttpRequest, 
     session: Session,
     app: web::Data<state::AppState>,
-    info: web::Query<json::QueryEntries>,
+    info: web::Query<url_query::QueryEntries>,
 ) -> app_error::Result<impl Responder> {
+    let info = info.into_inner();
     let conn = &*app.get_conn().await?;
     let accept_html = response::check_if_html_req(&req, true).unwrap();
     let initiator_opt = from::get_initiator(conn, &session).await?;
@@ -75,8 +78,9 @@ pub async fn handle_get(
                 "successful",
                 json::search_entries(conn, json::SearchEntriesOptions {
                     owner: initiator.user.get_id(),
-                    from: info.from,
-                    to: info.to,
+                    from: info.get_from()?,
+                    to: info.get_to()?,
+                    tags: info.get_tags(),
                     is_private: None
                 }).await?
             )
@@ -91,28 +95,28 @@ pub async fn handle_get(
  */
 pub async fn handle_post(
     initiator: from::Initiator,
-    app_data: web::Data<state::AppState>,
+    app: web::Data<state::AppState>,
     posted_cntr: web::Json<PostEntryJson>
 ) -> app_error::Result<impl Responder> {
     let posted = posted_cntr.into_inner();
-    let app = app_data.into_inner();
+    let app = app.into_inner();
     let conn = &mut *app.get_conn().await?;
 
     let entry_check = conn.query(
         "select id from entries where day = $1 and owner = $2",
-        &[&posted.created, &initiator.user.get_id()]
+        &[&posted.day, &initiator.user.get_id()]
     ).await?;
 
     if entry_check.len() != 0 {
         return Err(app_error::ResponseError::EntryExists(
-            format!("{}", posted.created)
+            format!("{}", posted.day)
         ));
     }
 
     let transaction = conn.transaction().await?;
     let result = transaction.query_one(
         "insert into entries (day, owner) values ($1, $2) returning id, day, owner",
-        &[&posted.created, &initiator.user.get_id_ref()]
+        &[&posted.day, &initiator.user.get_id_ref()]
     ).await?;
     let entry_id: i32 = result.get(0);
 
@@ -202,7 +206,7 @@ pub async fn handle_post(
             "successful", 
             json::EntryJson {
                 id: result.get(0),
-                created: result.get(1),
+                day: result.get(1),
                 owner: initiator.user.get_id(),
                 tags: entry_tags,
                 markers: entry_markers,

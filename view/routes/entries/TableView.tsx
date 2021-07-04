@@ -1,10 +1,12 @@
 import React, { useMemo } from "react"
 import { IColumn, Icon, ShimmeredDetailsList, Sticky, StickyPositionType, TooltipHost, TooltipOverflowMode } from "@fluentui/react"
-import { Link } from "react-router-dom"
+import { Link, useLocation } from "react-router-dom"
 import { EntryJson } from "../../api/types"
 import { useAppSelector } from "../../hooks/useApp"
 import TagToken from "../../components/tags/TagItem"
 import { CustomFieldEntryCell } from "../../components/CustomFieldEntryCell"
+import { stringFromLocation } from "../../util/url"
+import { dateFromUnixTime } from "../../util/time"
 
 export interface TableViewProps {
     user_specific: boolean
@@ -12,10 +14,11 @@ export interface TableViewProps {
     visible_fields: Record<string, boolean>
 }
 
-export const TableView = ({user_specific, owner, visible_fields}: TableViewProps) => {
+export const TableView = ({visible_fields}: TableViewProps) => {
     const custom_fields_state = useAppSelector(state => state.custom_fields);
     const entries_state = useAppSelector(state => state.entries);
     const tags_state = useAppSelector(state => state.tags);
+    const location = useLocation();
 
     const loading_state = custom_fields_state.loading || entries_state.loading || tags_state.loading;
 
@@ -28,9 +31,10 @@ export const TableView = ({user_specific, owner, visible_fields}: TableViewProps
                 maxWidth: 160,
                 onRender: (item: EntryJson) => {
                     return <Link to={{
-                        pathname: `${user_specific ? `/users/${owner}` : ""}/entries/${item.id}`
+                        pathname: `${location.pathname}/${item.id}`,
+                        search: `prev=${stringFromLocation(window.location, {encode: true, decode_search: true})}`
                     }}>
-                        {(new Date(item.created)).toDateString()}
+                        {(dateFromUnixTime(item.day)).toDateString()}
                     </Link>
                 }
             }

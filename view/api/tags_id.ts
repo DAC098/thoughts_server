@@ -1,20 +1,21 @@
 import { json } from "../request";
+import { urlFromString } from "../util/url";
 import { TagJson } from "./types";
 
 export async function get(tag_id: number | string) {
-    let {body} = await json.get<TagJson>(`/tags/${tag_id}`);
+    let {body} = await json.get<TagJson>(urlFromString(`/tags/${tag_id}`));
 
     return body.data;
 }
 
 export async function put(tag_id: number | string, posted: any) {
-    let {body} = await json.put<TagJson>(`/tags/${tag_id}`, posted);
+    let {body} = await json.put<TagJson>(urlFromString(`/tags/${tag_id}`), posted);
 
     return body.data;
 }
 
 export async function del(tag_id: number | string) {
-    let {body} = await json.delete(`/tags/${tag_id}`);
+    let {body} = await json.delete(urlFromString(`/tags/${tag_id}`));
 
     return body.data;
 }

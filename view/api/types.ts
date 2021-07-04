@@ -39,7 +39,7 @@ export interface EntryMarkerJson {
 
 export interface EntryJson {
     id: number
-    created: string
+    day: number
     owner: number
     tags: number[]
     markers: EntryMarkerJson[]
@@ -76,7 +76,7 @@ export interface PostEntryMarker {
 }
 
 export interface PostEntry {
-    created: string
+    day: number
     tags?: number[]
     custom_field_entries?: PostCustomFieldEntry[]
     text_entries?: PostTextEntry[]
@@ -101,7 +101,7 @@ export interface PutEntryMarker {
 }
 
 export interface PutEntry {
-    created: string,
+    day: number,
     tags: number[]
     custom_field_entries?: PutCustomFieldEntry[]
     text_entries?: PutTextEntry[]
@@ -201,7 +201,7 @@ export function cloneTextEntry(text_entry: TextEntryJson): TextEntryJson {
 export function makeEntryJson(): EntryJson {
     return {
         id: null,
-        created: "",
+        day: 0,
         owner: 0,
         tags: [],
         markers: [],
@@ -213,7 +213,7 @@ export function makeEntryJson(): EntryJson {
 export function cloneEntryJson(entry: EntryJson) {
     let rtn: EntryJson = {
         id: optionalCloneInteger(entry.id),
-        created: cloneString(entry.created),
+        day: cloneInteger(entry.day),
         owner: cloneInteger(entry.owner),
         tags: [],
         markers: [],

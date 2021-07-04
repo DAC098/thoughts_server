@@ -3,7 +3,7 @@ use actix_session::{Session};
 
 pub mod entry_id;
 
-use crate::request::from;
+use crate::request::{from, url_query};
 use crate::response;
 use crate::state;
 use crate::json;
@@ -17,8 +17,9 @@ pub async fn handle_get(
     session: Session,
     app: web::Data<state::AppState>,
     path: web::Path<url_paths::UserPath>,
-    info: web::Query<json::QueryEntries>,
+    info: web::Query<url_query::QueryEntries>,
 ) -> error::Result<impl Responder> {
+    let info = info.into_inner();
     let accept_html = response::check_if_html_req(&req, true)?;
     let conn = &*app.get_conn().await?;
     let initiator_opt = from::get_initiator(conn, &session).await?;
@@ -42,8 +43,9 @@ pub async fn handle_get(
                 "successful",
                 json::search_entries(conn, json::SearchEntriesOptions {
                     owner: path.user_id,
-                    from: info.from,
-                    to: info.to,
+                    from: info.get_from()?,
+                    to: info.get_to()?,
+                    tags: info.get_tags(),
                     is_private: Some(false)
                 }).await?
             )

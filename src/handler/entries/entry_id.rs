@@ -3,6 +3,7 @@ use std::collections::{HashMap};
 use actix_web::{web, http, HttpRequest, Responder};
 use actix_session::{Session};
 use serde::{Deserialize};
+use chrono::serde::{ts_seconds};
 
 use crate::db;
 use crate::response;
@@ -38,7 +39,8 @@ pub struct PutEntryMarker {
 
 #[derive(Deserialize)]
 pub struct PutEntryJson {
-    created: chrono::DateTime<chrono::Utc>,
+    #[serde(with = "ts_seconds")]
+    day: chrono::DateTime<chrono::Utc>,
     tags: Option<Vec<i32>>,
     markers: Option<Vec<PutEntryMarker>>,
     custom_field_entries: Option<Vec<PutCustomFieldEntryJson>>,
@@ -110,7 +112,7 @@ pub async fn handle_put(
 ) -> app_error::Result<impl Responder> {
     let posted = posted_cntr.into_inner();
     let conn = &mut *app.get_conn().await?;
-    let created = posted.created.clone();
+    let created = posted.day.clone();
     security::assert::is_owner_for_entry(conn, path.entry_id, initiator.user.get_id()).await?;
 
     let transaction = conn.transaction().await?;
@@ -120,7 +122,7 @@ pub async fn handle_put(
     ).await?;
     let mut rtn = json::EntryJson {
         id: path.entry_id,
-        created: result.get(0),
+        day: result.get(0),
         tags: vec!(),
         markers: vec!(),
         custom_field_entries: HashMap::new(),

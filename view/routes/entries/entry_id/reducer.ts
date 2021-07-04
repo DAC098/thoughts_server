@@ -4,6 +4,8 @@ import { CustomFieldEntryType } from "../../../api/custom_field_entry_types";
 import { cloneEntryJson, EntryJson, makeEntryJson, makeCustomFieldEntryJson, makeTextEntry, CustomFieldEntryJson, TextEntryJson, EntryMarkerJson, makeEntryMarkerJson } from "../../../api/types"
 import { store } from "../../../redux/store";
 import { SliceActionTypes } from "../../../redux/types";
+import { cloneInteger } from "../../../util/clone";
+import { unixTimeFromDate } from "../../../util/time";
 
 interface UIKey {
     key?: number | string
@@ -86,9 +88,9 @@ export const entryIdViewSlice = createSlice({
             today.setMilliseconds(0);
 
             state.original = makeEntryJson();
-            state.original.created = today.toISOString();
+            state.original.day = unixTimeFromDate(today);
             state.current = makeEntryJson();
-            state.current.created = state.original.created.slice(0);
+            state.current.day = cloneInteger(state.original.day);
             state.changes_made = true;
             state.existing_fields = {};
 
@@ -99,8 +101,8 @@ export const entryIdViewSlice = createSlice({
                 state.current.custom_field_entries[field.id] = custom_field_entry;
             }
         },
-        update_entry: (state, action: PayloadAction<string>) => {
-            state.current.created = action.payload;
+        update_entry: (state, action: PayloadAction<number>) => {
+            state.current.day = action.payload;
             state.changes_made = true;
         },
         

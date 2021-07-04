@@ -8,23 +8,35 @@ import { getURL } from "../../api"
 import { EntriesViewContext, EntriesViewState, entries_view_actions } from "./reducer"
 import { tags_actions } from "../../redux/slices/tags"
 import { useLoadFields } from "../../hooks/useLoadFields"
-import { unwrapResult } from "@reduxjs/toolkit"
-import { Location, noOriginUrlString, stringFromLocation, urlFromLocation } from "../../util/url"
+import { noOriginUrlString, stringFromLocation, urlFromLocation } from "../../util/url"
+import { dateFromUnixTime, unixTimeFromDate } from "../../util/time"
 
 function getFromDate(url: URL) {
     if (url.searchParams.has("from")) {
         try {
-            return new Date(url.searchParams.get("from"));
+            let num = parseInt(url.searchParams.get("from"), 10);
+
+            if (isNaN(num)) {
+                return null;
+            }
+
+            return dateFromUnixTime(num);
         } catch(err) {}
     }
 
     return null;
 }
 
-function getToDate(url: URL) {    
+function getToDate(url: URL) {
     if (url.searchParams.has("to")) {
         try {
-            return new Date(url.searchParams.get("to"));
+            let num = parseInt(url.searchParams.get("to"), 10);
+
+            if (isNaN(num)) {
+                return null;
+            }
+
+            return dateFromUnixTime(num);
         } catch(err) {}
     }
 
@@ -69,6 +81,10 @@ export function CommandBarView({
     });
 
     useEffect(() => {
+        if (entries_state.owner !== owner) {
+            loadEntries(owner, user_specific, {from: from_date, to: to_date});
+        }
+
         if (custom_fields_state.owner !== owner) {
             loadFields(owner, user_specific);
         }
@@ -79,18 +95,27 @@ export function CommandBarView({
     }, [owner]);
 
     useEffect(() => {
-        // ignore anything that is not an entries path
-        if (!location.pathname.endsWith("entries")) {
-            return;
+        const onPopState = (ev: PopStateEvent) => {
+            const location = document.location;
+            // ignore anything that is not an entries path
+            if (!location.pathname.endsWith("entries")) {
+                return;
+            }
+
+            let url = urlFromLocation(location);
+            let dates = getDates(url);
+
+            setFromDate(dates.from);
+            setToDate(dates.to);
+            loadEntries(owner, user_specific, {from: dates.from, to: dates.to});
+        };
+
+        window.addEventListener("popstate", onPopState);
+
+        return () => {
+            window.removeEventListener("popstate", onPopState);
         }
-
-        let url = urlFromLocation(location);
-        let dates = getDates(url);
-
-        setFromDate(dates.from);
-        setToDate(dates.to);
-        loadEntries(owner, user_specific, {from: dates.from, to: dates.to});
-    }, [location.key]);
+    }, []);
 
     const loading_state = custom_fields_state.loading || entries_state.loading || tags_state.loading;
     const owner_is_active_user = active_user_state.user.id === owner;
@@ -100,14 +125,14 @@ export function CommandBarView({
         let filename = [];
 
         if (from_date != null) {
-            url.searchParams.append("from", from_date.toISOString());
+            url.searchParams.append("from", unixTimeFromDate(from_date).toString());
             filename.push(from_date.toDateString());
         } else {
             filename.push("");
         }
 
         if (to_date != null) {
-            url.searchParams.append("to", to_date.toISOString());
+            url.searchParams.append("to", unixTimeFromDate(to_date).toString());
             filename.push(to_date.toDateString());
         } else {
             filename.push("");
@@ -126,14 +151,15 @@ export function CommandBarView({
                 let url = new URL(location.pathname, window.location.origin);
 
                 if (from_date != null) {
-                    url.searchParams.append("from", from_date.toISOString());
+                    url.searchParams.append("from", unixTimeFromDate(from_date).toString());
                 }
 
                 if (to_date != null) {
-                    url.searchParams.append("to", to_date.toISOString());
+                    url.searchParams.append("to", unixTimeFromDate(to_date).toString());
                 }
 
                 history.push(noOriginUrlString(url));
+                loadEntries(owner, user_specific, {from: from_date, to: to_date});
             }
         }
     ];
@@ -143,7 +169,11 @@ export function CommandBarView({
             key: "new_item",
             text: "New Entry",
             iconProps: {iconName: "Add"},
-            onClick: () => history.push("/entries/0")
+            onClick: () => {
+                history.push(
+                    `/entries/0?prev=${stringFromLocation(window.location, {encode: true, decode_search: true})}`
+                );
+            }
         });
 
         download_options.push({

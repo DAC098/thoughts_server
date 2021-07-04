@@ -1,5 +1,5 @@
-import { getURL } from ".";
 import { json } from "../request"
+import { urlFromString } from "../util/url";
 import { UserDataJson, UserInfoJson } from "./types"
 
 interface UserSearchQuery {
@@ -9,7 +9,7 @@ interface UserSearchQuery {
 }
 
 export async function get(search: UserSearchQuery = {}) {
-    let url = getURL("/admin/users");
+    let url = urlFromString("/admin/users");
 
     if (search.level != null) {
         url.searchParams.append("level", search.level.toString());
@@ -29,7 +29,7 @@ export async function get(search: UserSearchQuery = {}) {
 }
 
 export async function post(post) {
-    let {body} = await json.post<UserInfoJson>("/admin/users", post);
+    let {body} = await json.post<UserInfoJson>(urlFromString("/admin/users"), post);
 
     return body.data;
 }
