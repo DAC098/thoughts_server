@@ -21,10 +21,10 @@ impl AppError {
 
     pub fn get_code(&self) -> i32 {
         match &*self {
-            AppError::CliError(_) => 1,
-            AppError::SslError(_) => 1,
-            AppError::ConfigError(_) => 1,
-            AppError::IoError(_) => 1,
+            AppError::CliError(_) |
+            AppError::SslError(_) |
+            AppError::ConfigError(_) |
+            AppError::IoError(_) |
             AppError::DatabaseError(_) => 1,
         }
     }

@@ -2,7 +2,7 @@ use std::fmt::{Write};
 use std::collections::{HashSet};
 
 use postgres::{Client, Transaction, NoTls};
-use chrono::{DateTime, Local, Utc, Duration, Datelike};
+use chrono::{DateTime, Local, Utc, Duration};
 use rand::{Rng, SeedableRng};
 use rand::rngs::{SmallRng};
 use lipsum;
@@ -51,8 +51,9 @@ fn make_test_data() -> Result {
         println!("no admin user found");
         transaction.rollback()?;
     } else {
+        let total_days: i64 = 365 * 10;
         let mut small_rng = SmallRng::from_entropy();
-        let start_date = Local::today().and_hms(0, 0, 0) - Duration::days(2920);
+        let start_date = Local::today().and_hms(0, 0, 0) - Duration::days(total_days);
         let owner = search[0].get(0);
 
         delete_current_data(&mut transaction, &owner)?;
@@ -60,7 +61,7 @@ fn make_test_data() -> Result {
         let tags = make_tags(&mut transaction, &mut small_rng, &owner)?;
         let fields = make_custom_fields(&mut transaction, &owner)?;
 
-        make_entries(&mut transaction, &mut small_rng, &owner, 2920, &start_date, &tags, &fields)?;
+        make_entries(&mut transaction, &mut small_rng, &owner, total_days, &start_date, &tags, &fields)?;
 
         transaction.commit()?;
     }
@@ -91,6 +92,14 @@ fn delete_current_data(
     conn.execute(
         r#"
         delete from entries2tags where entry in (
+            select id from entries where owner = $1
+        )
+        "#, 
+        &[&owner]
+    )?;
+    conn.execute(
+        r#"
+        delete from entry_markers where entry in (
             select id from entries where owner = $1
         )
         "#, 
@@ -312,11 +321,13 @@ fn make_tags(conn: &mut Transaction, rng: &mut SmallRng, owner: &i32) -> RtnResu
         "happy", "sad", "party", 
         "bday", "appointment", "hike", 
         "read", "board_games", "video_games",
-        "sex", "pub", "family"
+        "sex", "pub", "family", 
+        "night_out", "date",
+        "movies", "theatre", "concert"
     );
     let mut rtn: Vec<i32> = Vec::with_capacity(words.len());
 
-    // make 10 random tags
+    // make tags with random colors
     for word in words {
         let mut values = [0u8; 3];
         rng.fill(&mut values);

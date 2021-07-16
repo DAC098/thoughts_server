@@ -1,5 +1,4 @@
 use actix_web::{http, HttpResponse};
-use actix_web::dev::{HttpResponseBuilder};
 use actix_web::http::header::{IntoHeaderPair};
 use serde::{Serialize};
 
@@ -70,13 +69,6 @@ where
     MessageDataJSON::build(m, None)
 }
 
-pub fn build_json_response(status: http::StatusCode) -> HttpResponseBuilder {
-    let mut builder = HttpResponse::build(status);
-    builder.insert_header((http::header::CONTENT_TYPE, "application/json"));
-
-    return builder;
-}
-
 pub fn respond_json<T>(status: http::StatusCode, data: T) -> HttpResponse
 where
     T: Serialize 
@@ -86,6 +78,7 @@ where
     builder.json(data)
 }
 
+#[allow(dead_code)]
 pub fn respond_json_headers<T, H>(status: http::StatusCode, data: T, headers: Vec<H>) -> HttpResponse
 where
     T: Serialize,
