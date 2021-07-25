@@ -1,6 +1,7 @@
 use tokio_postgres::{GenericClient};
 
 use crate::response::error;
+use crate::request::{from};
 
 pub async fn is_owner_for_entry(
     conn: &impl GenericClient,
@@ -98,5 +99,15 @@ pub async fn permission_to_read(
         Err(error::ResponseError::PermissionDenied(
             "no ability was found for the requested user".to_owned()
         ))
+    }
+}
+
+pub fn is_admin(initiator: &from::Initiator) -> error::Result<()> {
+    if initiator.user.level != 1 {
+        Err(error::ResponseError::PermissionDenied(
+            format!("you are not an administrator")
+        ))
+    } else {
+        Ok(())
     }
 }

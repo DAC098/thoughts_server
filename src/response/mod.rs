@@ -65,6 +65,17 @@ pub fn redirect_to_path(path: &str) -> HttpResponse {
     HttpResponse::Found().insert_header((http::header::LOCATION, path)).finish()
 }
 
+pub fn redirect_to_login(req: &HttpRequest) -> HttpResponse {
+    let redirect_path = format!("/auth/login?jump_to={}", urlencoding::encode(
+        if let Some(path_and_query) = req.uri().path_and_query() {
+            path_and_query.as_str()
+        } else {
+            req.uri().path()
+        }
+    ));
+    HttpResponse::Found().insert_header((http::header::LOCATION, redirect_path.as_str())).finish()
+}
+
 #[allow(dead_code)]
 pub async fn okay() -> impl Responder {
     HttpResponse::Ok().body("okay")

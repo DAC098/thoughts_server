@@ -8,6 +8,7 @@ use crate::request::from;
 use crate::response;
 use crate::state;
 use crate::db;
+use crate::security::{assert};
 
 use response::error;
 
@@ -56,61 +57,57 @@ pub async fn handle_get(
     } else {
         let initiator = initiator_opt.unwrap();
 
-        if initiator.user.level != 1 {
-            Err(error::ResponseError::PermissionDenied(
-                format!("you do not have permission to view this user information")
-            ))
+        assert::is_admin(&initiator)?;
+
+        let result = conn.query(
+            "select id, username, level, full_name, email from users where id = $1",
+            &[&path.user_id]
+        ).await?;
+
+        if result.len() == 0 {
+            Err(error::ResponseError::UserIDNotFound(path.user_id))
         } else {
-            let result = conn.query(
-                "select id, username, level, full_name, email from users where id = $1",
-                &[&path.user_id]
-            ).await?;
+            let user_id: i32 = result[0].get(0);
+            let user_level: i32 = result[0].get(2);
+            let query = format!(
+                r#"
+                select users.id,
+                       users.username,
+                       users.full_name,
+                       user_access.ability
+                from users
+                join user_access on users.id = user_access.{}
+                where user_access.{} = $1
+                "#, 
+                if user_level == 20 {"allowed_for"} else {"owner"},
+                if user_level == 20 {"owner"} else {"allowed_for"}
+            );
+            let list_result = conn.query(query.as_str(), &[&user_id]).await?;
+            let mut user_access: Vec<UserAccessInfoJson> = Vec::with_capacity(list_result.len());
 
-            if result.len() == 0 {
-                Err(error::ResponseError::UserIDNotFound(path.user_id))
-            } else {
-                let user_id: i32 = result[0].get(0);
-                let user_level: i32 = result[0].get(2);
-                let query = format!(
-                    r#"
-                    select users.id,
-                           users.username,
-                           users.full_name,
-                           user_access.ability
-                    from users
-                    join user_access on users.id = user_access.{}
-                    where user_access.{} = $1
-                    "#, 
-                    if user_level == 20 {"allowed_for"} else {"owner"},
-                    if user_level == 20 {"owner"} else {"allowed_for"}
-                );
-                let list_result = conn.query(query.as_str(), &[&user_id]).await?;
-                let mut user_access: Vec<UserAccessInfoJson> = Vec::with_capacity(list_result.len());
-
-                for row in list_result {
-                    user_access.push(UserAccessInfoJson {
-                        id: row.get(0),
-                        username: row.get(1),
-                        full_name: row.get(2),
-                        ability: row.get(3)
-                    });
-                }
-
-                Ok(response::json::respond_json(
-                    http::StatusCode::OK,
-                    response::json::MessageDataJSON::build(
-                        "successful",
-                        UserInfoJson {
-                            id: result[0].get(0),
-                            username: result[0].get(1),
-                            level: result[0].get(2),
-                            full_name: result[0].get(3),
-                            email: result[0].get(4),
-                            user_access
-                        }
-                    )
-                ))
+            for row in list_result {
+                user_access.push(UserAccessInfoJson {
+                    id: row.get(0),
+                    username: row.get(1),
+                    full_name: row.get(2),
+                    ability: row.get(3)
+                });
             }
+
+            Ok(response::json::respond_json(
+                http::StatusCode::OK,
+                response::json::MessageDataJSON::build(
+                    "successful",
+                    UserInfoJson {
+                        id: result[0].get(0),
+                        username: result[0].get(1),
+                        level: result[0].get(2),
+                        full_name: result[0].get(3),
+                        email: result[0].get(4),
+                        user_access
+                    }
+                )
+            ))
         }
     }
 }
@@ -135,11 +132,7 @@ pub async fn handle_put(
     posted: web::Json<PutUserJson>,
     path: web::Path<UserIdPath>,
 ) -> error::Result<impl Responder> {
-    if initiator.user.level != 1 {
-        return Err(error::ResponseError::PermissionDenied(
-            format!("you do not have permission to alter another users information")
-        ));
-    }
+    assert::is_admin(&initiator)?;
 
     let conn = &mut *app.get_conn().await?;
     let transaction = conn.transaction().await?;
@@ -279,6 +272,7 @@ pub async fn handle_delete(
         ));
     }
 
+    let app = app.into_inner();
     let conn = &mut *app.get_conn().await?;
     let check = conn.query(
         "select id from users where id = $1",
@@ -315,6 +309,11 @@ pub async fn handle_delete(
         &[&path.user_id]
     ).await?;
 
+    let _entry_markers = transaction.execute(
+        "delete from entry_markers where entry in (select id from entries where owner = $1)",
+        &[&path.user_id]
+    ).await?;
+
     let _entries = transaction.execute(
         "delete from entries where owner = $1",
         &[&path.user_id]
@@ -339,9 +338,6 @@ pub async fn handle_delete(
 
     Ok(response::json::respond_json(
         http::StatusCode::OK,
-        response::json::MessageDataJSON::<Option<()>>::build(
-            "successful",
-            None
-        )
+        response::json::only_message("successful")
     ))
 }

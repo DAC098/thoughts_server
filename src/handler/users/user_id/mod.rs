@@ -1,10 +1,6 @@
 use actix_web::{web, http, HttpRequest, Responder};
 use actix_session::{Session};
 
-pub mod entries;
-pub mod custom_fields;
-pub mod tags;
-
 use crate::request::from;
 use crate::response;
 use crate::state;

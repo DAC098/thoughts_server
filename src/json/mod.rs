@@ -28,7 +28,7 @@ pub struct TextEntryJson {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct EntryMarker {
+pub struct EntryMarkerJson {
     pub id: i32,
     pub title: String,
     pub comment: Option<String>
@@ -41,7 +41,7 @@ pub struct EntryJson {
     pub day: chrono::DateTime<chrono::Utc>,
     pub owner: i32,
     pub tags: Vec<i32>,
-    pub markers: Vec<EntryMarker>,
+    pub markers: Vec<EntryMarkerJson>,
     pub custom_field_entries: HashMap<i32, CustomFieldEntryJson>,
     pub text_entries: Vec<TextEntryJson>
 }
@@ -62,6 +62,14 @@ pub struct CustomFieldJson {
     pub owner: i32,
     pub order: i32,
     pub issued_by: Option<IssuedByJson>
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct GlobalCustomFieldJson {
+    pub id: i32,
+    pub name: String,
+    pub comment: Option<String>,
+    pub config: custom_fields::CustomFieldType,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -87,21 +95,21 @@ pub async fn search_custom_fields(
     owner: i32,
 ) -> error::Result<Vec<CustomFieldJson>> {
     let rows = conn.query(
-        r#"
-        select custom_fields.id as id,
-               custom_fields.name as name, 
-               custom_fields.config as config,
-               custom_fields.comment as comment,
-               custom_fields."owner" as owner,
-               custom_fields.order as order,
-               custom_fields.issued_by as issued_by,
-               users.username as username,
-               users.full_name as full_name
-        from custom_fields
-        left join users on custom_fields.issued_by = users.id
-        where owner = $1
-        order by custom_fields."order", custom_fields.name
-        "#,
+        "\
+        select custom_fields.id as id, \
+               custom_fields.name as name, \
+               custom_fields.config as config, \
+               custom_fields.comment as comment, \
+               custom_fields.\"owner\" as owner, \
+               custom_fields.order as order, \
+               custom_fields.issued_by as issued_by, \
+               users.username as username, \
+               users.full_name as full_name \
+        from custom_fields \
+        left join users on custom_fields.issued_by = users.id \
+        where owner = $1 \
+        order by custom_fields.\"order\", custom_fields.name
+        ",
         &[&owner]
     ).await?;
     let mut rtn = Vec::<CustomFieldJson>::with_capacity(rows.len());
@@ -133,20 +141,20 @@ pub async fn search_custom_field(
     field_id: i32
 ) -> error::Result<Option<CustomFieldJson>> {
     let rows = conn.query(
-        r#"
-        select custom_fields.id as id,
-               custom_fields.name as name, 
-               custom_fields.config as config,
-               custom_fields.comment as comment,
-               custom_fields.owner as owner,
-               custom_fields."order" as order,
-               custom_fields.issued_by as issued_by,
-               users.username as username,
-               users.full_name as full_name
-        from custom_fields
-        left join users on custom_fields.issued_by = users.id
+        "\
+        select custom_fields.id as id, \
+               custom_fields.name as name, \
+               custom_fields.config as config, \
+               custom_fields.comment as comment, \
+               custom_fields.owner as owner, \
+               custom_fields.\"order\" as order, \
+               custom_fields.issued_by as issued_by, \
+               users.username as username, \
+               users.full_name as full_name \
+        from custom_fields \
+        left join users on custom_fields.issued_by = users.id \
         where custom_fields.id = $1
-        "#,
+        ",
         &[&field_id]
     ).await?;
 
@@ -176,13 +184,13 @@ fn search_text_entries_query_slice<'a>(
     entry_ids: &'a Vec<i32>,
     is_private: &'a Option<bool>
 ) -> error::Result<(String, QueryParams<'a>)> {
-    let mut query_str = r#"
-    select text_entries.id as id,
-           text_entries.thought as thought,
-           text_entries.entry as entry,
-           text_entries.private as private
-    from text_entries
-    where "#.to_owned();
+    let mut query_str = "\
+    select text_entries.id as id, \
+           text_entries.thought as thought, \
+           text_entries.entry as entry, \
+           text_entries.private as private \
+    from text_entries \
+    where ".to_owned();
     let mut query_slice: QueryParams<'a> = QueryParams::new();
 
     if entry_ids.len() == 1 {
@@ -198,7 +206,7 @@ fn search_text_entries_query_slice<'a>(
         query_slice.push(private);
     }
 
-    write!(&mut query_str, "\n    order by text_entries.entry asc")?;
+    write!(&mut query_str, " order by text_entries.entry asc")?;
 
     Ok((query_str, query_slice))
 }
@@ -206,15 +214,15 @@ fn search_text_entries_query_slice<'a>(
 fn search_custom_field_entries_query_slice<'a>(
     entry_ids: &'a Vec<i32>,
 ) -> error::Result<(String, QueryParams<'a>)> {
-    let mut query_str = r#"
-    select custom_fields.id as field,
-           custom_fields.name as name,
-           custom_field_entries.value as value,
-           custom_field_entries.comment as comment,
-           custom_field_entries.entry as entry
-    from custom_field_entries
-    join custom_fields on custom_field_entries.field = custom_fields.id
-    where "#.to_owned();
+    let mut query_str = "\
+    select custom_fields.id as field, \
+           custom_fields.name as name, \
+           custom_field_entries.value as value, \
+           custom_field_entries.comment as comment, \
+           custom_field_entries.entry as entry \
+    from custom_field_entries \
+    join custom_fields on custom_field_entries.field = custom_fields.id \
+    where ".to_owned();
     let mut query_slice: QueryParams = QueryParams::with_capacity(1);
 
     if entry_ids.len() == 1 {
@@ -225,7 +233,7 @@ fn search_custom_field_entries_query_slice<'a>(
         query_slice.push(entry_ids);
     }
 
-    write!(&mut query_str, "\n    order by custom_field_entries.entry asc, custom_fields.\"order\", custom_fields.name")?;
+    write!(&mut query_str, " order by custom_field_entries.entry asc, custom_fields.\"order\", custom_fields.name")?;
 
     Ok((query_str, query_slice))
 }
@@ -321,14 +329,14 @@ pub async fn search_tag_entries(
 pub async fn search_entry_markers(
     conn: &impl GenericClient,
     entry_id: &i32,
-) -> error::Result<Vec<EntryMarker>> {
+) -> error::Result<Vec<EntryMarkerJson>> {
     let entry_ids: Vec<i32> = vec!(*entry_id);
     let (query_str, query_slice) = search_entry_markers_query_slice(&entry_ids)?;
 
     Ok(conn.query(query_str.as_str(), query_slice.slice())
         .await?
         .iter()
-        .map(|row| EntryMarker {
+        .map(|row| EntryMarkerJson {
             id: row.get(0),
             title: row.get(1),
             comment: row.get(2)
@@ -498,7 +506,7 @@ pub async fn search_entries(
 
             conn.query(query_str.as_str(), query_slice.slice()).await?
         };
-        let mut current_set: Vec<EntryMarker> = vec!();
+        let mut current_set: Vec<EntryMarkerJson> = vec!();
         let mut current_entry_id: i32 = 0;
 
         for row in entry_markers {
@@ -512,7 +520,7 @@ pub async fn search_entries(
                 current_entry_id = entry_id;
             }
 
-            current_set.push(EntryMarker {
+            current_set.push(EntryMarkerJson {
                 id: row.get(0),
                 title: row.get(1),
                 comment: row.get(2)

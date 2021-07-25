@@ -8,13 +8,20 @@ use crate::request::from;
 use crate::response;
 use crate::state;
 use crate::db;
+use crate::security;
 
 use response::error;
+
+#[derive(Deserialize)]
+pub struct TagsPath {
+    user_id: Option<i32>
+}
 
 pub async fn handle_get(
     req: HttpRequest,
     session: Session,
-    app: web::Data<state::AppState>
+    app: web::Data<state::AppState>,
+    path: web::Path<TagsPath>,
 ) -> error::Result<impl Responder> {
     let accept_html = response::check_if_html_req(&req, true)?;
     let conn = &*app.get_conn().await?;
@@ -30,12 +37,20 @@ pub async fn handle_get(
         Err(error::ResponseError::Session)
     } else {
         let initiator = initiator_opt.unwrap();
+        let owner: i32;
+
+        if let Some(user_id) = path.user_id {
+            security::assert::permission_to_read(conn, initiator.user.id, user_id).await?;
+            owner = user_id;
+        } else {
+            owner = initiator.user.id;
+        }
 
         Ok(response::json::respond_json(
             http::StatusCode::OK,
             response::json::MessageDataJSON::build(
                 "successful",
-                db::tags::find_via_owner(conn, initiator.user.id).await?
+                db::tags::find_via_owner(conn, owner).await?
             )
         ))
     }

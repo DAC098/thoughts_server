@@ -13,6 +13,7 @@ use crate::state;
 use crate::request::{from, url_query};
 use crate::json;
 use crate::getters;
+use crate::security;
 
 use response::error as app_error;
 
@@ -45,6 +46,11 @@ pub struct PostEntryJson {
     markers: Option<Vec<PostEntryMarker>>
 }
 
+#[derive(Deserialize)]
+pub struct EntriesPath {
+    user_id: Option<i32>
+}
+
 /**
  * GET /entries
  * returns the root html if requesting html. otherwise will send back a list of
@@ -55,6 +61,7 @@ pub async fn handle_get(
     session: Session,
     app: web::Data<state::AppState>,
     info: web::Query<url_query::QueryEntries>,
+    path: web::Path<EntriesPath>,
 ) -> app_error::Result<impl Responder> {
     let info = info.into_inner();
     let conn = &*app.get_conn().await?;
@@ -65,23 +72,34 @@ pub async fn handle_get(
         if initiator_opt.is_some() {
             Ok(response::respond_index_html(Some(initiator_opt.unwrap().user)))
         } else {
-            Ok(response::redirect_to_path("/auth/login?jump_to=/entries"))
+            Ok(response::redirect_to_login(&req))
         }
     } else if initiator_opt.is_none() {
         Err(app_error::ResponseError::Session)
     } else {
         let initiator = initiator_opt.unwrap();
+        let is_private: Option<bool>;
+        let owner: i32;
+
+        if let Some(user_id) = path.user_id {
+            security::assert::permission_to_read(conn, initiator.user.get_id(), user_id).await?;
+            is_private = Some(false);
+            owner = user_id;
+        } else {
+            is_private = None;
+            owner = initiator.user.get_id();
+        }
 
         Ok(response::json::respond_json(
             http::StatusCode::OK, 
             response::json::MessageDataJSON::build(
                 "successful",
                 json::search_entries(conn, json::SearchEntriesOptions {
-                    owner: initiator.user.get_id(),
+                    owner,
                     from: info.get_from()?,
                     to: info.get_to()?,
                     tags: info.get_tags(),
-                    is_private: None
+                    is_private
                 }).await?
             )
         ))
@@ -178,19 +196,19 @@ pub async fn handle_post(
         }
     }
 
-    let mut entry_markers: Vec<json::EntryMarker> = vec!();
+    let mut entry_markers: Vec<json::EntryMarkerJson> = vec!();
 
     if let Some(markers) = posted.markers {
         for marker in markers {
             let result = transaction.query_one(
                 r#"
-                insert into entry_markers (title, comment, entry) values
-                ($1, $2, $3)
+                insert into entry_markers (title, comment, entry) values \
+                ($1, $2, $3) \
                 returning id"#,
                 &[&marker.title, &marker.comment, &entry_id]
             ).await?;
 
-            entry_markers.push(json::EntryMarker {
+            entry_markers.push(json::EntryMarkerJson {
                 id: result.get(0),
                 title: marker.title,
                 comment: marker.comment

@@ -13,6 +13,7 @@ use response::error::{Result, ResponseError};
 
 #[derive(Deserialize)]
 pub struct CustomFieldPath {
+    user_id: Option<i32>,
     field_id: i32
 }
 
@@ -37,9 +38,17 @@ pub async fn handle_get(
         Err(ResponseError::Session)
     } else {
         let initiator = initiator_opt.unwrap();
+        let owner: i32;
+
+        if let Some(user_id) = path.user_id {
+            security::assert::permission_to_read(conn, initiator.user.get_id(), user_id).await?;
+            owner = user_id;
+        } else {
+            owner = initiator.user.get_id();
+        }
 
         if let Some(field) = json::search_custom_field(conn, path.field_id).await? {
-            if field.owner == initiator.user.get_id() {
+            if field.owner == owner {
                 Ok(response::json::respond_json(
                     http::StatusCode::OK,
                     response::json::MessageDataJSON::build(
@@ -49,7 +58,7 @@ pub async fn handle_get(
                 ))
             } else {
                 Err(ResponseError::PermissionDenied(
-                    format!("you do not have permission to view this users mood field as you are not the owner")
+                    format!("custom field owner mis-match. requested custom field is not owned by {}", owner)
                 ))
             }
         } else {

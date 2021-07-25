@@ -49,6 +49,7 @@ pub struct PutEntryJson {
 
 #[derive(Deserialize)]
 pub struct EntryPath {
+    user_id: Option<i32>,
     entry_id: i32
 }
 
@@ -71,16 +72,26 @@ pub async fn handle_get(
         if initiator_opt.is_some() {
             Ok(response::respond_index_html(Some(initiator_opt.unwrap().user)))
         } else {
-            let redirect = format!("/auth/login?jump_to=/entries/{}", path.entry_id);
-            Ok(response::redirect_to_path(redirect.as_str()))
+            Ok(response::redirect_to_login(&req))
         }
     } else if initiator_opt.is_none() {
         Err(app_error::ResponseError::Session)
     } else {
         let initiator = initiator_opt.unwrap();
+        let is_private: Option<bool>;
+        let owner: i32;
 
-        if let Some(entry) = json::search_entry(conn, path.entry_id, None).await? {
-            if entry.owner == initiator.user.get_id() {
+        if let Some(user_id) = path.user_id {
+            security::assert::permission_to_read(conn, initiator.user.get_id(), user_id).await?;
+            is_private = Some(false);
+            owner = user_id;
+        } else {
+            is_private = None;
+            owner = initiator.user.get_id();
+        }
+
+        if let Some(entry) = json::search_entry(conn, path.entry_id, is_private).await? {
+            if entry.owner == owner {
                 Ok(response::json::respond_json(
                     http::StatusCode::OK, 
                     response::json::MessageDataJSON::build(
@@ -90,7 +101,7 @@ pub async fn handle_get(
                 ))
             } else {
                 Err(app_error::ResponseError::PermissionDenied(
-                    format!("you do not have permission to view this users entry as you are not the owner")
+                    format!("entry owner mis-match. requested entry is not owned by {}", owner)
                 ))
             }
         } else {
@@ -332,7 +343,7 @@ pub async fn handle_put(
                 ).await?;
 
                 ids.push(id);
-                rtn.markers.push(json::EntryMarker {
+                rtn.markers.push(json::EntryMarkerJson {
                     id: id,
                     title: marker.title,
                     comment: marker.comment
@@ -348,7 +359,7 @@ pub async fn handle_put(
                 ).await?;
 
                 ids.push(result.get(0));
-                rtn.markers.push(json::EntryMarker {
+                rtn.markers.push(json::EntryMarkerJson {
                     id: result.get(0),
                     title: marker.title,
                     comment: marker.comment
