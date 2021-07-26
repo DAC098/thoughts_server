@@ -3,7 +3,7 @@ export function noOriginUrlString(url: URL | string) {
         url = new URL(url);
     }
 
-    return `${url.password}${url.search}${url.hash}`;
+    return `${url.pathname}${url.search}${url.hash}`;
 } 
 
 export interface Options {
