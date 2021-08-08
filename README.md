@@ -54,9 +54,9 @@ This will require the OpenSSL libraries and header files. The [docs](https://doc
 As stated above this has currently only been built on Ubuntu Linux. Once you have the OpenSSL requirements run
 ```bash
 # development
-$ cargo build --bins
+$ cargo build --workspace --bins
 # release
-$ cargo build --bins --release
+$ cargo build --workspace --bins --release
 ```
 
 The server should be ready to go by this point

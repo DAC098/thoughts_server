@@ -103,7 +103,7 @@ function npmWebpack(type) {
 
 function cargoBuild(type) {
     return new Promise((resolve, reject) => {
-        let arg_list = ["build", "--bins"];
+        let arg_list = ["build", "--workspace", "--bins"];
 
         switch (type) {
             case "release":
