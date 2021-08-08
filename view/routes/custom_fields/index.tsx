@@ -2,7 +2,7 @@ import { CommandBar, DetailsList, ScrollablePane, ShimmeredDetailsList, Stack, S
 import React, { useEffect } from "react"
 import { useHistory, useParams } from "react-router";
 import { useAppDispatch, useAppSelector } from "../../hooks/useApp";
-import { CustomFieldJson } from "../../api/types";
+import { CustomField } from "../../api/types";
 import { custom_field_actions } from "../../redux/slices/custom_fields"
 import { Link } from "react-router-dom";
 import { useOwner } from "../../hooks/useOwner";
@@ -74,7 +74,7 @@ const CustomFieldsView = ({user_specific = false}: CustomFieldsViewProps) => {
                         name: "Name",
                         minWidth: 80,
                         maxWidth: 120,
-                        onRender: (item: CustomFieldJson) => {
+                        onRender: (item: CustomField) => {
                             return <Link to={{
                                 pathname: `${user_specific ? `/users/${params.user_id}` : ""}/custom_fields/${item.id}`,
                                 state: {field: item}
@@ -88,7 +88,7 @@ const CustomFieldsView = ({user_specific = false}: CustomFieldsViewProps) => {
                         name: "Order",
                         minWidth: 40,
                         maxWidth: 60,
-                        onRender: (item: CustomFieldJson) => {
+                        onRender: (item: CustomField) => {
                             return item.order;
                         }
                     },
@@ -97,7 +97,7 @@ const CustomFieldsView = ({user_specific = false}: CustomFieldsViewProps) => {
                         name: "Type",
                         minWidth: 80,
                         maxWidth: 120,
-                        onRender: (item: CustomFieldJson) => {
+                        onRender: (item: CustomField) => {
                             return item.config.type
                         }
                     },

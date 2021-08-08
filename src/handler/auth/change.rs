@@ -22,7 +22,7 @@ pub async fn handle_post(
     let conn = &mut app.get_conn().await?;
     let result = conn.query_one(
         "select id, hash from users where id = $1",
-        &[&initiator.user.get_id()]
+        &[&initiator.user.id]
     ).await?;
 
     security::verify_password(result.get(1), &posted.current_password)?;
@@ -31,7 +31,7 @@ pub async fn handle_post(
     let transaction = conn.transaction().await?;
     let _insert_result = transaction.execute(
         "update users set hash = $1 where id = $2",
-        &[&hash, &initiator.user.get_id()]
+        &[&hash, &initiator.user.id]
     ).await?;
 
     transaction.commit().await?;

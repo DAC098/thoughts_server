@@ -4,8 +4,8 @@ use actix_session::{UserSession, Session};
 use tokio_postgres::{Client};
 use futures::Future;
 
-use crate::db::users;
-use crate::db::user_sessions;
+use tlib::db::{users};
+
 use crate::state;
 use crate::response::error;
 
@@ -25,7 +25,7 @@ pub async fn get_initiator(
     session: &Session,
 ) -> error::Result<Option<Initiator>> {
     if let Some(uuid_token) = get_session_token(session)? {
-        let owner_opt = user_sessions::find_token_user(conn, uuid_token).await?;
+        let owner_opt = users::find_from_session_token(conn, uuid_token).await?;
 
         match owner_opt {
             Some(owner) => Ok(Some(Initiator {user: owner})),

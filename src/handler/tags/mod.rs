@@ -2,12 +2,13 @@ use actix_web::{web, http, HttpRequest, Responder};
 use actix_session::{Session};
 use serde::{Deserialize};
 
+use tlib::{db};
+
 pub mod tag_id;
 
 use crate::request::from;
 use crate::response;
 use crate::state;
-use crate::db;
 use crate::security;
 
 use response::error;
@@ -50,7 +51,7 @@ pub async fn handle_get(
             http::StatusCode::OK,
             response::json::MessageDataJSON::build(
                 "successful",
-                db::tags::find_via_owner(conn, owner).await?
+                db::tags::find_from_owner(conn, owner).await?
             )
         ))
     }

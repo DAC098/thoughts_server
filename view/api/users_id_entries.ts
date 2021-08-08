@@ -1,4 +1,4 @@
-import { EntryJson, GetEntriesQuery } from "./types";
+import { ComposedEntry, GetEntriesQuery } from "./types";
 import { json } from "../request";
 import { unixTimeFromDate } from "../util/time";
 import { urlFromString } from "../util/url";
@@ -14,7 +14,7 @@ export async function get(user: number | string, query: GetEntriesQuery = {}) {
         url.searchParams.append("to", unixTimeFromDate(query.to).toString());
     }
 
-    let {body} = await json.get<EntryJson[]>(url);
+    let {body} = await json.get<ComposedEntry[]>(url);
 
     return body.data;
 }

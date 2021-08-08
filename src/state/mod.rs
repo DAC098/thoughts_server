@@ -4,7 +4,8 @@ use lettre::message::{Mailbox};
 use lettre::transport::smtp::{SmtpTransport};
 use lettre::transport::smtp::authentication::{Credentials};
 
-use crate::config;
+use tlib::{config};
+
 use crate::email;
 use crate::response::error;
 
@@ -17,8 +18,8 @@ pub struct ServerInfoState {
 
 impl ServerInfoState {
 
-    pub fn new(conf: config::ServerInfoConfig) -> Self {
-        Self {
+    pub fn new(conf: config::ServerInfoConfig) -> ServerInfoState {
+        ServerInfoState {
             secure: conf.secure,
             origin: conf.origin,
             name: conf.name
@@ -99,15 +100,19 @@ impl AppState {
         info_config: config::ServerInfoConfig
     ) -> AppState {
         AppState {
-            pool: pool.clone(),
+            pool,
             email: EmailState::new(email_config),
             info: ServerInfoState::new(info_config)
         }
+    }
+
+    pub fn get_pool(&self) -> &Pool<PostgresConnectionManager<NoTls>> {
+        &self.pool
     }
 
     pub async fn get_conn(&self) -> error::Result<PooledConnection<'_, PostgresConnectionManager<NoTls>>> {
         self.pool.get().await.map_err(
             |e| error::ResponseError::BB8Error(e)
         )
-    }
+    } 
 }

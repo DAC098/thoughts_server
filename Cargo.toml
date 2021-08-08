@@ -3,21 +3,15 @@ name = "thoughts_server"
 version = "1.0.0"
 authors = ["DAC098 <dac098Git@gmail.com>"]
 edition = "2018"
-default-run = "server"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[[bin]]
-name = "make_admin"
-path = "src/make_admin.rs"
-
-[[bin]]
-name = "server"
-path = "src/server.rs"
-
-[[bin]]
-name = "make_test_data"
-path = "src/make_test_data.rs"
+[workspace]
+members = [
+    "make_user",
+    "make_test_data",
+    "tlib",
+]
 
 [dependencies]
 lipsum = { version = "0.8.0" }
@@ -54,3 +48,5 @@ serde_json = "1.0"
 serde_yaml = "0.8"
 log = "0"
 env_logger = "0"
+
+tlib = { path = "./tlib" }

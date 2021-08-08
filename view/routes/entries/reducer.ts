@@ -1,16 +1,16 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit"
 import { createContext, Dispatch, Reducer } from "react";
-import { CustomFieldJson } from "../../api/types";
+import { CustomField } from "../../api/types";
 import { SliceActionTypes } from "../../redux/types";
 
 export interface EntriesViewState {
     view_graph: boolean
 
     visible_fields: {[key: string]: boolean}
-    selected_field: CustomFieldJson
+    selected_field: CustomField
 }
 
-export function initialState(custom_fields: CustomFieldJson[]): EntriesViewState {
+export function initialState(custom_fields: CustomField[]): EntriesViewState {
     let visible_fields = {};
     let selected_field = null;
 
@@ -40,7 +40,7 @@ export const entriesViewSlice = createSlice({
             state.view_graph = !state.view_graph;
         },
 
-        set_fields: (state, action: PayloadAction<CustomFieldJson[]>) => {
+        set_fields: (state, action: PayloadAction<CustomField[]>) => {
             state.visible_fields = {};
             state.selected_field = null;
 
@@ -56,7 +56,7 @@ export const entriesViewSlice = createSlice({
             state.visible_fields[action.payload] = !state.visible_fields[action.payload];
         },
 
-        set_selected_field: (state, action: PayloadAction<CustomFieldJson>) => {
+        set_selected_field: (state, action: PayloadAction<CustomField>) => {
             state.selected_field = action.payload;
         }
     }

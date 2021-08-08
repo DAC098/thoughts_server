@@ -2,10 +2,11 @@ use actix_web::{web, http, HttpRequest, Responder};
 use actix_session::{Session};
 use serde::{Deserialize};
 
+use tlib::{db};
+
 use crate::request::from;
 use crate::response;
 use crate::state;
-use crate::db;
 use crate::security;
 
 use response::error;
@@ -37,7 +38,7 @@ pub async fn handle_get(
     } else {
         let initiator = initiator_opt.unwrap();
 
-        if let Some(tag) = db::tags::find_via_id(conn, path.tag_id).await? {
+        if let Some(tag) = db::tags::find_from_id(conn, path.tag_id).await? {
             if tag.owner != initiator.user.id {
                 Err(error::ResponseError::PermissionDenied(
                     format!("you do not have permission to view this tag. id: {}", tag.id)

@@ -1,7 +1,7 @@
 import React, { useMemo } from "react"
 import { IColumn, Icon, ShimmeredDetailsList, Sticky, StickyPositionType, TooltipHost, TooltipOverflowMode } from "@fluentui/react"
 import { Link, useLocation } from "react-router-dom"
-import { EntryJson } from "../../api/types"
+import { ComposedEntry } from "../../api/types"
 import { useAppSelector } from "../../hooks/useApp"
 import TagToken from "../../components/tags/TagItem"
 import { CustomFieldEntryCell } from "../../components/CustomFieldEntryCell"
@@ -29,12 +29,12 @@ export const TableView = ({visible_fields}: TableViewProps) => {
                 name: "Date",
                 minWidth: 80,
                 maxWidth: 160,
-                onRender: (item: EntryJson) => {
+                onRender: (item: ComposedEntry) => {
                     return <Link to={{
-                        pathname: `${location.pathname}/${item.id}`,
+                        pathname: `${location.pathname}/${item.entry.id}`,
                         search: `prev=${stringFromLocation(window.location, {encode: true, decode_search: true})}`
                     }}>
-                        {(dateFromUnixTime(item.day)).toDateString()}
+                        {(dateFromUnixTime(item.entry.day)).toDateString()}
                     </Link>
                 }
             }
@@ -50,7 +50,7 @@ export const TableView = ({visible_fields}: TableViewProps) => {
                 name: field.name,
                 minWidth: 100,
                 maxWidth: 150,
-                onRender: (item: EntryJson) => {
+                onRender: (item: ComposedEntry) => {
                     let custom_field_entry = item.custom_field_entries?.[field.id];
 
                     if (!custom_field_entry) {
@@ -79,7 +79,7 @@ export const TableView = ({visible_fields}: TableViewProps) => {
                 name: "Tags",
                 minWidth: 100,
                 maxWidth: 150,
-                onRender: (item: EntryJson) => {
+                onRender: (item: ComposedEntry) => {
                     let content = [];
     
                     for (let tag of item.tags) {

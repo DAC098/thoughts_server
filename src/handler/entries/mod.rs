@@ -1,19 +1,35 @@
+use std::fmt::{Write};
 use std::collections::{HashMap};
+use std::pin::{Pin};
+use std::task::{Context, Poll};
 
-use actix_web::{web, http, HttpRequest, Responder};
+use actix_web::{web, http, HttpRequest, HttpResponse, Responder};
 use actix_session::{Session};
-use serde::{Deserialize};
+use serde::{Serialize, Deserialize};
 use chrono::serde::{ts_seconds};
+use tokio_postgres::{Client, RowStream};
+use futures::{pin_mut, Stream, TryStreamExt, future};
+
+use tlib::{db};
+use tlib::db::{
+    custom_field_entries,
+    entries,
+    entry_markers,
+    text_entries,
+    composed,
+};
+
+use db::composed::ComposedEntry;
 
 pub mod entry_id;
 
-use crate::db;
 use crate::response;
 use crate::state;
-use crate::request::{from, url_query};
+use crate::request::{from};
 use crate::json;
 use crate::getters;
 use crate::security;
+use crate::parsing;
 
 use response::error as app_error;
 
@@ -51,6 +67,14 @@ pub struct EntriesPath {
     user_id: Option<i32>
 }
 
+#[derive(Deserialize)]
+pub struct EntriesQuery {
+    from: Option<String>,
+    to: Option<String>,
+    tags: Option<String>,
+    version: Option<i32>,
+}
+
 /**
  * GET /entries
  * returns the root html if requesting html. otherwise will send back a list of
@@ -60,13 +84,14 @@ pub async fn handle_get(
     req: HttpRequest, 
     session: Session,
     app: web::Data<state::AppState>,
-    info: web::Query<url_query::QueryEntries>,
+    info: web::Query<EntriesQuery>,
     path: web::Path<EntriesPath>,
 ) -> app_error::Result<impl Responder> {
     let info = info.into_inner();
-    let conn = &*app.get_conn().await?;
+    let app = app.into_inner();
+    let pool_conn = app.get_pool().get().await?;
     let accept_html = response::check_if_html_req(&req, true).unwrap();
-    let initiator_opt = from::get_initiator(conn, &session).await?;
+    let initiator_opt = from::get_initiator(&*pool_conn, &session).await?;
 
     if accept_html {
         if initiator_opt.is_some() {
@@ -77,30 +102,286 @@ pub async fn handle_get(
     } else if initiator_opt.is_none() {
         Err(app_error::ResponseError::Session)
     } else {
-        let initiator = initiator_opt.unwrap();
-        let is_private: Option<bool>;
         let owner: i32;
+        let is_private: Option<bool>;
+        let initiator = initiator_opt.unwrap();
+        let mut entries_where: String = String::new();
 
         if let Some(user_id) = path.user_id {
-            security::assert::permission_to_read(conn, initiator.user.get_id(), user_id).await?;
+            security::assert::permission_to_read(&*pool_conn, initiator.user.id, user_id).await?;
             is_private = Some(false);
             owner = user_id;
         } else {
             is_private = None;
-            owner = initiator.user.get_id();
+            owner = initiator.user.id;
+        }
+
+        if let Some(version) = info.version {
+            if version == 1 {
+                return Ok(response::json::respond_json(
+                    http::StatusCode::OK, 
+                    response::json::MessageDataJSON::build(
+                        "successful", 
+                        json::search_entries(
+                            &*pool_conn, 
+                            json::SearchEntriesOptions {
+                                owner,
+                                from: parsing::url_query::get_date(&info.from)?,
+                                to: parsing::url_query::get_date(&info.to)?,
+                                tags: parsing::url_query::get_tags(&info.tags),
+                                is_private
+                            }
+                        ).await?
+                    )
+                ));
+            }
+        }
+
+        let mut results = {
+            let rows_statement = {
+                let mut query_str = "select id, day, owner from entries where".to_owned();
+
+                write!(&mut query_str, " owner = {}", owner)?;
+                write!(&mut entries_where, "entries.owner = {}", owner)?;
+
+                if let Some(from) = parsing::url_query::get_date(&info.from)? {
+                    write!(&mut query_str, " and day >= {}", from.timestamp())?;
+                    write!(&mut entries_where, " and entries.day >= {}", from.timestamp())?;
+                }
+
+                if let Some(to) = parsing::url_query::get_date(&info.to)? {
+                    write!(&mut query_str, " and day <= {}", to.timestamp())?;
+                    write!(&mut entries_where, " and entries.day <= {}", to.timestamp())?;
+                }
+
+                if let Some(tags) = parsing::url_query::get_tags(&info.tags) {
+                    let tags_str = tags.iter().map(|v| v.to_string()).collect::<Vec<String>>().join(",");
+                    write!(&mut query_str, " and id in (select entry from entries2tags where tag in ({}))", tags_str)?;
+                    write!(&mut entries_where, " and entries.id in (select entry from entries2tags where tag in ({}))", tags_str)?;
+                }
+
+                write!(&mut query_str, " order by day desc")?;
+
+                query_str
+            };
+
+            let custom_field_entries_statement = format!(
+                "\
+                select custom_field_entries.field, \
+                        custom_field_entries.value, \
+                        custom_field_entries.comment, \
+                        custom_field_entries.entry \
+                from custom_field_entries \
+                join entries on custom_field_entries.entry = entries.id \
+                join custom_fields on custom_field_entries.field = custom_fields.id \
+                where {} \
+                order by entries.day desc, custom_fields.\"order\"",
+                entries_where
+            );
+
+            let entry_markers_statement = format!(
+                "\
+                select entry_markers.id, \
+                        entry_markers.title, \
+                        entry_markers.comment, \
+                        entry_markers.entry \
+                from entry_markers \
+                join entries on entry_markers.entry = entries.id \
+                where {} \
+                order by entries.day desc, entry_markers.id",
+                entries_where
+            );
+
+            let text_entries_statement = {
+                let mut query_str = format!(
+                    "\
+                    select text_entries.id, \
+                        text_entries.thought, \
+                        text_entries.private, \
+                        text_entries.entry \
+                    from text_entries \
+                    join entries on text_entries.entry = entries.id \
+                    where {}",
+                    entries_where
+                );
+
+                if let Some(is_private) = is_private {
+                    write!(&mut query_str, " and text_entries.private = {}", if is_private { "true" } else { "false" })?;
+                }
+
+                write!(&mut query_str, " order by entries.day desc, text_entries.id")?;
+
+                query_str
+            };
+
+            let tags_statement = format!(
+                "\
+                select entries2tags.tag, \
+                       entries2tags.entry \
+                from entries2tags \
+                join entries on entries2tags.entry = entries.id \
+                where {} \
+                order by entries.day desc",
+                entries_where
+            );
+
+            future::try_join_all(vec![
+                (*pool_conn).query(rows_statement.as_str(), &[]), 
+                (*pool_conn).query(custom_field_entries_statement.as_str(), &[]),
+                (*pool_conn).query(entry_markers_statement.as_str(), &[]), 
+                (*pool_conn).query(text_entries_statement.as_str(), &[]), 
+                (*pool_conn).query(tags_statement.as_str(), &[])
+            ]).await?
+        };
+
+        let tags = results.pop().unwrap();
+        let mut tags_iter = tags.iter().map(|row| (row.get::<usize, i32>(0), row.get::<usize, i32>(1)));
+        let text_entries = results.pop().unwrap();
+        let mut text_entries_iter = text_entries.iter().map(|row| db::text_entries::TextEntry {
+            id: row.get(0),
+            thought: row.get(1),
+            private: row.get(2),
+            entry: row.get(3)
+        });
+        let entry_markers = results.pop().unwrap();
+        let mut entry_markers_iter = entry_markers.iter().map(|row| db::entry_markers::EntryMarker {
+            id: row.get(0),
+            title: row.get(1),
+            comment: row.get(2),
+            entry: row.get(3)
+        });
+        let custom_field_entries = results.pop().unwrap();
+        let mut custom_field_entries_iter = custom_field_entries.iter().map(|row| db::custom_field_entries::CustomFieldEntry {
+            field: row.get(0),
+            value: serde_json::from_value(row.get(1)).unwrap(),
+            comment: row.get(2),
+            entry: row.get(3)
+        });
+        let rows = results.pop().unwrap();
+        let rows_iter = rows.iter().map(|row| db::entries::Entry {
+            id: row.get(0),
+            day: row.get(1),
+            owner: row.get(2)
+        });
+
+        let mut rtn: Vec<ComposedEntry> = Vec::with_capacity(rows.len());
+
+        let mut fields_done = false;
+        let mut markers_done = false;
+        let mut text_done = false;
+        let mut tags_done = false;
+        let mut next_custom_field_entry: Option<db::custom_field_entries::CustomFieldEntry> = None;
+        let mut next_entry_marker: Option<db::entry_markers::EntryMarker> = None;
+        let mut next_text_entry: Option<db::text_entries::TextEntry> = None;
+        let mut next_tag: Option<(i32, i32)> = None;
+
+        for row in rows_iter {
+            let mut custom_field_entries_vec: HashMap<i32, db::custom_field_entries::CustomFieldEntry> = HashMap::new();
+            let mut entry_markers_vec: Vec<db::entry_markers::EntryMarker> = Vec::new();
+            let mut text_entries_vec: Vec<db::text_entries::TextEntry> = Vec::new();
+            let mut tags_vec: Vec<i32> = Vec::new();
+
+            if let Some (refer) = next_custom_field_entry.as_ref() {
+                if refer.entry == row.id {
+                    custom_field_entries_vec.insert(refer.field, next_custom_field_entry.take().unwrap());
+                }
+            }
+
+            if !fields_done && next_custom_field_entry.is_none() {
+                loop {
+                    if let Some(field) = custom_field_entries_iter.next() {
+                        if field.entry == row.id {
+                            custom_field_entries_vec.insert(field.field, field);
+                        } else {
+                            next_custom_field_entry.insert(field);
+                            break;
+                        }
+                    } else {
+                        fields_done = true;
+                        break;
+                    }
+                }
+            }
+
+            if let Some(refer) = next_entry_marker.as_ref() {
+                if refer.entry == row.id {
+                    entry_markers_vec.push(next_entry_marker.take().unwrap());
+                }
+            }
+
+            if !markers_done && next_entry_marker.is_none() {
+                loop {
+                    if let Some(marker) = entry_markers_iter.next() {
+                        if marker.entry == row.id {
+                            entry_markers_vec.push(marker);
+                        } else {
+                            next_entry_marker.insert(marker);
+                            break;
+                        }
+                    } else {
+                        markers_done = true;
+                        break;
+                    }
+                }
+            }
+
+            if let Some(refer) = next_text_entry.as_ref() {
+                if refer.entry == row.id {
+                    text_entries_vec.push(next_text_entry.take().unwrap());
+                }
+            }
+
+            if !text_done && next_text_entry.is_none() {
+                loop {
+                    if let Some(text) = text_entries_iter.next() {
+                        if text.entry == row.id {
+                            text_entries_vec.push(text);
+                        } else {
+                            next_text_entry.insert(text);
+                            break;
+                        }
+                    } else {
+                        text_done = true;
+                        break;
+                    }
+                }
+            }
+
+            if let Some(refer) = next_tag.as_ref() {
+                if refer.1 == row.id {
+                    tags_vec.push(next_tag.take().unwrap().0);
+                }
+            }
+
+            if !tags_done && next_tag.is_none() {
+                loop {
+                    if let Some(tag) = tags_iter.next() {
+                        if tag.1 == row.id {
+                            tags_vec.push(tag.0);
+                        } else {
+                            next_tag.insert(tag);
+                            break;
+                        }
+                    } else {
+                        tags_done = true;
+                        break;
+                    }
+                }
+            }
+
+            rtn.push(ComposedEntry {
+                entry: row,
+                custom_field_entries: custom_field_entries_vec.drain().collect(),
+                text_entries: text_entries_vec.drain(..).collect(),
+                markers: entry_markers_vec.drain(..).collect(),
+                tags: tags_vec.drain(..).collect()
+            });
         }
 
         Ok(response::json::respond_json(
             http::StatusCode::OK, 
             response::json::MessageDataJSON::build(
-                "successful",
-                json::search_entries(conn, json::SearchEntriesOptions {
-                    owner,
-                    from: info.get_from()?,
-                    to: info.get_to()?,
-                    tags: info.get_tags(),
-                    is_private
-                }).await?
+                "successful", rtn
             )
         ))
     }
@@ -122,7 +403,7 @@ pub async fn handle_post(
 
     let entry_check = conn.query(
         "select id from entries where day = $1 and owner = $2",
-        &[&posted.day, &initiator.user.get_id()]
+        &[&posted.day, &initiator.user.id]
     ).await?;
 
     if entry_check.len() != 0 {
@@ -134,17 +415,17 @@ pub async fn handle_post(
     let transaction = conn.transaction().await?;
     let result = transaction.query_one(
         "insert into entries (day, owner) values ($1, $2) returning id, day, owner",
-        &[&posted.day, &initiator.user.get_id_ref()]
+        &[&posted.day, &initiator.user.id]
     ).await?;
     let entry_id: i32 = result.get(0);
 
-    let mut custom_field_entries: HashMap<i32, json::CustomFieldEntryJson> = HashMap::new();
+    let mut custom_field_entries: HashMap<i32, custom_field_entries::CustomFieldEntry> = HashMap::new();
 
     if let Some(m) = posted.custom_field_entries {
         for custom_field_entry in m {
             let field = getters::custom_fields::get_via_id(&transaction, custom_field_entry.field, Some(initiator.user.id)).await?;
 
-            db::custom_fields::verifiy(&field.config, &custom_field_entry.value)?;
+            db::validation::verifiy_custom_field_entry(&field.config, &custom_field_entry.value)?;
 
             let value_json = serde_json::to_value(custom_field_entry.value.clone())?;
             let _result = transaction.execute(
@@ -155,9 +436,8 @@ pub async fn handle_post(
                 &[&field.id, &value_json, &custom_field_entry.comment, &entry_id]
             ).await?;
 
-            custom_field_entries.insert(field.id, json::CustomFieldEntryJson {
+            custom_field_entries.insert(field.id, custom_field_entries::CustomFieldEntry {
                 field: field.id,
-                name: field.name,
                 value: custom_field_entry.value,
                 comment: custom_field_entry.comment,
                 entry: entry_id
@@ -165,7 +445,7 @@ pub async fn handle_post(
         }
     }
 
-    let mut text_entries: Vec<json::TextEntryJson> = vec!();
+    let mut text_entries: Vec<text_entries::TextEntry> = vec!();
 
     if let Some(t) = posted.text_entries {
         for text_entry in t {
@@ -174,7 +454,7 @@ pub async fn handle_post(
                 &[&text_entry.thought, &text_entry.private, &entry_id]
             ).await?;
 
-            text_entries.push(json::TextEntryJson {
+            text_entries.push(text_entries::TextEntry {
                 id: result.get(0),
                 thought: text_entry.thought,
                 entry: entry_id,
@@ -196,7 +476,7 @@ pub async fn handle_post(
         }
     }
 
-    let mut entry_markers: Vec<json::EntryMarkerJson> = vec!();
+    let mut entry_markers: Vec<entry_markers::EntryMarker> = vec!();
 
     if let Some(markers) = posted.markers {
         for marker in markers {
@@ -208,10 +488,11 @@ pub async fn handle_post(
                 &[&marker.title, &marker.comment, &entry_id]
             ).await?;
 
-            entry_markers.push(json::EntryMarkerJson {
+            entry_markers.push(entry_markers::EntryMarker {
                 id: result.get(0),
                 title: marker.title,
-                comment: marker.comment
+                comment: marker.comment,
+                entry: entry_id
             });
         }
     }
@@ -222,10 +503,12 @@ pub async fn handle_post(
         http::StatusCode::OK,
         response::json::MessageDataJSON::build(
             "successful", 
-            json::EntryJson {
-                id: result.get(0),
-                day: result.get(1),
-                owner: initiator.user.get_id(),
+            composed::ComposedEntry {
+                entry: entries::Entry {
+                    id: result.get(0),
+                    day: result.get(1),
+                    owner: initiator.user.id,
+                },
                 tags: entry_tags,
                 markers: entry_markers,
                 custom_field_entries,

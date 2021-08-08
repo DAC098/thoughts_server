@@ -1,6 +1,6 @@
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit"
 import api from "../../api";
-import { TagJson } from "../../api/types";
+import { Tag } from "../../api/types";
 import { compareStrings } from "../../util/compare";
 
 const fetchTags = createAsyncThunk<any, {owner: number | string, user_specific?: boolean}>(
@@ -15,8 +15,8 @@ const fetchTags = createAsyncThunk<any, {owner: number | string, user_specific?:
 export interface TagsState {
     owner: number
     loading: boolean
-    tags: TagJson[],
-    mapping: {[key: string]: TagJson}
+    tags: Tag[],
+    mapping: {[key: string]: Tag}
 }
 
 const initialState: TagsState = {
@@ -36,7 +36,7 @@ export const tags = createSlice({
             state.loading = false;
             state.mapping = {};
         },
-        add_tag: (state, action: PayloadAction<TagJson>) => {
+        add_tag: (state, action: PayloadAction<Tag>) => {
             state.tags.push(action.payload);
             state.mapping[action.payload.id] = action.payload;
 
@@ -44,7 +44,7 @@ export const tags = createSlice({
                 return compareStrings(a.title, b.title);
             });
         },
-        update_tag: (state, action: PayloadAction<TagJson>) => {
+        update_tag: (state, action: PayloadAction<Tag>) => {
             for (let i = 0; i < state.tags.length; ++i) {
                 if (state.tags[i].id === action.payload.id) {
                     state.tags[i] = action.payload;

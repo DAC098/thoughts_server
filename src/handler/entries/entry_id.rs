@@ -5,11 +5,11 @@ use actix_session::{Session};
 use serde::{Deserialize};
 use chrono::serde::{ts_seconds};
 
-use crate::db;
+use tlib::{db};
+
 use crate::response;
 use crate::state;
 use crate::request::from;
-use crate::json;
 use crate::security;
 use crate::util;
 use crate::getters;
@@ -82,21 +82,21 @@ pub async fn handle_get(
         let owner: i32;
 
         if let Some(user_id) = path.user_id {
-            security::assert::permission_to_read(conn, initiator.user.get_id(), user_id).await?;
+            security::assert::permission_to_read(conn, initiator.user.id, user_id).await?;
             is_private = Some(false);
             owner = user_id;
         } else {
             is_private = None;
-            owner = initiator.user.get_id();
+            owner = initiator.user.id;
         }
 
-        if let Some(entry) = json::search_entry(conn, path.entry_id, is_private).await? {
-            if entry.owner == owner {
+        if let Some(record) = db::composed::find_from_entry_id(conn, &path.entry_id, &is_private).await? {
+            if record.entry.owner == owner {
                 Ok(response::json::respond_json(
                     http::StatusCode::OK, 
                     response::json::MessageDataJSON::build(
                         "successful",
-                        entry
+                        record
                     )
                 ))
             } else {
@@ -124,21 +124,23 @@ pub async fn handle_put(
     let posted = posted_cntr.into_inner();
     let conn = &mut *app.get_conn().await?;
     let created = posted.day.clone();
-    security::assert::is_owner_for_entry(conn, path.entry_id, initiator.user.get_id()).await?;
+    security::assert::is_owner_for_entry(conn, path.entry_id, initiator.user.id).await?;
 
     let transaction = conn.transaction().await?;
     let result = transaction.query_one(
         "update entries set day = $1 where id = $2 returning day",
         &[&created, &path.entry_id]
     ).await?;
-    let mut rtn = json::EntryJson {
-        id: path.entry_id,
-        day: result.get(0),
+    let mut rtn = db::composed::ComposedEntry {
+        entry: db::entries::Entry {
+            id: path.entry_id,
+            day: result.get(0),
+            owner: initiator.user.id
+        },
         tags: vec!(),
         markers: vec!(),
         custom_field_entries: HashMap::new(),
         text_entries: vec!(),
-        owner: initiator.user.get_id()
     };
 
     if let Some(m) = posted.custom_field_entries {
@@ -151,7 +153,7 @@ pub async fn handle_put(
                 Some(initiator.user.id)
             ).await?;
 
-            db::custom_fields::verifiy(&field.config, &custom_field_entry.value)?;
+            db::validation::verifiy_custom_field_entry(&field.config, &custom_field_entry.value)?;
 
             let value_json = serde_json::to_value(custom_field_entry.value.clone())?;
             let _result = transaction.execute(
@@ -166,9 +168,8 @@ pub async fn handle_put(
             ).await?;
 
             ids.push(field.id);
-            rtn.custom_field_entries.insert(field.id, json::CustomFieldEntryJson {
+            rtn.custom_field_entries.insert(field.id, db::custom_field_entries::CustomFieldEntry {
                 field: field.id,
-                name: field.name,
                 value: custom_field_entry.value,
                 comment: util::clone_option(&custom_field_entry.comment),
                 entry: path.entry_id
@@ -193,7 +194,7 @@ pub async fn handle_put(
             ).await?;
         }
     } else {
-        rtn.custom_field_entries = json::search_custom_field_entries(&transaction, &path.entry_id).await?;
+        rtn.custom_field_entries = db::custom_field_entries::find_from_entry_hashmap(&transaction, &path.entry_id).await?;
     }
 
     if let Some(t) = posted.text_entries {
@@ -227,7 +228,7 @@ pub async fn handle_put(
                 ).await?;
 
                 ids.push(id);
-                rtn.text_entries.push(json::TextEntryJson {
+                rtn.text_entries.push(db::text_entries::TextEntry {
                     id: result.get(0),
                     thought: text_entry.thought,
                     entry: path.entry_id,
@@ -240,7 +241,7 @@ pub async fn handle_put(
                 ).await?;
 
                 ids.push(result.get(0));
-                rtn.text_entries.push(json::TextEntryJson {
+                rtn.text_entries.push(db::text_entries::TextEntry {
                     id: result.get(0),
                     thought: text_entry.thought,
                     entry: path.entry_id,
@@ -267,7 +268,8 @@ pub async fn handle_put(
             ).await?;
         }
     } else {
-        rtn.text_entries = json::search_text_entries(&transaction, &path.entry_id, None).await?;
+        let is_private = None::<bool>;
+        rtn.text_entries = db::text_entries::find_from_entry(&transaction, &path.entry_id, &is_private).await?;
     }
 
     if let Some(tags) = posted.tags {
@@ -307,7 +309,7 @@ pub async fn handle_put(
             ).await?;
         }
     } else {
-        rtn.tags = json::search_tag_entries(&transaction, &path.entry_id).await?;
+        rtn.tags = db::entries2tags::find_id_from_entry(&transaction, &path.entry_id).await?;
     }
 
     if let Some(markers) = posted.markers {
@@ -343,10 +345,11 @@ pub async fn handle_put(
                 ).await?;
 
                 ids.push(id);
-                rtn.markers.push(json::EntryMarkerJson {
+                rtn.markers.push(db::entry_markers::EntryMarker {
                     id: id,
                     title: marker.title,
-                    comment: marker.comment
+                    comment: marker.comment,
+                    entry: path.entry_id
                 });
             } else {
                 let result = transaction.query_one(
@@ -359,15 +362,16 @@ pub async fn handle_put(
                 ).await?;
 
                 ids.push(result.get(0));
-                rtn.markers.push(json::EntryMarkerJson {
+                rtn.markers.push(db::entry_markers::EntryMarker {
                     id: result.get(0),
                     title: marker.title,
-                    comment: marker.comment
+                    comment: marker.comment,
+                    entry: path.entry_id
                 });
             }
         }
     } else {
-        rtn.markers = json::search_entry_markers(&transaction, &path.entry_id).await?;
+        rtn.markers = db::entry_markers::find_from_entry(&transaction, &path.entry_id).await?;
     }
 
     transaction.commit().await?;
@@ -400,7 +404,7 @@ pub async fn handle_delete(
     let mut invalid_entries: Vec<i32> = vec!();
 
     for row in check {
-        if row.get::<usize, i32>(1) != initiator.user.get_id() {
+        if row.get::<usize, i32>(1) != initiator.user.id {
             invalid_entries.push(row.get(0));
         }
 

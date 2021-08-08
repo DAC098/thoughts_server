@@ -1,10 +1,10 @@
 import { CustomFieldEntryType } from "../../api/custom_field_entry_types";
-import { CustomFieldJson, EntryJson, EntryMarkerJson } from "../../api/types";
+import { CustomField, ComposedEntry, EntryMarker } from "../../api/types";
 import { dateFromUnixTimeZeroHMSM, getDateZeroHMSM } from "../../util/time";
 
 interface EntryMarkerInfo {
     day: number
-    items: EntryMarkerJson[]
+    items: EntryMarker[]
 }
 
 export interface EntryIteratorResult {
@@ -12,24 +12,24 @@ export interface EntryIteratorResult {
     max_x: number,
     min_y: number,
     max_y: number,
-    data_groups: EntryJson[][]
+    data_groups: ComposedEntry[][]
     markers: EntryMarkerInfo[]
 }
 
 export type EntryIteratorCB<T extends CustomFieldEntryType> = (
     rtn: EntryIteratorResult,
-    entry: EntryJson,
-    field: CustomFieldJson,
+    entry: ComposedEntry,
+    field: CustomField,
     value: T
 ) => void;
 
 export function entryIterator<T extends CustomFieldEntryType>(
-    entries: EntryJson[],
-    field: CustomFieldJson,
+    entries: ComposedEntry[],
+    field: CustomField,
     cb: EntryIteratorCB<T>
 ): EntryIteratorResult {
     let field_id = field.id.toString();
-    let field_entries: EntryJson[] = [];
+    let field_entries: ComposedEntry[] = [];
     let rtn = {
         min_x: Infinity,
         max_x: -Infinity,
@@ -40,7 +40,7 @@ export function entryIterator<T extends CustomFieldEntryType>(
     };
 
     for (let entry of entries) {
-        let date = dateFromUnixTimeZeroHMSM(entry.day).getTime();
+        let date = dateFromUnixTimeZeroHMSM(entry.entry.day).getTime();
 
         if (rtn.min_x > date) {
             rtn.min_x = date;

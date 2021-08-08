@@ -7,7 +7,7 @@ import { AxisLeft, AxisBottom } from '@visx/axis'
 import { GridRows, GridColumns } from '@visx/grid'
 import { TimeRange as TimeRangeField } from "../../api/custom_field_types"
 import { TimeRange } from "../../api/custom_field_entry_types"
-import { CustomFieldJson, EntryJson } from '../../api/types'
+import { CustomField, ComposedEntry } from '../../api/types'
 import { getDateZeroHMSM, timeToString } from '../../util/time'
 import { CircleMarker, TransCircleMarker } from './markers'
 import { DashedLinePath, SolidLinePath } from './line_paths'
@@ -16,15 +16,15 @@ import { entryIterator } from './util'
 
 export const background = '#f3f3f3';
 
-const getY0 = (entry: EntryJson, field_id: string) => {
+const getY0 = (entry: ComposedEntry, field_id: string) => {
     return new Date((entry.custom_field_entries[field_id].value as TimeRange).low).getTime();
 }
 
-const getY1 = (entry: EntryJson, field_id: string) => {
+const getY1 = (entry: ComposedEntry, field_id: string) => {
     return new Date((entry.custom_field_entries[field_id].value as TimeRange).high).getTime();
 }
 
-const getY = (entry: EntryJson, field_id: string) => {
+const getY = (entry: ComposedEntry, field_id: string) => {
     return getY1(entry, field_id) - getY0(entry, field_id);
 }
 
@@ -35,9 +35,9 @@ export type TimeRangeGraphProps = {
     height: number
     margin?: { top: number; right: number; bottom: number; left: number }
 
-    field: CustomFieldJson
+    field: CustomField
 
-    entries: EntryJson[]
+    entries: ComposedEntry[]
 };
 
 export default function TimeRangeGraph({

@@ -3,66 +3,18 @@ use std::collections::{HashMap};
 
 use tokio_postgres::{GenericClient};
 use serde::{Deserialize, Serialize};
-use chrono::serde::{ts_seconds};
 
-use crate::db::query::QueryParams;
-use crate::db::custom_fields;
-use crate::db::custom_field_entries;
+use tlib::db::{
+    custom_fields, 
+    custom_field_entries,
+    entries,
+    entry_markers,
+    text_entries,
+    composed,
+};
+use tlib::db::query::{QueryParams};
+
 use crate::response::error;
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct CustomFieldEntryJson {
-    pub field: i32,
-    pub name: String,
-    pub value: custom_field_entries::CustomFieldEntryType,
-    pub comment: Option<String>,
-    pub entry: i32
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct TextEntryJson {
-    pub id: i32,
-    pub thought: String,
-    pub private: bool,
-    pub entry: i32
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct EntryMarkerJson {
-    pub id: i32,
-    pub title: String,
-    pub comment: Option<String>
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct EntryJson {
-    pub id: i32,
-    #[serde(with = "ts_seconds")]
-    pub day: chrono::DateTime<chrono::Utc>,
-    pub owner: i32,
-    pub tags: Vec<i32>,
-    pub markers: Vec<EntryMarkerJson>,
-    pub custom_field_entries: HashMap<i32, CustomFieldEntryJson>,
-    pub text_entries: Vec<TextEntryJson>
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct IssuedByJson {
-    pub id: i32,
-    pub username: i32,
-    pub full_name: Option<String>
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct CustomFieldJson {
-    pub id: i32,
-    pub name: String,
-    pub comment: Option<String>,
-    pub config: custom_fields::CustomFieldType,
-    pub owner: i32,
-    pub order: i32,
-    pub issued_by: Option<IssuedByJson>
-}
 
 #[derive(Serialize, Deserialize)]
 pub struct GlobalCustomFieldJson {
@@ -88,96 +40,6 @@ pub struct UserInfoJson {
     pub full_name: Option<String>,
     pub email: String,
     pub user_access: Vec<UserAccessInfoJson>
-}
-
-pub async fn search_custom_fields(
-    conn: &impl GenericClient,
-    owner: i32,
-) -> error::Result<Vec<CustomFieldJson>> {
-    let rows = conn.query(
-        "\
-        select custom_fields.id as id, \
-               custom_fields.name as name, \
-               custom_fields.config as config, \
-               custom_fields.comment as comment, \
-               custom_fields.\"owner\" as owner, \
-               custom_fields.order as order, \
-               custom_fields.issued_by as issued_by, \
-               users.username as username, \
-               users.full_name as full_name \
-        from custom_fields \
-        left join users on custom_fields.issued_by = users.id \
-        where owner = $1 \
-        order by custom_fields.\"order\", custom_fields.name
-        ",
-        &[&owner]
-    ).await?;
-    let mut rtn = Vec::<CustomFieldJson>::with_capacity(rows.len());
-
-    for row in rows {
-        let issued_by = match row.get::<usize, Option<i32>>(6) {
-            Some(id) => Some(IssuedByJson {
-                id, username: row.get(7), full_name: row.get(8)
-            }),
-            None => None
-        };
-
-        rtn.push(CustomFieldJson {
-            id: row.get(0),
-            name: row.get(1),
-            comment: row.get(3),
-            config: serde_json::from_value(row.get(2)).unwrap(),
-            owner: row.get(4),
-            order: row.get(5),
-            issued_by
-        });
-    }
-
-    Ok(rtn)
-}
-
-pub async fn search_custom_field(
-    conn: &impl GenericClient,
-    field_id: i32
-) -> error::Result<Option<CustomFieldJson>> {
-    let rows = conn.query(
-        "\
-        select custom_fields.id as id, \
-               custom_fields.name as name, \
-               custom_fields.config as config, \
-               custom_fields.comment as comment, \
-               custom_fields.owner as owner, \
-               custom_fields.\"order\" as order, \
-               custom_fields.issued_by as issued_by, \
-               users.username as username, \
-               users.full_name as full_name \
-        from custom_fields \
-        left join users on custom_fields.issued_by = users.id \
-        where custom_fields.id = $1
-        ",
-        &[&field_id]
-    ).await?;
-
-    if rows.len() == 1 {
-        let issued_by = match rows[0].get::<usize, Option<i32>>(6) {
-            Some(id) => Some(IssuedByJson {
-                id, username: rows[0].get(7), full_name: rows[0].get(8)
-            }),
-            None => None
-        };
-
-        Ok(Some(CustomFieldJson {
-            id: rows[0].get(0),
-            name: rows[0].get(1),
-            config: serde_json::from_value(rows[0].get(2)).unwrap(),
-            comment: rows[0].get(3),
-            owner: rows[0].get(4),
-            order: rows[0].get(5),
-            issued_by
-        }))
-    } else {
-        Ok(None)
-    }
 }
 
 fn search_text_entries_query_slice<'a>(
@@ -272,78 +134,6 @@ fn search_entry_markers_query_slice<'a>(
     Ok((query_str, query_params))
 }
 
-pub async fn search_text_entries(
-    conn: &impl GenericClient,
-    entry_id: &i32,
-    is_private: Option<bool>,
-) -> error::Result<Vec<TextEntryJson>> {
-    let entry_ids: Vec<i32> = vec!(*entry_id);
-    let (query_str, query_slice) = search_text_entries_query_slice(&entry_ids, &is_private)?;
-
-    Ok(conn.query(query_str.as_str(), query_slice.slice())
-        .await?
-        .iter()
-        .map(|row| TextEntryJson{
-            id: row.get(0),
-            thought: row.get(1),
-            entry: row.get(2),
-            private: row.get(3)
-        })
-        .collect())
-}
-
-pub async fn search_custom_field_entries(
-    conn: &impl GenericClient,
-    entry_id: &i32,
-) -> error::Result<HashMap<i32, CustomFieldEntryJson>> {
-    let entry_ids: Vec<i32> = vec!(*entry_id);
-    let (query_str, query_slice) = search_custom_field_entries_query_slice(&entry_ids)?;
-
-    Ok(conn.query(query_str.as_str(), query_slice.slice())
-        .await?
-        .iter()
-        .map(|row| (row.get(0), CustomFieldEntryJson {
-            field: row.get(0),
-            name: row.get(1),
-            value: serde_json::from_value(row.get(2)).unwrap(),
-            comment: row.get(3),
-            entry: row.get(4)
-        }))
-        .collect())
-}
-
-pub async fn search_tag_entries(
-    conn: &impl GenericClient,
-    entry_id: &i32,
-) -> error::Result<Vec<i32>> {
-    let entry_ids: Vec<i32> = vec!(*entry_id);
-    let (query_str, query_slice) = search_tag_entries_query_slice(&entry_ids)?;
-
-    Ok(conn.query(query_str.as_str(), query_slice.slice())
-        .await?
-        .iter()
-        .map(|row| row.get::<usize, i32>(0))
-        .collect())
-}
-
-pub async fn search_entry_markers(
-    conn: &impl GenericClient,
-    entry_id: &i32,
-) -> error::Result<Vec<EntryMarkerJson>> {
-    let entry_ids: Vec<i32> = vec!(*entry_id);
-    let (query_str, query_slice) = search_entry_markers_query_slice(&entry_ids)?;
-
-    Ok(conn.query(query_str.as_str(), query_slice.slice())
-        .await?
-        .iter()
-        .map(|row| EntryMarkerJson {
-            id: row.get(0),
-            title: row.get(1),
-            comment: row.get(2)
-        })
-        .collect())
-}
-
 pub struct SearchEntriesOptions {
     pub owner: i32,
     pub from: Option<chrono::DateTime<chrono::Utc>>,
@@ -355,7 +145,7 @@ pub struct SearchEntriesOptions {
 pub async fn search_entries(
     conn: &impl GenericClient, 
     options: SearchEntriesOptions
-) -> error::Result<Vec<EntryJson>> {
+) -> error::Result<Vec<composed::ComposedEntry>> {
     let rows = {
         let mut query_str = "select id, day, owner from entries where owner = $1".to_owned();
         let mut query_slice: QueryParams = QueryParams::with_capacity(1);
@@ -379,7 +169,7 @@ pub async fn search_entries(
     };
     let mut entry_ids: Vec<i32> = Vec::with_capacity(rows.len());
     let mut entry_hash_map: HashMap<i32, usize> = HashMap::with_capacity(rows.len());
-    let mut rtn: Vec<EntryJson> = Vec::with_capacity(rows.len());
+    let mut rtn: Vec<composed::ComposedEntry> = Vec::with_capacity(rows.len());
     let mut count: usize = 0;
 
     if rows.len() == 0 {
@@ -389,10 +179,12 @@ pub async fn search_entries(
     for row in rows {
         let entry_id = row.get(0);
         entry_ids.push(entry_id);
-        rtn.push(EntryJson {
-            id: entry_id,
-            day: row.get(1),
-            owner: row.get(2),
+        rtn.push(composed::ComposedEntry {
+            entry: entries::Entry {
+                id: entry_id,
+                day: row.get(1),
+                owner: row.get(2),
+            },
             tags: vec!(),
             markers: vec!(),
             custom_field_entries: HashMap::new(),
@@ -408,7 +200,7 @@ pub async fn search_entries(
 
             conn.query(query_str.as_str(), query_slice.slice()).await?
         };
-        let mut current_set: HashMap<i32, CustomFieldEntryJson> = HashMap::new();
+        let mut current_set: HashMap<i32, custom_field_entries::CustomFieldEntry> = HashMap::new();
         let mut current_entry_id: i32 = 0;
 
         for row in custom_field_entries {
@@ -422,9 +214,8 @@ pub async fn search_entries(
                 current_entry_id = entry_id;
             }
 
-            current_set.insert(row.get(0), CustomFieldEntryJson {
+            current_set.insert(row.get(0), custom_field_entries::CustomFieldEntry {
                 field: row.get(0),
-                name: row.get(1),
                 value: serde_json::from_value(row.get(2)).unwrap(),
                 comment: row.get(3),
                 entry: entry_id
@@ -443,7 +234,7 @@ pub async fn search_entries(
 
             conn.query(query_str.as_str(), query_slice.slice()).await?
         };
-        let mut current_set: Vec<TextEntryJson> = vec!();
+        let mut current_set: Vec<text_entries::TextEntry> = vec!();
         let mut current_entry_id: i32 = 0;
 
         for row in text_entries {
@@ -457,7 +248,7 @@ pub async fn search_entries(
                 current_entry_id = entry_id;
             }
 
-            current_set.push(TextEntryJson {
+            current_set.push(text_entries::TextEntry {
                 id: row.get(0),
                 thought: row.get(1),
                 entry: row.get(2),
@@ -506,7 +297,7 @@ pub async fn search_entries(
 
             conn.query(query_str.as_str(), query_slice.slice()).await?
         };
-        let mut current_set: Vec<EntryMarkerJson> = vec!();
+        let mut current_set: Vec<entry_markers::EntryMarker> = vec!();
         let mut current_entry_id: i32 = 0;
 
         for row in entry_markers {
@@ -520,10 +311,11 @@ pub async fn search_entries(
                 current_entry_id = entry_id;
             }
 
-            current_set.push(EntryMarkerJson {
+            current_set.push(entry_markers::EntryMarker {
                 id: row.get(0),
                 title: row.get(1),
-                comment: row.get(2)
+                comment: row.get(2),
+                entry: row.get(3)
             });
         }
 
@@ -534,35 +326,4 @@ pub async fn search_entries(
     }
 
     Ok(rtn)
-}
-
-pub async fn search_entry(
-    conn: &impl GenericClient,
-    entry_id: i32,
-    is_private: Option<bool>,
-) -> error::Result<Option<EntryJson>> {
-    let rows = conn.query(
-        "select id, day, owner from entries where id = $1",
-        &[&entry_id]
-    ).await?;
-
-    if rows.len() != 0 {
-        let tags = conn.query("select tag from entries2tags where entry = $1", &[&entry_id])
-            .await?
-            .iter()
-            .map(|row| row.get::<usize, i32>(0))
-            .collect();
-
-        Ok(Some(EntryJson {
-            id: entry_id,
-            day: rows[0].get(1),
-            owner: rows[0].get(2),
-            tags,
-            markers: search_entry_markers(conn, &entry_id).await?,
-            custom_field_entries: search_custom_field_entries(conn, &entry_id).await?,
-            text_entries: search_text_entries(conn, &entry_id, is_private).await?
-        }))
-    } else {
-        Ok(None)
-    }
 }

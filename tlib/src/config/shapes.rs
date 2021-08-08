@@ -6,7 +6,7 @@ pub trait MapShape {
 
 #[inline]
 fn assign_map_value<T>(lhs: &mut Option<T>, rhs: Option<T>) {
-    if rhs.is_some() { *lhs = rhs; }
+    if let Some(rhs_value) = rhs { lhs.insert(rhs_value); }
 }
 
 #[inline]
@@ -16,10 +16,10 @@ where
 {
     if let Some(lhs_value) = lhs.as_mut() {
         if let Some(rhs_value) = rhs {
-            lhs_value.map_shape(rhs_value);
+            MapShape::map_shape(lhs_value, rhs_value);
         }
-    } else {
-        *lhs = rhs;
+    } else if let Some(rhs_value) = rhs {
+        lhs.insert(rhs_value);
     }
 }
 

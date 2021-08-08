@@ -3,7 +3,7 @@ use std::convert::{From};
 use std::ffi::{OsString};
 
 #[derive(Debug)]
-pub enum ConfigError {
+pub enum Error {
     InvalidConfig(String),
 
     UnknownFileExtension,
@@ -15,16 +15,16 @@ pub enum ConfigError {
     IOError(std::io::Error)
 }
 
-pub type Result<T> = std::result::Result<T, ConfigError>;
+pub type Result<T> = std::result::Result<T, Error>;
 
-impl ConfigError {
+impl Error {
 
     pub fn get_msg(&self) -> String {
         match &*self {
-            ConfigError::InvalidConfig(msg) => format!("{}", msg),
-            ConfigError::UnknownFileExtension => format!("unknown file extension given"),
-            ConfigError::InvalidFileExtension(ext) => format!("invalid file extension given. {:?}", ext),
-            ConfigError::JsonError(err) => {
+            Error::InvalidConfig(msg) => format!("{}", msg),
+            Error::UnknownFileExtension => format!("unknown file extension given"),
+            Error::InvalidFileExtension(ext) => format!("invalid file extension given. {:?}", ext),
+            Error::JsonError(err) => {
                 match err.classify() {
                     serde_json::error::Category::Io => format!(
                         "json io error"
@@ -40,39 +40,39 @@ impl ConfigError {
                     )
                 }
             },
-            ConfigError::YamlError(err) => {
+            Error::YamlError(err) => {
                 if let Some(location) = err.location() {
                     format!("yaml error {}:{}", location.line(), location.column())
                 } else {
                     format!("yaml error")
                 }
             },
-            ConfigError::IOError(err) => format!("{:?}", err)
+            Error::IOError(err) => format!("{:?}", err)
         }
     }
     
 }
 
-impl fmt::Display for ConfigError {
+impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.get_msg())
     }
 }
 
-impl From<serde_json::Error> for ConfigError {
+impl From<serde_json::Error> for Error {
     fn from(error: serde_json::Error) -> Self {
-        ConfigError::JsonError(error)
+        Error::JsonError(error)
     }
 }
 
-impl From<serde_yaml::Error> for ConfigError {
+impl From<serde_yaml::Error> for Error {
     fn from(error: serde_yaml::Error) -> Self {
-        ConfigError::YamlError(error)
+        Error::YamlError(error)
     }
 }
 
-impl From<std::io::Error> for ConfigError {
+impl From<std::io::Error> for Error {
     fn from(error: std::io::Error) -> Self {
-        ConfigError::IOError(error)
+        Error::IOError(error)
     }
 }

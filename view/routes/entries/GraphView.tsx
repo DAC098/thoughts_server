@@ -10,7 +10,7 @@ import { TooltipWithBounds } from "@visx/tooltip"
 import GridColumns from "@visx/grid/lib/grids/GridColumns"
 import GridRows from "@visx/grid/lib/grids/GridRows"
 import ParentSize from "@visx/responsive/lib/components/ParentSize"
-import { CustomFieldJson, EntryJson, TagJson } from "../../api/types"
+import { CustomField, ComposedEntry, Tag } from "../../api/types"
 import { useAppSelector } from "../../hooks/useApp"
 import { common_ratios, containRatio } from "../../util/math"
 import { entryIterator, EntryIteratorCB } from "../../components/graphs/util"
@@ -138,14 +138,14 @@ function getYScale(type: CustomFieldTypes.CustomFieldTypeName, min: number, max:
 }
 
 interface TooltipDataProps {
-    entry: EntryJson
-    field: CustomFieldJson
-    tags: {[key: string]: TagJson}
+    entry: ComposedEntry
+    field: CustomField
+    tags: {[key: string]: Tag}
 }
 
 const TooltipData = ({entry, field, tags}: TooltipDataProps) => {
     return <Stack>
-        <div>{(dateFromUnixTime(entry.day)).toLocaleDateString()}</div>
+        <div>{(dateFromUnixTime(entry.entry.day)).toLocaleDateString()}</div>
         {field.id in entry.custom_field_entries ?
             <>
                 <Separator/>
@@ -183,7 +183,7 @@ const TooltipData = ({entry, field, tags}: TooltipDataProps) => {
 }
 
 export interface GraphViewProps {
-    field: CustomFieldJson
+    field: CustomField
     user_specific: boolean
     owner: number
 }
@@ -226,30 +226,30 @@ export const GraphView = ({field, user_specific, owner}: GraphViewProps) => {
     const get_y0_cb = useMemo(() => {
         switch (field.config.type) {
             case CustomFieldTypes.CustomFieldTypeName.Integer:
-                return (entry: EntryJson) => {
+                return (entry: ComposedEntry) => {
                     return (entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.Integer).value;
                 }
             case CustomFieldTypes.CustomFieldTypeName.IntegerRange:
-                return (entry: EntryJson) => {
+                return (entry: ComposedEntry) => {
                     return (entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.IntegerRange).low;
                 }
             case CustomFieldTypes.CustomFieldTypeName.Float:
-                return (entry: EntryJson) => {
+                return (entry: ComposedEntry) => {
                     return (entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.Float).value;
                 }
             case CustomFieldTypes.CustomFieldTypeName.FloatRange:
-                return (entry: EntryJson) => {
+                return (entry: ComposedEntry) => {
                     return (entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.FloatRange).low;
                 }
             case CustomFieldTypes.CustomFieldTypeName.Time:
-                return (entry: EntryJson) => {
+                return (entry: ComposedEntry) => {
                     return new Date((entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.Time).value).getTime();
                 }
             case CustomFieldTypes.CustomFieldTypeName.TimeRange:
-                return field.config.show_diff ? (entry: EntryJson) => {
+                return field.config.show_diff ? (entry: ComposedEntry) => {
                     return new Date((entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.TimeRange).high).getTime() - 
                            new Date((entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.TimeRange).low).getTime();
-                } : (entry: EntryJson) => {
+                } : (entry: ComposedEntry) => {
                     return new Date((entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.TimeRange).low).getTime();
                 }
         }
@@ -258,15 +258,15 @@ export const GraphView = ({field, user_specific, owner}: GraphViewProps) => {
     const get_y1_cb = useMemo(() => {
         switch (field.config.type) {
             case CustomFieldTypes.CustomFieldTypeName.IntegerRange:
-                return (entry: EntryJson) => {
+                return (entry: ComposedEntry) => {
                     return (entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.IntegerRange).high;
                 }
             case CustomFieldTypes.CustomFieldTypeName.FloatRange:
-                return (entry: EntryJson) => {
+                return (entry: ComposedEntry) => {
                     return (entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.FloatRange).high;
                 }
             case CustomFieldTypes.CustomFieldTypeName.TimeRange:
-                return field.config.show_diff ? null : (entry: EntryJson) => {
+                return field.config.show_diff ? null : (entry: ComposedEntry) => {
                     return new Date((entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.TimeRange).low).getTime();
                 }
         }
@@ -275,34 +275,34 @@ export const GraphView = ({field, user_specific, owner}: GraphViewProps) => {
     const get_tooltip_y = useMemo(() => {
         switch (field.config.type) {
             case CustomFieldTypes.CustomFieldTypeName.Integer:
-                return (entry: EntryJson) => {
+                return (entry: ComposedEntry) => {
                     return (entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.Integer).value;
                 }
             case CustomFieldTypes.CustomFieldTypeName.IntegerRange:
-                return (entry: EntryJson) => {
+                return (entry: ComposedEntry) => {
                     return (((entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.IntegerRange).high -
                              (entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.IntegerRange).low) / 2) +
                              (entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.IntegerRange).low;
                 }
             case CustomFieldTypes.CustomFieldTypeName.Float:
-                return (entry: EntryJson) => {
+                return (entry: ComposedEntry) => {
                     return (entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.Float).value;
                 }
             case CustomFieldTypes.CustomFieldTypeName.FloatRange:
-                return (entry: EntryJson) => {
+                return (entry: ComposedEntry) => {
                     return (((entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.FloatRange).high -
                              (entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.FloatRange).low) / 2) +
                              (entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.FloatRange).low;
                 }
             case CustomFieldTypes.CustomFieldTypeName.Time:
-                return (entry: EntryJson) => {
+                return (entry: ComposedEntry) => {
                     return new Date((entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.Time).value).getTime();
                 }
             case CustomFieldTypes.CustomFieldTypeName.TimeRange:
-                return field.config.show_diff ? (entry: EntryJson) => {
+                return field.config.show_diff ? (entry: ComposedEntry) => {
                     return new Date((entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.TimeRange).high).getTime() - 
                            new Date((entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.TimeRange).low).getTime();
-                } : (entry: EntryJson) => {
+                } : (entry: ComposedEntry) => {
                     let low_value = new Date((entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.TimeRange).low).getTime();
                     let high_value = new Date((entry.custom_field_entries[field.id].value as CustomFieldEntryTypes.TimeRange).high).getTime()
                     return ((high_value - low_value) / 2) + low_value;
@@ -337,7 +337,7 @@ export const GraphView = ({field, user_specific, owner}: GraphViewProps) => {
                 zeroHMSM(x_check);
 
                 let index = bisectorFind(entries_state.entries, x_check.getTime(), (f, v) => {
-                    let v_day = dateFromUnixTime(v.day);
+                    let v_day = dateFromUnixTime(v.entry.day);
                     zeroHMSM(v_day);
                     let v_time = v_day.getTime();
 
@@ -479,7 +479,7 @@ export const GraphView = ({field, user_specific, owner}: GraphViewProps) => {
             let tooltip_x = 0;
 
             if (tooltip_index !== -1) {
-                let day = dateFromUnixTime(entries_state.entries[tooltip_index].day);
+                let day = dateFromUnixTime(entries_state.entries[tooltip_index].entry.day);
                 zeroHMSM(day);
                 tooltip_x = x_axis_scale(day);
 
@@ -543,7 +543,7 @@ export const GraphView = ({field, user_specific, owner}: GraphViewProps) => {
                         onClick={() => {
                             if (tooltip_index !== -1) {
                                 history.push(
-                                    `${location.pathname}/${entries_state.entries[tooltip_index].id}?prev=${stringFromLocation(location)}`
+                                    `${location.pathname}/${entries_state.entries[tooltip_index].entry.id}?prev=${stringFromLocation(location)}`
                                 );
                             }
                         }}

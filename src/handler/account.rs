@@ -4,12 +4,13 @@ use serde::{Deserialize};
 use lettre::{Message, Transport};
 use lettre::message::{Mailbox};
 
+use tlib::{db};
+
 use crate::state;
 use crate::request::from;
 use crate::response;
 use crate::email;
 use crate::util;
-use crate::db;
 
 use response::error;
 

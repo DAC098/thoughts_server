@@ -1574,6 +1574,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "make_test_data"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "lipsum",
+ "postgres",
+ "rand 0.8.3",
+ "serde_json",
+ "tlib",
+]
+
+[[package]]
+name = "make_user"
+version = "0.1.0"
+dependencies = [
+ "openssl",
+ "postgres",
+ "rust-argon2",
+ "tlib",
+ "uuid",
+]
+
+[[package]]
 name = "match_cfg"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2571,6 +2594,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "sha-1",
+ "tlib",
  "tokio-postgres",
  "urlencoding",
  "uuid",
@@ -2647,6 +2671,21 @@ name = "tinyvec_macros"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
+
+[[package]]
+name = "tlib"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "env_logger",
+ "lettre",
+ "num_cpus",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tokio-postgres",
+ "uuid",
+]
 
 [[package]]
 name = "tokio"

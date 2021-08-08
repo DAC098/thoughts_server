@@ -1,11 +1,11 @@
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
 import api from "../../api"
-import { EntryJson, GetEntriesQuery } from "../../api/types"
+import { ComposedEntry, GetEntriesQuery } from "../../api/types"
 import { ResponseJSON } from "../../request";
 import { compareDates, compareNumbers } from "../../util/compare";
 import { rand } from "../../util/rand";
 
-type FetchEntriesReturned = EntryJson[];
+type FetchEntriesReturned = ComposedEntry[];
 type FetchEntriesThunkArg = {owner: number | string, user_specific?: boolean, query?: GetEntriesQuery};
 
 const fetchEntries = createAsyncThunk<FetchEntriesReturned, FetchEntriesThunkArg>(
@@ -21,7 +21,7 @@ export interface EntriesState {
     key: number
     owner: number
     loading: boolean
-    entries: EntryJson[]
+    entries: ComposedEntry[]
     from?: number
     to?: number
     tags?: number[]
@@ -49,8 +49,8 @@ export const entries = createSlice({
             state.tags = null;
             state.key = 0;
         },
-        add_entry: (state, action: PayloadAction<EntryJson>) => {
-            let new_entry_date = action.payload.day;
+        add_entry: (state, action: PayloadAction<ComposedEntry>) => {
+            let new_entry_date = action.payload.entry.day;
             let i = 0;
 
             if (state.from != null) {
@@ -66,7 +66,7 @@ export const entries = createSlice({
             }
 
             for (; i < state.entries.length; ++i) {
-                if (new_entry_date > state.entries[i].day) {
+                if (new_entry_date > state.entries[i].entry.day) {
                     break;
                 }
             }
@@ -74,16 +74,16 @@ export const entries = createSlice({
             state.entries.splice(i, 0, action.payload);
             state.key = rand();
         },
-        update_entry: (state, action: PayloadAction<EntryJson>) => {
+        update_entry: (state, action: PayloadAction<ComposedEntry>) => {
             for (let i = 0; i < state.entries.length; ++i) {
-                if (state.entries[i].id === action.payload.id) {
+                if (state.entries[i].entry.id === action.payload.entry.id) {
                     state.entries[i] = action.payload;
                     break;
                 }
             }
 
             state.entries.sort((a, b) => {
-                return -compareNumbers(a.day, b.day);
+                return -compareNumbers(a.entry.day, b.entry.day);
             });
             state.key = rand();
         },
@@ -91,7 +91,7 @@ export const entries = createSlice({
             let i = 0;
 
             for (; i < state.entries.length; ++i) {
-                if (state.entries[i].id === action.payload) {
+                if (state.entries[i].entry.id === action.payload) {
                     break;
                 }
             }

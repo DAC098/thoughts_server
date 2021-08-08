@@ -2,8 +2,8 @@ use actix_web::{web, http, Responder};
 use actix_session::{Session};
 use serde::{Deserialize};
 
-use crate::db::users;
-use crate::db::user_sessions;
+use tlib::db::{users, user_sessions};
+
 use crate::response;
 use crate::state;
 use crate::request::from;
@@ -69,7 +69,7 @@ pub async fn handle_post(
         http::StatusCode::OK,
         response::json::MessageDataJSON::build(
             "login successful",
-            users::find_via_id(conn, result[0].get(0)).await?
+            users::find_from_id(conn, result[0].get(0)).await?
         )
     ))
 }

@@ -1,7 +1,7 @@
 use std::marker::{Sync};
 use std::convert::{From, Into};
 
-use tokio_postgres::{types::ToSql};
+use tokio_postgres::types::{ToSql};
 
 pub struct QueryParams<'a> {
     params: Vec<&'a (dyn ToSql + Sync)>

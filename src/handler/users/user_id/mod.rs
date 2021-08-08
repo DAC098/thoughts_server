@@ -1,12 +1,13 @@
 use actix_web::{web, http, HttpRequest, Responder};
 use actix_session::{Session};
 
+use tlib::{db};
+
 use crate::request::from;
 use crate::response;
 use crate::state;
 use crate::parsing::url_paths;
 use crate::security;
-use crate::db;
 
 use response::error;
 
@@ -31,8 +32,8 @@ pub async fn handle_get(
         Err(error::ResponseError::Session)
     } else {
         let initiator = initiator_opt.unwrap();
-        security::assert::permission_to_read(conn, initiator.user.get_id(), path.user_id).await?;
-        let user_opt = db::users::find_via_id(conn, path.user_id).await?;
+        security::assert::permission_to_read(conn, initiator.user.id, path.user_id).await?;
+        let user_opt = db::users::find_from_id(conn, path.user_id).await?;
 
         Ok(response::json::respond_json(
             http::StatusCode::OK,

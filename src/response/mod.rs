@@ -1,10 +1,10 @@
 use actix_web::{http, HttpRequest, HttpResponse, Responder};
 use serde_json::{to_string};
 
+use tlib::db::{users};
+
 pub mod json;
 pub mod error;
-
-use crate::db::users;
 
 pub fn respond_index_html(user_opt: Option<users::User>) -> HttpResponse {
     let user_json = match user_opt {

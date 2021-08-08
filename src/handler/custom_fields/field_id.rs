@@ -2,11 +2,11 @@ use actix_web::{web, http, HttpRequest, Responder};
 use actix_session::{Session};
 use serde::{Deserialize};
 
+use tlib::{db};
+
 use crate::request::from;
 use crate::response;
 use crate::state;
-use crate::json;
-use crate::db;
 use crate::security;
 
 use response::error::{Result, ResponseError};
@@ -41,13 +41,13 @@ pub async fn handle_get(
         let owner: i32;
 
         if let Some(user_id) = path.user_id {
-            security::assert::permission_to_read(conn, initiator.user.get_id(), user_id).await?;
+            security::assert::permission_to_read(conn, initiator.user.id, user_id).await?;
             owner = user_id;
         } else {
-            owner = initiator.user.get_id();
+            owner = initiator.user.id;
         }
 
-        if let Some(field) = json::search_custom_field(conn, path.field_id).await? {
+        if let Some(field) = db::custom_fields::find_from_id(conn, &path.field_id).await? {
             if field.owner == owner {
                 Ok(response::json::respond_json(
                     http::StatusCode::OK,
@@ -82,7 +82,7 @@ pub async fn handle_put(
     posted: web::Json<PutCustomFieldJson>,
 ) -> Result<impl Responder> {
     let conn = &*app.get_conn().await?;
-    security::assert::is_owner_for_custom_field(conn, path.field_id, initiator.user.get_id()).await?;
+    security::assert::is_owner_for_custom_field(conn, path.field_id, initiator.user.id).await?;
 
     let config_json = serde_json::to_value(posted.config.clone())?;
     let result = conn.query_one(
@@ -108,12 +108,12 @@ pub async fn handle_put(
         http::StatusCode::OK,
         response::json::MessageDataJSON::build(
             "successful",
-            json::CustomFieldJson {
+            db::custom_fields::CustomField {
                 id: path.field_id,
                 name: result.get(0),
                 config: posted.config.clone(),
                 comment: result.get(1),
-                owner: initiator.user.get_id(),
+                owner: initiator.user.id,
                 order: posted.order,
                 issued_by: None
             }
@@ -127,7 +127,7 @@ pub async fn handle_delete(
     path: web::Path<CustomFieldPath>,
 ) -> Result<impl Responder> {
     let conn = &*app.get_conn().await?;
-    security::assert::is_owner_for_custom_field(conn, path.field_id, initiator.user.get_id()).await?;
+    security::assert::is_owner_for_custom_field(conn, path.field_id, initiator.user.id).await?;
 
     let _custom_field_entries_result = conn.execute(
         "delete from custom_field_entries where field = $1",

@@ -1,9 +1,9 @@
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
 import api from "../../api"
-import { CustomFieldJson } from "../../api/types"
+import { CustomField } from "../../api/types"
 import { compareNumbers, compareStrings } from "../../util/compare";
 
-const fetchCustomFields = createAsyncThunk<CustomFieldJson[], {owner: number | string, user_specific?: boolean}>(
+const fetchCustomFields = createAsyncThunk<CustomField[], {owner: number | string, user_specific?: boolean}>(
     "custom_fields/fetch_custom_fields",
     ({owner, user_specific}) => {
         return user_specific ?
@@ -15,8 +15,8 @@ const fetchCustomFields = createAsyncThunk<CustomFieldJson[], {owner: number | s
 export interface CustomFieldsState {
     owner: number
     loading: boolean
-    custom_fields: CustomFieldJson[]
-    mapping: {[id: string]: CustomFieldJson}
+    custom_fields: CustomField[]
+    mapping: {[id: string]: CustomField}
 }
 
 const initialState: CustomFieldsState = {
@@ -34,7 +34,7 @@ export const custom_fields = createSlice({
             state.owner = 0;
             state.custom_fields = [];
         },
-        add_field: (state, action: PayloadAction<CustomFieldJson>) => {
+        add_field: (state, action: PayloadAction<CustomField>) => {
             state.custom_fields.push(action.payload);
             state.mapping[action.payload.id] = action.payload;
 
@@ -48,7 +48,7 @@ export const custom_fields = createSlice({
                 }
             })
         },
-        update_field: (state, action: PayloadAction<CustomFieldJson>) => {
+        update_field: (state, action: PayloadAction<CustomField>) => {
             for (let i = 0; i < state.custom_fields.length; ++i) {
                 if (state.custom_fields[i].id === action.payload.id) {
                     state.custom_fields[i] = action.payload;

@@ -22,10 +22,10 @@ fn load_file(config_file: std::path::PathBuf) -> error::Result<shapes::ServerCon
                 std::fs::File::open(&config_file)?
             ))?)
         } else {
-            Err(error::ConfigError::InvalidFileExtension(ext.to_os_string()))
+            Err(error::Error::InvalidFileExtension(ext.to_os_string()))
         }
     } else {
-        Err(error::ConfigError::UnknownFileExtension)
+        Err(error::Error::UnknownFileExtension)
     }
 }
 
@@ -262,30 +262,30 @@ pub fn load_server_config(files: Vec<std::path::PathBuf>) -> error::Result<Serve
 
 pub fn validate_server_config(config: &ServerConfig) -> error::Result<()> {
     if config.bind.len() == 0 {
-        return Err(error::ConfigError::InvalidConfig(
+        return Err(error::Error::InvalidConfig(
             format!("no bind interfaces specified")
         ));
     }
 
     if config.email.enable {
         if config.email.username.is_none() || config.email.password.is_none() {
-            return Err(error::ConfigError::InvalidConfig(
+            return Err(error::Error::InvalidConfig(
                 "username and password must be given if email is enabled".to_owned()
             ));
         }
 
         if config.email.from.is_none() {
-            return Err(error::ConfigError::InvalidConfig(
+            return Err(error::Error::InvalidConfig(
                 "from email address must be given if email is enabled".to_owned()
             ));
         } else {
             if !config.email.from.as_ref().unwrap().parse::<Address>().is_ok() {
-                return Err(error::ConfigError::InvalidConfig("from email address is invalid".to_owned()));
+                return Err(error::Error::InvalidConfig("from email address is invalid".to_owned()));
             }
         }
 
         if config.email.relay.is_none() {
-            return Err(error::ConfigError::InvalidConfig(
+            return Err(error::Error::InvalidConfig(
                 "relay must be given if email is emabled".to_owned()
             ));
         }

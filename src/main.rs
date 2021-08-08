@@ -1,4 +1,5 @@
 use std::path::Path;
+
 use actix_web::{web, App, HttpServer};
 use actix_web::middleware::{Logger};
 use actix_session::{CookieSession};
@@ -6,12 +7,11 @@ use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use tokio_postgres::{Config as PGConfig, NoTls};
 use bb8_postgres::{PostgresConnectionManager, bb8};
 
-mod cli;
-mod config;
+use tlib::{cli, config};
+
 mod error;
 mod security;
 mod state;
-mod db;
 mod handler;
 mod response;
 mod request;
@@ -35,13 +35,40 @@ fn main() {
 }
 
 fn app_runner() -> Result {
-    let config = config::load_server_config(cli::init_from_cli()?)?;
+    let mut conf_files: Vec<std::path::PathBuf> = Vec::new();
+    let mut args = std::env::args();
+    args.next();
 
-    config::validate_server_config(&config)?;
+    loop {
+        let arg = match args.next() {
+            Some(a) => a,
+            None => break
+        };
+
+        if let Some(arg_substring) = cli::get_cli_option(&arg)? {
+            if arg_substring == "log-debug" {
+                std::env::set_var("RUST_LOG", "debug");
+            } else if arg_substring == "log-info" {
+                std::env::set_var("RUST_LOG", "info");
+            } else if arg_substring == "backtrace" {
+                std::env::set_var("RUST_BACKTRACE", "full");
+            } else {
+                return Err(cli::error::Error::UnknownArg(arg_substring.to_owned()).into());
+            }
+        } else {
+            conf_files.push(cli::file_from_arg(&arg)?);
+        }
+    }
+
+    env_logger::init();
+
+    let conf = config::load_server_config(conf_files)?;
+
+    config::validate_server_config(&conf)?;
 
     let system_runner = actix_web::rt::System::new();
     
-    let result = system_runner.block_on(server_runner(config));
+    let result = system_runner.block_on(server_runner(conf));
 
     log::info!("server shutdown");
 

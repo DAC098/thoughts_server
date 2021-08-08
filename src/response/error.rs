@@ -7,7 +7,8 @@ use actix_web::{
     HttpResponse
 };
 
-use crate::db;
+use tlib::{db};
+
 use crate::response;
 
 pub type Result<R> = std::result::Result<R, ResponseError>;
@@ -340,12 +341,13 @@ impl From<serde_json::Error> for ResponseError {
     
 }
 
-impl From<db::error::DbError> for ResponseError {
+impl From<db::error::Error> for ResponseError {
 
-    fn from(error: db::error::DbError) -> Self {
+    fn from(error: db::error::Error) -> Self {
         match error {
-            db::error::DbError::Validation(msg) => ResponseError::Validation(msg),
-            db::error::DbError::Postgres(err) => ResponseError::PostgresError(err)
+            db::error::Error::Validation(msg) => ResponseError::Validation(msg),
+            db::error::Error::Postgres(err) => ResponseError::PostgresError(err),
+            db::error::Error::RustFmt(err) => ResponseError::RustFMTError(err)
         }
     }
     

@@ -4,19 +4,20 @@ use actix_web::{web, http, HttpRequest, Responder};
 use actix_session::{Session};
 use serde::{Serialize, Deserialize};
 
+use tlib::{db};
+
 use crate::response;
 use crate::request::{from, url_query};
 use crate::state;
 use crate::json;
-use crate::db;
 
 use response::error;
 
 #[derive(Serialize, Deserialize)]
 pub struct BackupDataJson {
-    custom_fields: Vec<json::CustomFieldJson>,
+    custom_fields: Vec<db::custom_fields::CustomField>,
     tags: Vec<db::tags::Tag>,
-    entries: Vec<json::EntryJson>
+    entries: Vec<db::composed::ComposedEntry>
 }
 
 #[derive(Serialize, Deserialize)]
@@ -48,8 +49,8 @@ pub async fn handle_get(
     } else {
         let initiator = initiator_opt.unwrap();
         let data = BackupDataJson {
-            custom_fields: json::search_custom_fields(conn, initiator.user.id).await?, 
-            tags: db::tags::find_via_owner(conn, initiator.user.id).await?, 
+            custom_fields: db::custom_fields::find_from_owner(conn, &initiator.user.id).await?, 
+            tags: db::tags::find_from_owner(conn, initiator.user.id).await?, 
             entries: json::search_entries(conn, json::SearchEntriesOptions { 
                 from: info.get_from()?,
                 to: info.get_to()?,
@@ -133,7 +134,7 @@ pub async fn handle_post(
             on conflict on constraint unique_day_owner_key do nothing
             returning id
             "#,
-            &[&entry.day, &initiator.user.id]
+            &[&entry.entry.day, &initiator.user.id]
         ).await?;
 
         if result.is_empty() {
@@ -159,7 +160,7 @@ pub async fn handle_post(
             if let Some(custom_field_id) = custom_field_id_opt {
                 let config = custom_field_config_mapping.get(&field_id).unwrap();
 
-                db::custom_fields::verifiy(&config, &custom_field_entry.value)?;
+                db::validation::verifiy_custom_field_entry(&config, &custom_field_entry.value)?;
 
                 let value_json = serde_json::to_value(custom_field_entry.value.clone()).unwrap();
                 let _custom_field_entry_result = transaction.execute(

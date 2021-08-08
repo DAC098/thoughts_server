@@ -6,7 +6,7 @@ import { AxisLeft, AxisBottom } from '@visx/axis'
 import { GridRows, GridColumns } from '@visx/grid'
 import { scaleTime, scaleLinear } from '@visx/scale'
 import { Time } from "../../api/custom_field_entry_types";
-import { CustomFieldJson, EntryJson } from "../../api/types";
+import { CustomField, ComposedEntry } from "../../api/types";
 import { SolidLinePath } from "./line_paths"
 import { CircleMarker } from "./markers"
 import { defaultGetX } from "./getters"
@@ -15,7 +15,7 @@ import { entryIterator } from "./util"
 
 export const background = '#f3f3f3';
 
-const getY = (entry: EntryJson, field_id: string) => {
+const getY = (entry: ComposedEntry, field_id: string) => {
     return new Date((entry.custom_field_entries[field_id].value as Time).value).getTime();
 }
 
@@ -26,9 +26,9 @@ interface TimeGraphProps {
     height: number
     margin?: { top: number; right: number; bottom: number; left: number }
 
-    field: CustomFieldJson
+    field: CustomField
 
-    entries?: EntryJson[]
+    entries?: ComposedEntry[]
 }
 
 export default function TimeGraph({

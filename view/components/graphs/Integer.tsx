@@ -5,7 +5,7 @@ import { GridRows, GridColumns } from '@visx/grid'
 import { scaleTime, scaleLinear } from '@visx/scale'
 import * as CurveType from "@visx/curve"
 import { Integer } from "../../api/custom_field_entry_types";
-import { CustomFieldJson, EntryJson } from "../../api/types";
+import { CustomField, ComposedEntry } from "../../api/types";
 import { CircleMarker, TransCircleMarker } from "./markers"
 import { DashedLinePath, SolidLinePath } from "./line_paths"
 import { defaultGetX } from "./getters"
@@ -13,7 +13,7 @@ import { entryIterator } from "./util"
 
 export const background = '#f3f3f3';
 
-const getY = (entry: EntryJson, field_id: string) => {
+const getY = (entry: ComposedEntry, field_id: string) => {
     return (entry.custom_field_entries[field_id].value as Integer).value;
 }
 
@@ -24,9 +24,9 @@ interface IntegerGraphProps {
     height: number
     margin?: { top: number; right: number; bottom: number; left: number }
 
-    field: CustomFieldJson
+    field: CustomField
 
-    entries?: EntryJson[]
+    entries?: ComposedEntry[]
 }
 
 export default function IntegerGraph({

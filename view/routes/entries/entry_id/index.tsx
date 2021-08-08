@@ -3,7 +3,7 @@ import React, { Fragment, useContext, useEffect, useReducer, useRef } from "reac
 import { useHistory, useLocation, useParams } from "react-router-dom"
 import api from "../../../api"
 import { CustomFieldEntryType } from "../../../api/custom_field_entry_types"
-import { EntryJson, CustomFieldEntryJson, CustomFieldJson, TagJson, TextEntryJson } from "../../../api/types"
+import { ComposedEntry, CustomFieldEntry, CustomField, Tag, TextEntry } from "../../../api/types"
 import { CustomFieldEntryTypeEditView, CustomFieldEntryTypeReadView } from "../../../components/custom_field_entries"
 import { useAppDispatch, useAppSelector } from "../../../hooks/useApp"
 import { entryIdViewSlice, EntryIdViewContext, initialState, TextEntryUI, entry_id_view_actions, EntryIdViewReducer, EntryMarkerUI } from "./reducer"
@@ -42,7 +42,7 @@ const TextEntryEditView = ({text_entries}: TextEntryEditViewProps) => {
 }
 
 interface TextEntryReadViewProps {
-    text_entries: TextEntryJson[]
+    text_entries: TextEntry[]
 }
 
 const TextEntryReadView = ({text_entries}: TextEntryReadViewProps) => {
@@ -63,8 +63,8 @@ const TextEntryReadView = ({text_entries}: TextEntryReadViewProps) => {
 }
 
 interface CustomFieldEntryInputProps {
-    field: CustomFieldJson
-    entry: CustomFieldEntryJson
+    field: CustomField
+    entry: CustomFieldEntry
 
     onDelete?: () => void
     onChange?: (entry: {comment: string, value: CustomFieldEntryType}) => void
@@ -97,8 +97,8 @@ const CustomFieldEntryInputs = ({
 }
 
 interface CustomFieldEntriesEditViewProps {
-    custom_fields: CustomFieldJson[]
-    custom_field_entries: {[id: string]: CustomFieldEntryJson}
+    custom_fields: CustomField[]
+    custom_field_entries: {[id: string]: CustomFieldEntry}
 }
 
 const CustomFieldEntriesEditView = ({custom_fields, custom_field_entries}: CustomFieldEntriesEditViewProps) => {
@@ -119,8 +119,8 @@ const CustomFieldEntriesEditView = ({custom_fields, custom_field_entries}: Custo
 }
 
 interface CustomFieldEntriesReadViewProps {
-    custom_field_entries: {[id: string]: CustomFieldEntryJson}
-    custom_fields: CustomFieldJson[]
+    custom_field_entries: {[id: string]: CustomFieldEntry}
+    custom_fields: CustomField[]
 }
 
 const CustomFieldEntriesReadView = ({custom_fields, custom_field_entries}: CustomFieldEntriesReadViewProps) => {
@@ -256,9 +256,9 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
 
         let promise = null;
         
-        if (state.current.id) {
-            promise = api.entries.id.put(state.current.id, {
-                day: state.current.day,
+        if (state.current.entry.id) {
+            promise = api.entries.id.put(state.current.entry.id, {
+                day: state.current.entry.day,
                 tags: state.current.tags,
                 markers: state.current.markers,
                 custom_field_entries: Object.values(
@@ -277,7 +277,7 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
             })
         } else {
             promise = api.entries.post({
-                day: state.current.day,
+                day: state.current.entry.day,
                 tags: state.current.tags,
                 markers: state.current.markers,
                 custom_field_entries: Object.values(
@@ -293,7 +293,7 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
             }).then(entry => {
                 let base_path = location.pathname.split("/");
                 base_path.pop();
-                base_path.push(entry.id.toString());
+                base_path.push(entry.entry.id.toString());
 
                 history.push(stringFromLocation({
                     ...location, 
@@ -314,7 +314,7 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
             return;
         }
 
-        if (state.current == null || state.current.id === 0) {
+        if (state.current == null || state.current.entry.id === 0) {
             return;
         }
 
@@ -324,8 +324,8 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
 
         dispatch(entry_id_view_actions.set_deleting(true));
 
-        api.entries.id.del(state.current.id).then(() => {
-            appDispatch(entries_actions.delete_entry(state.current.id));
+        api.entries.id.del(state.current.entry.id).then(() => {
+            appDispatch(entries_actions.delete_entry(state.current.entry.id));
             let url = urlFromLocation(location);
             
             if (url.searchParams.has("prev")) {
@@ -354,7 +354,7 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
             fetchEntry();
         } else {
             for (let entry of entries_state.entries) {
-                if (entry.id === entry_id) {
+                if (entry.entry.id === entry_id) {
                     dispatch(entry_id_view_actions.set_entry(entry));
                     return;
                 }
@@ -436,7 +436,7 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
                     <Stack horizontal tokens={{childrenGap: 8, padding: 8}}>
                         <DatePicker
                             disabled={!state.edit_view}
-                            value={dateFromUnixTime(state.current.day)}
+                            value={dateFromUnixTime(state.current.entry.day)}
                             onSelectDate={d => {
                                 dispatch(entry_id_view_actions.update_entry(unixTimeFromDate(d)))
                             }}

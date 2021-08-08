@@ -8,46 +8,52 @@ export interface IssuedByJson {
     full_name?: string
 }
 
-export interface CustomFieldJson {
+export interface CustomField {
     id: number
     name: string
     config: CustomFieldType
     comment?: string
     owner: number
     order: number
-    issued_by?: IssuedByJson
+    issued_by?: number
 }
 
-export interface CustomFieldEntryJson {
+export interface CustomFieldEntry {
     field: number
-    name: string
     value: CustomFieldEntryType
     comment?: string
+    entry: number
 }
 
-export interface TextEntryJson {
+export interface TextEntry {
     id: number
     thought: string
     private: boolean
+    entry: number
 }
 
-export interface EntryMarkerJson {
+export interface EntryMarker {
     id: number
     title: string
     comment?: string
+    entry: number
 }
 
-export interface EntryJson {
+export interface Entry {
     id: number
     day: number
     owner: number
-    tags: number[]
-    markers: EntryMarkerJson[]
-    custom_field_entries: {[id: string]: CustomFieldEntryJson}
-    text_entries: TextEntryJson[]
 }
 
-export interface TagJson {
+export interface ComposedEntry {
+    entry: Entry
+    tags: number[]
+    markers: EntryMarker[]
+    custom_field_entries: {[id: string]: CustomFieldEntry}
+    text_entries: TextEntry[]
+}
+
+export interface Tag {
     id: number
     title: string
     color: string
@@ -164,45 +170,61 @@ export interface PostLogin {
     password: string
 }
 
-export function makeCustomFieldEntryJson(type: CustomFieldTypeName = CustomFieldTypeName.Integer): CustomFieldEntryJson {
+export function makeCustomFieldEntryJson(type: CustomFieldTypeName = CustomFieldTypeName.Integer): CustomFieldEntry {
     return {
         field: 0,
-        name: "",
+        entry: 0,
         value: makeMoodEntryType(type),
         comment: null
     }
 }
 
-export function cloneCustomFieldEntryJson(custom_field_entry: CustomFieldEntryJson): CustomFieldEntryJson {
+export function cloneCustomFieldEntryJson(custom_field_entry: CustomFieldEntry): CustomFieldEntry {
     return {
         field: cloneInteger(custom_field_entry.field),
-        name: cloneString(custom_field_entry.name),
+        entry: cloneInteger(custom_field_entry.entry),
         value: cloneMoodEntryType(custom_field_entry.value),
         comment: optionalCloneString(custom_field_entry.comment)
     };
 }
 
-export function makeTextEntry(): TextEntryJson {
+export function makeTextEntry(): TextEntry {
     return {
         id: null,
         thought: "",
-        private: false
+        private: false,
+        entry: 0
     }
 }
 
-export function cloneTextEntry(text_entry: TextEntryJson): TextEntryJson {
+export function cloneTextEntry(text_entry: TextEntry): TextEntry {
     return {
         id: optionalCloneInteger(text_entry.id),
         thought: cloneString(text_entry.thought),
-        private: cloneBoolean(text_entry.private)
+        private: cloneBoolean(text_entry.private),
+        entry: cloneInteger(text_entry.entry)
     };
 }
 
-export function makeEntryJson(): EntryJson {
+export function makeEntry(): Entry {
     return {
-        id: null,
+        id: 0,
         day: 0,
-        owner: 0,
+        owner: 0
+    }
+}
+
+export function cloneEntry(entry: Entry): Entry {
+    return {
+        id: cloneInteger(entry.id),
+        day: cloneInteger(entry.day),
+        owner: cloneInteger(entry.owner)
+    }
+}
+
+export function makeComposedEntry(): ComposedEntry {
+    return {
+        entry: makeEntry(),
         tags: [],
         markers: [],
         custom_field_entries: {},
@@ -210,11 +232,9 @@ export function makeEntryJson(): EntryJson {
     }
 }
 
-export function cloneEntryJson(entry: EntryJson) {
-    let rtn: EntryJson = {
-        id: optionalCloneInteger(entry.id),
-        day: cloneInteger(entry.day),
-        owner: cloneInteger(entry.owner),
+export function cloneComposedEntry(entry: ComposedEntry) {
+    let rtn: ComposedEntry = {
+        entry: cloneEntry(entry.entry),
         tags: [],
         markers: [],
         custom_field_entries: {},
@@ -239,30 +259,32 @@ export function cloneEntryJson(entry: EntryJson) {
 
     for (let m of entry.markers) {
         rtn.markers.push(
-            cloneEntryMarkerJson(m)
+            cloneEntryMarker(m)
         );
     }
 
     return rtn;
 }
 
-export function makeEntryMarkerJson(): EntryMarkerJson {
+export function makeEntryMarker(): EntryMarker {
     return {
         id: null,
         title: "",
-        comment: null
+        comment: null,
+        entry: 0
     }
 }
 
-export function cloneEntryMarkerJson(marker: EntryMarkerJson): EntryMarkerJson {
+export function cloneEntryMarker(marker: EntryMarker): EntryMarker {
     return {
         id: optionalCloneInteger(marker.id),
         title: cloneString(marker.title),
-        comment: optionalCloneString(marker.comment)
+        comment: optionalCloneString(marker.comment),
+        entry: cloneInteger(marker.entry)
     }
 }
 
-export function makeIssuedByJson(): IssuedByJson {
+export function makeIssuedBy(): IssuedByJson {
     return {
         id: null,
         username: "",
@@ -270,7 +292,7 @@ export function makeIssuedByJson(): IssuedByJson {
     }
 }
 
-export function cloneIssuedByJson(issued_by: IssuedByJson): IssuedByJson {
+export function cloneIssuedBy(issued_by: IssuedByJson): IssuedByJson {
     return {
         id: cloneInteger(issued_by.id),
         username: cloneString(issued_by.username),
@@ -278,7 +300,7 @@ export function cloneIssuedByJson(issued_by: IssuedByJson): IssuedByJson {
     }
 }
 
-export function makeCustomFieldJson(): CustomFieldJson {
+export function makeCustomField(): CustomField {
     return {
         id: null,
         name: "",
@@ -290,7 +312,7 @@ export function makeCustomFieldJson(): CustomFieldJson {
     }
 }
 
-export function cloneCustomFieldJson(custom_field: CustomFieldJson): CustomFieldJson {
+export function cloneCustomFieldJson(custom_field: CustomField): CustomField {
     return {
         id: cloneInteger(custom_field.id),
         name: cloneString(custom_field.name),
@@ -298,7 +320,7 @@ export function cloneCustomFieldJson(custom_field: CustomFieldJson): CustomField
         comment: optionalCloneString(custom_field.comment),
         owner: cloneInteger(custom_field.owner),
         order: cloneInteger(custom_field.order),
-        issued_by: custom_field.issued_by != null ? cloneIssuedByJson(custom_field.issued_by) : null
+        issued_by: optionalCloneInteger(custom_field.issued_by)
     }
 }
 
@@ -370,7 +392,7 @@ export function cloneUserInfoJson(info: UserInfoJson): UserInfoJson {
     return rtn;
 }
 
-export function makeTagJson(): TagJson {
+export function makeTagJson(): Tag {
     return {
         id: 0,
         title: "",
@@ -380,7 +402,7 @@ export function makeTagJson(): TagJson {
     }
 }
 
-export function cloneTagJson(tag: TagJson): TagJson {
+export function cloneTagJson(tag: Tag): Tag {
     return {
         id: cloneInteger(tag.id),
         title: cloneString(tag.title),

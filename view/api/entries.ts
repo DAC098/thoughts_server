@@ -1,7 +1,7 @@
 import { json } from "../request";
 import { unixTimeFromDate } from "../util/time";
 import { urlFromString } from "../util/url";
-import { EntryJson, GetEntriesQuery, PostEntry } from "./types";
+import { ComposedEntry, GetEntriesQuery, PostEntry } from "./types";
 
 export async function get(query: GetEntriesQuery = {}) {
     let url = urlFromString("/entries");
@@ -14,13 +14,13 @@ export async function get(query: GetEntriesQuery = {}) {
         url.searchParams.append("to", unixTimeFromDate(query.to).toString());
     }
 
-    let {body} = await json.get<EntryJson[]>(url);
+    let {body} = await json.get<ComposedEntry[]>(url);
 
     return body.data;
 }
 
 export async function post(post: PostEntry) {
-    let {body} = await json.post<EntryJson>(urlFromString("/entries"), post);
+    let {body} = await json.post<ComposedEntry>(urlFromString("/entries"), post);
 
     return body.data;
 }

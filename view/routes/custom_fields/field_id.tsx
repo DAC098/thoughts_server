@@ -1,7 +1,7 @@
 import { DefaultButton, Dialog, DialogFooter, DialogType, Dropdown, IconButton, IDropdownOption, Position, SpinButton, Stack, TextField } from "@fluentui/react"
 import React, { createContext, Dispatch, Reducer, useContext, useEffect, useReducer } from "react"
 import { useHistory, useLocation, useParams } from "react-router"
-import { cloneCustomFieldJson, makeCustomFieldJson, CustomFieldJson } from "../../api/types"
+import { cloneCustomFieldJson, makeCustomField, CustomField } from "../../api/types"
 import api from "../../api"
 import { useOwner } from "../../hooks/useOwner"
 import { makeCustomFieldType, CustomFieldType, CustomFieldTypeName } from "../../api/custom_field_types"
@@ -12,8 +12,8 @@ import { createSlice, PayloadAction } from "@reduxjs/toolkit"
 import { SliceActionTypes } from "../../redux/types"
 
 interface FieldState {
-    original?: CustomFieldJson
-    current?: CustomFieldJson
+    original?: CustomField
+    current?: CustomField
     loading: boolean
     sending: boolean
     changes_made: boolean
@@ -55,7 +55,7 @@ const fieldStateSlice = createSlice({
             state.edit_view = action.payload;
         },
 
-        set_field: (state, action: PayloadAction<CustomFieldJson>) => {
+        set_field: (state, action: PayloadAction<CustomField>) => {
             state.original = action.payload;
             state.current = cloneCustomFieldJson(action.payload);
             state.changes_made = false;
@@ -65,8 +65,8 @@ const fieldStateSlice = createSlice({
             state.changes_made = false;
         },
         new_field: (state) => {
-            state.original = makeCustomFieldJson();
-            state.current = makeCustomFieldJson();
+            state.original = makeCustomField();
+            state.current = makeCustomField();
             state.changes_made = false;
         },
 
@@ -106,7 +106,7 @@ interface FieldIdViewProps {
 }
 
 const FieldIdView = ({user_specific = false}: FieldIdViewProps) => {
-    const location = useLocation<{field?: CustomFieldJson}>();
+    const location = useLocation<{field?: CustomField}>();
     const history = useHistory();
     const params = useParams<{field_id: string, user_id?: string}>();
     const owner = useOwner(user_specific);

@@ -1,7 +1,7 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { createContext, Dispatch, Reducer } from "react"
 import { CustomFieldEntryType } from "../../../api/custom_field_entry_types";
-import { cloneEntryJson, EntryJson, makeEntryJson, makeCustomFieldEntryJson, makeTextEntry, CustomFieldEntryJson, TextEntryJson, EntryMarkerJson, makeEntryMarkerJson } from "../../../api/types"
+import { cloneComposedEntry, ComposedEntry, makeComposedEntry, makeCustomFieldEntryJson, makeTextEntry, CustomFieldEntry, TextEntry, EntryMarker, makeEntryMarker } from "../../../api/types"
 import { store } from "../../../redux/store";
 import { SliceActionTypes } from "../../../redux/types";
 import { cloneInteger } from "../../../util/clone";
@@ -11,15 +11,15 @@ interface UIKey {
     key?: number | string
 }
 
-export interface TextEntryUI extends UIKey, TextEntryJson {}
+export interface TextEntryUI extends UIKey, TextEntry {}
 
-export interface EntryMarkerUI extends UIKey, EntryMarkerJson {}
+export interface EntryMarkerUI extends UIKey, EntryMarker {}
 
-export interface CustomFieldEntryUI extends UIKey, CustomFieldEntryJson {
+export interface CustomFieldEntryUI extends UIKey, CustomFieldEntry {
     error_msg?: string
 }
 
-export interface EntryUIState extends EntryJson {
+export interface EntryUIState extends ComposedEntry {
     markers: EntryMarkerUI[],
     text_entries: TextEntryUI[]
     custom_field_entries: {[id: string]: CustomFieldEntryUI}
@@ -58,9 +58,9 @@ export const entryIdViewSlice = createSlice({
     name: "entry_id_view",
     initialState: initialState(false, {entry_id: "0"}),
     reducers: {
-        set_entry: (state, action: PayloadAction<EntryJson>) => {
+        set_entry: (state, action: PayloadAction<ComposedEntry>) => {
             state.original = action.payload;
-            state.current = cloneEntryJson(action.payload);
+            state.current = cloneComposedEntry(action.payload);
             state.existing_fields = {};
             state.tag_mapping = {};
             state.changes_made = false;
@@ -70,7 +70,7 @@ export const entryIdViewSlice = createSlice({
             }
         },
         reset_entry: (state) => {
-            state.current = cloneEntryJson(state.original);
+            state.current = cloneComposedEntry(state.original);
             state.existing_fields = {};
             state.tag_mapping = {};
             state.changes_made = false;
@@ -87,22 +87,21 @@ export const entryIdViewSlice = createSlice({
             today.setSeconds(0);
             today.setMilliseconds(0);
 
-            state.original = makeEntryJson();
-            state.original.day = unixTimeFromDate(today);
-            state.current = makeEntryJson();
-            state.current.day = cloneInteger(state.original.day);
+            state.original = makeComposedEntry();
+            state.original.entry.day = unixTimeFromDate(today);
+            state.current = makeComposedEntry();
+            state.current.entry.day = cloneInteger(state.original.entry.day);
             state.changes_made = true;
             state.existing_fields = {};
 
             for (let field of store_state.custom_fields.custom_fields) {
                 let custom_field_entry = makeCustomFieldEntryJson(field.config.type);
                 custom_field_entry.field = field.id;
-                custom_field_entry.name = field.name;
                 state.current.custom_field_entries[field.id] = custom_field_entry;
             }
         },
         update_entry: (state, action: PayloadAction<number>) => {
-            state.current.day = action.payload;
+            state.current.entry.day = action.payload;
             state.changes_made = true;
         },
         
@@ -121,7 +120,6 @@ export const entryIdViewSlice = createSlice({
 
             let custom_field_entry = makeCustomFieldEntryJson(field.config.type);
             custom_field_entry.field = field.id;
-            custom_field_entry.name = field.name;
 
             state.current.custom_field_entries[field.id] = custom_field_entry;
             state.changes_made = true;
@@ -154,7 +152,7 @@ export const entryIdViewSlice = createSlice({
         },
 
         create_entry_marker: (state) => {
-            let entry_marker: EntryMarkerUI = makeEntryMarkerJson();
+            let entry_marker: EntryMarkerUI = makeEntryMarker();
             entry_marker.key = Date.now().toString();
 
             state.current.markers.push(entry_marker);

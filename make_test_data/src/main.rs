@@ -7,16 +7,16 @@ use rand::{Rng, SeedableRng};
 use rand::rngs::{SmallRng};
 use lipsum;
 
-mod cli;
-mod config;
-mod db;
-mod error;
+use tlib::{config, cli};
+use tlib::db::custom_fields::{CustomField, CustomFieldType};
+use tlib::db::custom_field_entries::{CustomFieldEntryType};
+use tlib::cli::error::{Error};
 
-use error::{Result, AppError};
-use db::custom_fields::{CustomFieldType};
-use db::custom_field_entries::{CustomFieldEntryType};
+type Result<T> = std::result::Result<T, postgres::Error>;
 
-type RtnResult<T> = std::result::Result<T, AppError>;
+fn map_db_err(error: postgres::Error) -> Error {
+    Error::General(format!("database error\n{:?}", error))
+}
 
 fn main() {
     std::process::exit(match make_test_data() {
@@ -29,9 +29,49 @@ fn main() {
     })
 }
 
-fn make_test_data() -> Result {
-    let server_config = config::load_server_config(cli::init_from_cli()?)?;
-    config::validate_server_config(&server_config)?;
+fn make_test_data() -> std::result::Result<i32, Error> {
+    let mut total_days: i64 = 365 * 10;
+    let mut config_files: Vec<std::path::PathBuf> = Vec::new();
+    let mut args = std::env::args();
+    args.next();
+
+    loop {
+        let arg = match args.next() {
+            Some(a) => a,
+            None => break
+        };
+
+        if arg.starts_with("--") {
+            if arg.len() <= 2 {
+                return Err(Error::IncompleteArg);
+            }
+
+            let (_, arg_substring) = arg.split_at(2);
+
+            if arg_substring == "days" {
+                if let Some(next_arg) = args.next() {
+                    total_days = next_arg.parse().map_err(
+                        |_err| Error::InvalidArg("days must a valid 64 bit integer".to_owned())
+                    )?;
+                } else {
+                    return Err(Error::MissingArgValue(arg_substring.to_owned()));
+                }
+            } else if arg_substring == "config" {
+                if let Some(next_arg) = args.next() {
+                    config_files.push(cli::file_from_arg(&next_arg)?);
+                } else {
+                    return Err(Error::MissingArgValue(arg_substring.to_owned()));
+                }
+            }
+        }
+    }
+
+    let server_config = config::load_server_config(config_files).map_err(
+        |err| Error::General(err.get_msg())
+    )?;
+    config::validate_server_config(&server_config).map_err(
+        |err| Error::General(err.get_msg())
+    )?;
 
     let mut db_config = Client::configure();
     db_config.user(server_config.db.username.as_ref());
@@ -40,30 +80,29 @@ fn make_test_data() -> Result {
     db_config.port(server_config.db.port);
     db_config.dbname(server_config.db.database.as_ref());
 
-    let mut client = db_config.connect(NoTls)?;
-    let mut transaction = client.transaction()?;
+    let mut client = db_config.connect(NoTls).map_err(map_db_err)?;
+    let mut transaction = client.transaction().map_err(map_db_err)?;
     let search = transaction.query(
         r#"select id from users where username = 'admin'"#,
         &[]
-    )?;
+    ).map_err(map_db_err)?;
 
     if search.is_empty() {
         println!("no admin user found");
-        transaction.rollback()?;
+        transaction.rollback().map_err(map_db_err)?;
     } else {
-        let total_days: i64 = 365 * 10;
         let mut small_rng = SmallRng::from_entropy();
         let start_date = Local::today().and_hms(0, 0, 0) - Duration::days(total_days);
         let owner = search[0].get(0);
 
-        delete_current_data(&mut transaction, &owner)?;
+        delete_current_data(&mut transaction, &owner).map_err(map_db_err)?;
         
-        let tags = make_tags(&mut transaction, &mut small_rng, &owner)?;
-        let fields = make_custom_fields(&mut transaction, &owner)?;
+        let tags = make_tags(&mut transaction, &mut small_rng, &owner).map_err(map_db_err)?;
+        let fields = make_custom_fields(&mut transaction, &owner).map_err(map_db_err)?;
 
-        make_entries(&mut transaction, &mut small_rng, &owner, total_days, &start_date, &tags, &fields)?;
+        make_entries(&mut transaction, &mut small_rng, &owner, total_days, &start_date, &tags, &fields).map_err(map_db_err)?;
 
-        transaction.commit()?;
+        transaction.commit().map_err(map_db_err)?;
     }
 
     Ok(0)
@@ -72,7 +111,7 @@ fn make_test_data() -> Result {
 fn delete_current_data(
     conn: &mut Transaction,
     owner: &i32
-) -> RtnResult<()> {
+) -> Result<()> {
     conn.execute(
         r#"
         delete from text_entries where entry in (
@@ -130,13 +169,13 @@ fn delete_current_data(
 fn make_custom_fields(
     conn: &mut Transaction, 
     owner: &i32
-) -> RtnResult<Vec<db::custom_fields::CustomField>> {
-    let mut rtn: Vec<db::custom_fields::CustomField> = Vec::with_capacity(6);
+) -> Result<Vec<CustomField>> {
+    let mut rtn: Vec<CustomField> = Vec::with_capacity(6);
     
     // make integer field
     {
         let value = serde_json::to_value(
-            db::custom_fields::CustomFieldType::Integer {
+            CustomFieldType::Integer {
                 minimum: None,
                 maximum: None
             }
@@ -151,21 +190,24 @@ fn make_custom_fields(
             &[&owner, &value]
         )?;
 
-        rtn.push(db::custom_fields::CustomField {
+        rtn.push(CustomField {
             id: result.get(0),
             name: "integer".to_owned(),
             owner: owner.clone(),
-            config: db::custom_fields::CustomFieldType::Integer {
+            config: CustomFieldType::Integer {
                 minimum: None,
                 maximum: None
-            }
+            },
+            comment: None,
+            issued_by: None,
+            order: 0
         });
     }
 
     // make integer range field
     {
         let value = serde_json::to_value(
-            db::custom_fields::CustomFieldType::IntegerRange {
+            CustomFieldType::IntegerRange {
                 minimum: Some(1),
                 maximum: Some(10)
             }
@@ -180,21 +222,24 @@ fn make_custom_fields(
             &[&owner, &value]
         )?;
 
-        rtn.push(db::custom_fields::CustomField {
+        rtn.push(CustomField {
             id: result.get(0),
             name: "integer_range".to_owned(),
             owner: owner.clone(),
-            config: db::custom_fields::CustomFieldType::IntegerRange {
+            config: CustomFieldType::IntegerRange {
                 minimum: Some(1),
                 maximum: Some(10)
-            }
+            },
+            comment: None,
+            issued_by: None,
+            order: 0
         });
     }
 
     // make float field
     {
         let value = serde_json::to_value(
-            db::custom_fields::CustomFieldType::Float {
+            CustomFieldType::Float {
                 minimum: Some(0.0),
                 maximum: Some(50.0),
                 step: 1.25,
@@ -211,23 +256,26 @@ fn make_custom_fields(
             &[&owner, &value]
         )?;
 
-        rtn.push(db::custom_fields::CustomField {
+        rtn.push(CustomField {
             id: result.get(0),
             name: "float".to_owned(),
             owner: owner.clone(),
-            config: db::custom_fields::CustomFieldType::Float {
+            config: CustomFieldType::Float {
                 minimum: Some(0.0),
                 maximum: Some(50.0),
                 step: 1.25,
                 precision: 2
-            }
+            },
+            comment: None,
+            issued_by: None,
+            order: 0
         });
     }
 
     // make float range field
     {
         let value = serde_json::to_value(
-            db::custom_fields::CustomFieldType::FloatRange {
+            CustomFieldType::FloatRange {
                 minimum: Some(0.0),
                 maximum: None,
                 step: 1.125,
@@ -244,23 +292,26 @@ fn make_custom_fields(
             &[&owner, &value]
         )?;
 
-        rtn.push(db::custom_fields::CustomField {
+        rtn.push(CustomField {
             id: result.get(0),
             name: "float_range".to_owned(),
             owner: owner.clone(),
-            config: db::custom_fields::CustomFieldType::FloatRange {
+            config: CustomFieldType::FloatRange {
                 minimum: Some(0.0),
                 maximum: None,
                 step: 1.125,
                 precision: 3
-            }
+            },
+            comment: None,
+            issued_by: None,
+            order: 0
         })
     }
 
     // make timee field
     {
         let value = serde_json::to_value(
-            db::custom_fields::CustomFieldType::Time {
+            CustomFieldType::Time {
                 as_12hr: false
             }
         ).unwrap();
@@ -274,20 +325,23 @@ fn make_custom_fields(
             &[&owner, &value]
         )?;
 
-        rtn.push(db::custom_fields::CustomField {
+        rtn.push(CustomField {
             id: result.get(0),
             name: "time".to_owned(),
             owner: owner.clone(),
-            config: db::custom_fields::CustomFieldType::Time {
+            config: CustomFieldType::Time {
                 as_12hr: false
-            }
+            },
+            comment: None,
+            issued_by: None,
+            order: 0
         });
     }
 
     // make time range field
     {
         let value = serde_json::to_value(
-            db::custom_fields::CustomFieldType::TimeRange {
+            CustomFieldType::TimeRange {
                 show_diff: true,
                 as_12hr: false
             }
@@ -302,21 +356,24 @@ fn make_custom_fields(
             &[&owner, &value]
         )?;
 
-        rtn.push(db::custom_fields::CustomField {
+        rtn.push(CustomField {
             id: result.get(0),
             name: "time_range".to_owned(),
             owner: owner.clone(),
-            config: db::custom_fields::CustomFieldType::TimeRange {
+            config: CustomFieldType::TimeRange {
                 show_diff: true,
                 as_12hr: false
-            }
+            },
+            comment: None,
+            issued_by: None,
+            order: 0
         });
     }
 
     Ok(rtn)
 }
 
-fn make_tags(conn: &mut Transaction, rng: &mut SmallRng, owner: &i32) -> RtnResult<Vec<i32>> {
+fn make_tags(conn: &mut Transaction, rng: &mut SmallRng, owner: &i32) -> Result<Vec<i32>> {
     let words = vec!(
         "happy", "sad", "party", 
         "bday", "appointment", "hike", 
@@ -361,8 +418,8 @@ fn make_entries(
     amount: i64, 
     start_day: &DateTime<Local>, 
     tags: &Vec<i32>, 
-    fields: &Vec<db::custom_fields::CustomField>
-) -> RtnResult<()> {
+    fields: &Vec<CustomField>
+) -> Result<()> {
     for n in 0..amount {
         let day = *start_day + Duration::days(n);
         let result = conn.query_one(
@@ -388,7 +445,7 @@ fn make_custom_field_entry_value(
     config: &CustomFieldType,
     rng: &mut SmallRng,
     day: &DateTime<Local>
-) -> db::custom_field_entries::CustomFieldEntryType {
+) -> CustomFieldEntryType {
     match &*config {
         CustomFieldType::Integer{minimum, maximum} => {
             CustomFieldEntryType::Integer {
@@ -454,8 +511,8 @@ fn make_custom_field_entries(
     rng: &mut SmallRng,
     entry_id: &i32,
     day: &DateTime<Local>,
-    fields: &Vec<db::custom_fields::CustomField>
-) -> RtnResult<()> {
+    fields: &Vec<CustomField>
+) -> Result<()> {
     for field in fields {
         let value = serde_json::to_value(
             make_custom_field_entry_value(&field.config, rng, day)
@@ -477,7 +534,7 @@ fn make_text_entries(
     conn: &mut Transaction, 
     rng: &mut SmallRng,
     entry_id: &i32
-) -> RtnResult<()> {
+) -> Result<()> {
     let total: u32 = rng.gen_range(0..3);
 
     for _ in 0..total {
@@ -501,7 +558,7 @@ fn make_tag_entries(
     rng: &mut SmallRng,
     entry_id: &i32, 
     tags: &Vec<i32>
-) -> RtnResult<()> {
+) -> Result<()> {
     let total: usize = rng.gen_range(0..3);
     let mut assigned: HashSet<i32> = HashSet::with_capacity(total);
 

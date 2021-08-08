@@ -1,15 +1,15 @@
 import { json } from "../request";
 import { urlFromString } from "../util/url";
-import { EntryJson, PutEntry } from "./types";
+import { ComposedEntry, PutEntry } from "./types";
 
 export async function get(id: number | string) {
-    let {body} = await json.get<EntryJson>(urlFromString(`/entries/${id}`));
+    let {body} = await json.get<ComposedEntry>(urlFromString(`/entries/${id}`));
 
     return body.data;
 }
 
 export async function put(id: number | string, put: PutEntry) {
-    let {body} = await json.put<EntryJson>(urlFromString(`/entries/${id}`), put);
+    let {body} = await json.put<ComposedEntry>(urlFromString(`/entries/${id}`), put);
 
     return body.data;
 }

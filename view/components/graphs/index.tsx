@@ -1,6 +1,6 @@
 import React from "react"
 import { CustomFieldTypeName } from "../../api/custom_field_types"
-import { CustomFieldJson, EntryJson } from "../../api/types"
+import { CustomField, ComposedEntry } from "../../api/types"
 import FloatGraph from "./Float"
 import FloatRangeGraph from "./FloatRange"
 import IntegerGraph from "./Integer"
@@ -9,9 +9,9 @@ import TimeGraph from "./Time"
 import TimeRangeGraph from "./TimeRange"
 
 interface CustomFieldGraphProps {
-    field: CustomFieldJson
+    field: CustomField
 
-    entries: EntryJson[]
+    entries: ComposedEntry[]
 
     width: number
     height: number

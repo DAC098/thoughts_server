@@ -54,7 +54,7 @@ pub async fn handle_get(
             where user_access.allowed_for = $1
             order by user_access.owner
             "#,
-            &[&initiator.user.get_id()]
+            &[&initiator.user.id]
         ).await?;
         let mut allowed = Vec::<UserJson>::with_capacity(allowed_result.len());
 
@@ -78,7 +78,7 @@ pub async fn handle_get(
             where user_access.owner = $1
             order by user_access.allowed_for
             "#,
-            &[&initiator.user.get_id()]
+            &[&initiator.user.id]
         ).await?;
         let mut given = Vec::<UserJson>::with_capacity(given_result.len());
 

@@ -2,13 +2,13 @@ use actix_web::{web, http, HttpRequest, Responder};
 use actix_session::{Session};
 use serde::{Deserialize};
 
+use tlib::{db};
+
 pub mod field_id;
 
 use crate::request::from;
 use crate::response;
 use crate::state;
-use crate::json;
-use crate::db;
 use crate::security;
 
 use response::error::{Result, ResponseError};
@@ -41,17 +41,17 @@ pub async fn handle_get(
         let owner: i32;
 
         if let Some(user_id) = path.user_id {
-            security::assert::permission_to_read(conn, initiator.user.get_id(), user_id).await?;
+            security::assert::permission_to_read(conn, initiator.user.id, user_id).await?;
             owner = user_id;
         } else {
-            owner = initiator.user.get_id();
+            owner = initiator.user.id;
         }
 
         Ok(response::json::respond_json(
             http::StatusCode::OK,
             response::json::MessageDataJSON::build(
                 "successful",
-                json::search_custom_fields(conn, owner).await?
+                db::custom_fields::find_from_owner(conn, &owner).await?
             )
         ))
     }
@@ -75,7 +75,7 @@ pub async fn handle_post(
 
     let check = conn.query(
         "select id from custom_fields where name = $1 and owner = $2",
-        &[&posted.name, &initiator.user.get_id()]
+        &[&posted.name, &initiator.user.id]
     ).await?;
 
     if check.len() != 0 {
@@ -92,7 +92,7 @@ pub async fn handle_post(
             &posted.name, 
             &config_json,
             &posted.comment, 
-            &initiator.user.get_id(),
+            &initiator.user.id,
             &posted.order
         ]
     ).await?;
@@ -101,12 +101,12 @@ pub async fn handle_post(
         http::StatusCode::OK,
         response::json::MessageDataJSON::build(
             "successful",
-            json::CustomFieldJson {
+            db::custom_fields::CustomField {
                 id: result.get(0),
                 name: result.get(1),
                 config: serde_json::from_value(result.get(2))?,
                 comment: result.get(3),
-                owner: initiator.user.get_id(),
+                owner: initiator.user.id,
                 order: posted.order,
                 issued_by: None
             }

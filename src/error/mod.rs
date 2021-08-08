@@ -1,16 +1,15 @@
 use std::{fmt};
 use std::convert::{From};
 
-use crate::config;
-use crate::cli;
+use tlib::{cli, config};
 
 pub type Result = std::result::Result<i32, AppError>;
 
 #[derive(Debug)]
 pub enum AppError {
-    CliError(cli::error::CliError),
+    CliError(cli::error::Error),
     SslError(String),
-    ConfigError(config::error::ConfigError),
+    ConfigError(config::error::Error),
 
     IoError(std::io::Error),
 
@@ -56,17 +55,17 @@ impl From<std::io::Error> for AppError {
     
 }
 
-impl From<config::error::ConfigError> for AppError {
+impl From<config::error::Error> for AppError {
 
-    fn from(error: config::error::ConfigError) -> Self {
+    fn from(error: config::error::Error) -> Self {
         AppError::ConfigError(error)
     }
 
 }
 
-impl From<cli::error::CliError> for AppError {
+impl From<cli::error::Error> for AppError {
 
-    fn from(error: cli::error::CliError) -> Self {
+    fn from(error: cli::error::Error) -> Self {
         AppError::CliError(error)
     }
     

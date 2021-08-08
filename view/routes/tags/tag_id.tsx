@@ -3,7 +3,7 @@ import { createSlice, PayloadAction } from "@reduxjs/toolkit"
 import React, { Reducer, useEffect, useReducer } from "react"
 import { useHistory, useParams } from "react-router"
 import api from "../../api"
-import { cloneTagJson, makeTagJson, TagJson } from "../../api/types"
+import { cloneTagJson, makeTagJson, Tag } from "../../api/types"
 import OverlayedPage from "../../components/OverlayedPage"
 import { useAppDispatch, useAppSelector } from "../../hooks/useApp"
 import { useOwner } from "../../hooks/useOwner"
@@ -72,8 +72,8 @@ const color_swatches_list = [
 ];
 
 interface TagsIDViewState {
-    original: TagJson,
-    current: TagJson,
+    original: Tag,
+    current: Tag,
 
     loading: boolean,
     sending: boolean,
@@ -108,13 +108,13 @@ const tagsIDViewSlice = createSlice({
             state.current = makeTagJson();
             state.changes_made = false;
         },
-        set_tag: (state, action: PayloadAction<TagJson>) => {
+        set_tag: (state, action: PayloadAction<Tag>) => {
             state.original = action.payload;
             state.current = cloneTagJson(action.payload);
             state.changes_made = false;
             state.custom_color = !(action.payload.color in color_swatches);
         },
-        update_tag: (state, action: PayloadAction<TagJson>) => {
+        update_tag: (state, action: PayloadAction<Tag>) => {
             state.current = action.payload;
             state.changes_made = true;
         },

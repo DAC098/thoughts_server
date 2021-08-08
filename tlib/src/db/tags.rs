@@ -3,8 +3,6 @@ use serde::{Serialize, Deserialize};
 
 use crate::db::error;
 
-use error::Result;
-
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Tag {
     pub id: i32,
@@ -14,10 +12,10 @@ pub struct Tag {
     pub comment: Option<String>
 }
 
-pub async fn find_via_id(
+pub async fn find_from_id(
     conn: &impl GenericClient,
     id: i32
-) -> Result<Option<Tag>> {
+) -> error::Result<Option<Tag>> {
     let result = conn.query(
         "select id, title, color, owner, comment from tags where id = $1",
         &[&id]
@@ -36,25 +34,24 @@ pub async fn find_via_id(
     }
 }
 
-pub async fn find_via_owner(
+pub async fn find_from_owner(
     conn: &impl GenericClient,
     owner: i32
-) -> Result<Vec<Tag>> {
-    let result = conn.query(
-        "select id, title, color, owner, comment from tags where owner = $1",
-        &[&owner]
-    ).await?;
-    let mut rtn: Vec<Tag> = Vec::with_capacity(result.len());
-
-    for row in result {
-        rtn.push(Tag {
+) -> error::Result<Vec<Tag>> {
+    Ok(
+        conn.query(
+            "select id, title, color, owner, comment from tags where owner = $1",
+            &[&owner]
+        )
+        .await?
+        .iter()
+        .map(|row| Tag {
             id: row.get(0),
             title: row.get(1),
             color: row.get(2),
             owner: row.get(3),
             comment: row.get(4)
-        });
-    }
-
-    Ok(rtn)
+        })
+        .collect()
+    )
 }

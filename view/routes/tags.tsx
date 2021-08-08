@@ -2,7 +2,7 @@ import { CommandBar, ScrollablePane, ShimmeredDetailsList, Stack, Sticky, Sticky
 import React, { useEffect } from "react"
 import { useHistory } from "react-router";
 import { Link } from "react-router-dom";
-import { TagJson } from "../api/types";
+import { Tag } from "../api/types";
 import ColorSwatch from "../components/ColorSwatch";
 import { useAppDispatch, useAppSelector } from "../hooks/useApp";
 import { useOwner } from "../hooks/useOwner";
@@ -69,7 +69,7 @@ const TagsView = ({user_specific = false}: TagsViewProps) => {
                         name: "Title",
                         minWidth: 100,
                         maxWidth: 150,
-                        onRender: (item: TagJson) => {
+                        onRender: (item: Tag) => {
                             return user_specific ?
                                 item.title :
                                 <Link to={`/tags/${item.id}`}>{item.title}</Link>;
@@ -80,7 +80,7 @@ const TagsView = ({user_specific = false}: TagsViewProps) => {
                         name: "Color",
                         minWidth: 100,
                         maxWidth: 100,
-                        onRender: (item: TagJson) => {
+                        onRender: (item: Tag) => {
                             return <Stack horizontal tokens={{childrenGap: 8}} verticalAlign="center">
                                 <ColorSwatch color={item.color} borderWidth={2}/>
                                 <span>{item.color}</span>
@@ -91,7 +91,7 @@ const TagsView = ({user_specific = false}: TagsViewProps) => {
                         key: "comment",
                         name: "Comment",
                         minWidth: 150,
-                        onRender: (item: TagJson) => {
+                        onRender: (item: Tag) => {
                             return item.comment;
                         }
                     }
