@@ -83,7 +83,7 @@ pub async fn find_from_id(
                owner, \
                config, \
                comment, \
-               order, \
+               \"order\", \
                issued_by \
         from custom_fields \
         where id = $1",

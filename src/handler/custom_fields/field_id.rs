@@ -86,15 +86,14 @@ pub async fn handle_put(
 
     let config_json = serde_json::to_value(posted.config.clone())?;
     let result = conn.query_one(
-        r#"
-        update custom_fields
-        set name = $1,
-            config = $2,
-            comment = $3,
-            "order" = $4
-        where id = $5
-        returning name, comment
-        "#,
+        "\
+        update custom_fields \
+        set name = $1, \
+            config = $2, \
+            comment = $3, \
+            \"order\" = $4 \
+        where id = $5 \
+        returning name, comment",
         &[
             &posted.name,
             &config_json,

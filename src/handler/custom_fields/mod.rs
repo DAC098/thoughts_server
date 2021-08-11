@@ -84,10 +84,10 @@ pub async fn handle_post(
 
     let config_json = serde_json::to_value(posted.config.clone())?;
     let result = conn.query_one(
-        r#"
-        insert into custom_fields (name, config, comment, owner, "order") values 
-        ($1, $2, $3, $4, $5)
-        returning id, name, config, comment"#,
+        "\
+        insert into custom_fields (name, config, comment, owner, \"order\") values \
+        ($1, $2, $3, $4, $5) \
+        returning id, name, config, comment",
         &[
             &posted.name, 
             &config_json,
