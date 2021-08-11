@@ -258,7 +258,9 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
         
         if (state.current.entry.id) {
             promise = api.entries.id.put(state.current.entry.id, {
-                day: state.current.entry.day,
+                entry: {
+                    day: state.current.entry.day
+                },
                 tags: state.current.tags,
                 markers: state.current.markers,
                 custom_field_entries: Object.values(
@@ -277,7 +279,9 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
             })
         } else {
             promise = api.entries.post({
-                day: state.current.entry.day,
+                entry: {
+                    day: state.current.entry.day
+                },
                 tags: state.current.tags,
                 markers: state.current.markers,
                 custom_field_entries: Object.values(

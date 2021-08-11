@@ -83,6 +83,10 @@ export interface PostEntryMarker {
 
 export interface PostEntry {
     day: number
+}
+
+export interface PostComposedEntry {
+    entry: PostEntry
     tags?: number[]
     custom_field_entries?: PostCustomFieldEntry[]
     text_entries?: PostTextEntry[]
@@ -107,7 +111,11 @@ export interface PutEntryMarker {
 }
 
 export interface PutEntry {
-    day: number,
+    day: number
+}
+
+export interface PutComposedEntry {
+    entry: PutEntry
     tags: number[]
     custom_field_entries?: PutCustomFieldEntry[]
     text_entries?: PutTextEntry[]
