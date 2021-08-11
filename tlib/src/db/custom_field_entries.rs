@@ -46,10 +46,10 @@ pub enum CustomFieldEntryType {
     },
 }
 
-pub async fn find_from_entry(
+async fn find_from_entry_query(
     conn: &impl GenericClient,
     entry: &i32
-) -> error::Result<Vec<CustomFieldEntry>> {
+) -> error::Result<std::vec::Vec<tokio_postgres::Row>> {
     Ok(
         conn.query(
             "\
@@ -61,6 +61,16 @@ pub async fn find_from_entry(
             where entry = $1",
             &[&entry]
         )
+        .await?
+    )
+}
+
+pub async fn find_from_entry(
+    conn: &impl GenericClient,
+    entry: &i32
+) -> error::Result<Vec<CustomFieldEntry>> {
+    Ok(
+        find_from_entry_query(conn, entry)
         .await?
         .iter()
         .map(|row| CustomFieldEntry {
@@ -78,20 +88,11 @@ pub async fn find_from_entry_hashmap(
     entry: &i32
 ) -> error::Result<HashMap<i32, CustomFieldEntry>> {
     Ok(
-        conn.query(
-            "\
-            select field, \
-                   value, \
-                   comment, \
-                   entry \
-            from custom_field_entries \
-            where entry = $1",
-            &[entry]
-        )
+        find_from_entry_query(conn, entry)
         .await?
         .iter()
         .fold(HashMap::new(), |mut map, row| {
-            map.insert(row.get::<usize, i32>(3), CustomFieldEntry {
+            map.insert(row.get::<usize, i32>(0), CustomFieldEntry {
                 field: row.get(0),
                 value: serde_json::from_value(row.get(1)).unwrap(),
                 comment: row.get(2),

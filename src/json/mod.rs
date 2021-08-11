@@ -5,7 +5,6 @@ use tokio_postgres::{GenericClient};
 use serde::{Deserialize, Serialize};
 
 use tlib::db::{
-    custom_fields, 
     custom_field_entries,
     entries,
     entry_markers,
@@ -15,14 +14,6 @@ use tlib::db::{
 use tlib::db::query::{QueryParams};
 
 use crate::response::error;
-
-#[derive(Serialize, Deserialize)]
-pub struct GlobalCustomFieldJson {
-    pub id: i32,
-    pub name: String,
-    pub comment: Option<String>,
-    pub config: custom_fields::CustomFieldType,
-}
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct UserAccessInfoJson {

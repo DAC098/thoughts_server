@@ -17,14 +17,14 @@ use crate::getters;
 use response::error as app_error;
 
 #[derive(Deserialize)]
-pub struct PutTextEntryJson {
+pub struct PutTextEntry {
     id: Option<i32>,
     thought: String,
     private: bool
 }
 
 #[derive(Deserialize)]
-pub struct PutCustomFieldEntryJson {
+pub struct PutCustomFieldEntry {
     field: i32,
     value: db::custom_field_entries::CustomFieldEntryType,
     comment: Option<String>
@@ -38,13 +38,18 @@ pub struct PutEntryMarker {
 }
 
 #[derive(Deserialize)]
-pub struct PutEntryJson {
+pub struct PutEntry {
     #[serde(with = "ts_seconds")]
-    day: chrono::DateTime<chrono::Utc>,
+    day: chrono::DateTime<chrono::Utc>
+}
+
+#[derive(Deserialize)]
+pub struct PutComposedEntry {
+    entry: PutEntry,
     tags: Option<Vec<i32>>,
     markers: Option<Vec<PutEntryMarker>>,
-    custom_field_entries: Option<Vec<PutCustomFieldEntryJson>>,
-    text_entries: Option<Vec<PutTextEntryJson>>
+    custom_field_entries: Option<Vec<PutCustomFieldEntry>>,
+    text_entries: Option<Vec<PutTextEntry>>
 }
 
 #[derive(Deserialize)]
@@ -119,11 +124,11 @@ pub async fn handle_put(
     initiator: from::Initiator,
     app: web::Data<state::AppState>,
     path: web::Path<EntryPath>,
-    posted_cntr: web::Json<PutEntryJson>
+    posted_cntr: web::Json<PutComposedEntry>
 ) -> app_error::Result<impl Responder> {
     let posted = posted_cntr.into_inner();
     let conn = &mut *app.get_conn().await?;
-    let created = posted.day.clone();
+    let created = posted.entry.day.clone();
     security::assert::is_owner_for_entry(conn, path.entry_id, initiator.user.id).await?;
 
     let transaction = conn.transaction().await?;

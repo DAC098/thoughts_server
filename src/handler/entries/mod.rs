@@ -1,14 +1,15 @@
 use std::fmt::{Write};
 use std::collections::{HashMap};
-use std::pin::{Pin};
-use std::task::{Context, Poll};
+//use std::pin::{Pin};
+//use std::task::{Context, Poll};
 
-use actix_web::{web, http, HttpRequest, HttpResponse, Responder};
+use actix_web::{web, http, HttpRequest, Responder};
 use actix_session::{Session};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize};
 use chrono::serde::{ts_seconds};
-use tokio_postgres::{Client, RowStream};
-use futures::{pin_mut, Stream, TryStreamExt, future};
+//use tokio_postgres::{Client, RowStream};
+//use futures::{pin_mut, Stream, TryStreamExt, future};
+use futures::{future};
 
 use tlib::{db};
 use tlib::db::{
@@ -53,9 +54,14 @@ pub struct PostEntryMarker {
 }
 
 #[derive(Deserialize)]
-pub struct PostEntryJson {
+pub struct PostEntry {
     #[serde(with = "ts_seconds")]
-    day: chrono::DateTime<chrono::Utc>,
+    day: chrono::DateTime<chrono::Utc>
+}
+
+#[derive(Deserialize)]
+pub struct PostEntryJson {
+    entry: PostEntry,
     tags: Option<Vec<i32>>,
     custom_field_entries: Option<Vec<PostCustomFieldEntryJson>>,
     text_entries: Option<Vec<PostTextEntryJson>>,
@@ -403,19 +409,19 @@ pub async fn handle_post(
 
     let entry_check = conn.query(
         "select id from entries where day = $1 and owner = $2",
-        &[&posted.day, &initiator.user.id]
+        &[&posted.entry.day, &initiator.user.id]
     ).await?;
 
     if entry_check.len() != 0 {
         return Err(app_error::ResponseError::EntryExists(
-            format!("{}", posted.day)
+            format!("{}", posted.entry.day)
         ));
     }
 
     let transaction = conn.transaction().await?;
     let result = transaction.query_one(
         "insert into entries (day, owner) values ($1, $2) returning id, day, owner",
-        &[&posted.day, &initiator.user.id]
+        &[&posted.entry.day, &initiator.user.id]
     ).await?;
     let entry_id: i32 = result.get(0);
 
@@ -429,10 +435,9 @@ pub async fn handle_post(
 
             let value_json = serde_json::to_value(custom_field_entry.value.clone())?;
             let _result = transaction.execute(
-                r#"
-                insert into custom_field_entries (field, value, comment, entry) values
-                ($1, $2, $3, $4)
-                "#,
+                "\
+                insert into custom_field_entries (field, value, comment, entry) values \
+                ($1, $2, $3, $4)",
                 &[&field.id, &value_json, &custom_field_entry.comment, &entry_id]
             ).await?;
 
@@ -481,10 +486,10 @@ pub async fn handle_post(
     if let Some(markers) = posted.markers {
         for marker in markers {
             let result = transaction.query_one(
-                r#"
+                "\
                 insert into entry_markers (title, comment, entry) values \
                 ($1, $2, $3) \
-                returning id"#,
+                returning id",
                 &[&marker.title, &marker.comment, &entry_id]
             ).await?;
 

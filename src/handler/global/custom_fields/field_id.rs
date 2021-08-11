@@ -7,7 +7,6 @@ use tlib::{db};
 use crate::request::from;
 use crate::response;
 use crate::state;
-use crate::json;
 use crate::security;
 use crate::getters;
 
@@ -42,7 +41,7 @@ pub async fn handle_get(
             http::StatusCode::OK,
             response::json::MessageDataJSON::build(
                 "successful",
-                getters::global_custom_fields::get_via_id(conn, path.field_id).await?
+                getters::global_custom_fields::get_via_id(conn, &path.field_id).await?
             )
         ))
     }
@@ -67,18 +66,18 @@ pub async fn handle_put(
     let posted = posted_wrapper.into_inner();
     let conn = &mut *app.get_conn().await?;
 
-    let _original = getters::global_custom_fields::get_via_id(conn, path.field_id).await?;
+    let _original = getters::global_custom_fields::get_via_id(conn, &path.field_id).await?;
 
     let transaction = conn.transaction().await?;
 
     let json = serde_json::to_value(posted.config.clone())?;
     transaction.execute(
-        r#"\
+        "\
         update global_custom_fields \
         set name = $1 \
             comment = $2 \
             config = $3 \
-        where id = $4"#,
+        where id = $4",
         &[
             &posted.name,
             &posted.comment,
@@ -92,7 +91,7 @@ pub async fn handle_put(
         http::StatusCode::OK,
         response::json::MessageDataJSON::build(
             "successful",
-            json::GlobalCustomFieldJson {
+            db::global_custom_fields::GlobalCustomField {
                 id: path.field_id,
                 name: posted.name,
                 comment: posted.comment,
@@ -112,7 +111,7 @@ pub async fn handle_delete(
     let app = app_wrapper.into_inner();
     let conn = &mut *app.get_conn().await?;
 
-    let _original = getters::global_custom_fields::get_via_id(conn, path.field_id).await?;
+    let _original = getters::global_custom_fields::get_via_id(conn, &path.field_id).await?;
 
     let transaction = conn.transaction().await?;
     transaction.execute(

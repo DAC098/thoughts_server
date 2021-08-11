@@ -9,7 +9,6 @@ pub mod field_id;
 use crate::request::from;
 use crate::response;
 use crate::state;
-use crate::json;
 use crate::security;
 
 use response::error::{Result, ResponseError};
@@ -28,33 +27,16 @@ pub async fn handle_get(
         if initiator_opt.is_some() {
             Ok(response::respond_index_html(Some(initiator_opt.unwrap().user)))
         } else {
-            Ok(response::redirect_to_path("/auth/login?jump_to=/admin/custom_fields"))
+            Ok(response::redirect_to_login(&req))
         }
     } else if initiator_opt.is_none() {
         Err(ResponseError::Session)
     } else {
-        let results = conn.query(
-            r#"\
-            select id, name, config, comment \
-            from global_custom_fields"#,
-            &[]
-        ).await?;
-
-        let mut rtn: Vec<json::GlobalCustomFieldJson> = Vec::with_capacity(results.len());
-        for row in results {
-            rtn.push(json::GlobalCustomFieldJson {
-                id: row.get(0),
-                name: row.get(1),
-                comment: row.get(3),
-                config: serde_json::from_value(row.get(2))?
-            });
-        }
-
         Ok(response::json::respond_json(
             http::StatusCode::OK,
             response::json::MessageDataJSON::build(
                 "successful",
-                rtn
+                db::global_custom_fields::find_all(conn).await?
             )
         ))
     }
@@ -90,10 +72,10 @@ pub async fn handle_post(
     let config_json = serde_json::to_value(posted.config.clone())?;
     let transaction = conn.transaction().await?;
     let result = transaction.query_one(
-        r#"\
+        "\
         insert into global_custom_fields (name, comment, config) values \
         ($1, $2, $3) \
-        returning id"#,
+        returning id",
         &[
             &posted.name,
             &posted.comment,
@@ -105,7 +87,7 @@ pub async fn handle_post(
         http::StatusCode::OK,
         response::json::MessageDataJSON::build(
             "successful",
-            json::GlobalCustomFieldJson {
+            db::global_custom_fields::GlobalCustomField {
                 id: result.get(0),
                 name: posted.name,
                 comment: posted.comment,
