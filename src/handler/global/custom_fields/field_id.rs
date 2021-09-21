@@ -20,17 +20,17 @@ pub struct FieldPath {
 pub async fn handle_get(
     req: HttpRequest,
     session: Session,
-    app_wrapper: web::Data<state::AppState>,
+    db: state::WebDbState,
+    template: state::WebTemplateState<'_>,
     path: web::Path<FieldPath>,
 ) -> Result<impl Responder> {
-    let app = app_wrapper.into_inner();
-    let conn = &*app.get_conn().await?;
+    let conn = &*db.get_conn().await?;
     let initiator_opt = from::get_initiator(conn, &session).await?;
     let accept_html = response::check_if_html_req(&req, true)?;
 
     if accept_html {
         if initiator_opt.is_some() {
-            Ok(response::respond_index_html(Some(initiator_opt.unwrap().user)))
+            Ok(response::respond_index_html(&template.into_inner(), Some(initiator_opt.unwrap().user))?)
         } else {
             Ok(response::redirect_to_login(&req))
         }
@@ -56,15 +56,14 @@ pub struct PutGlobalCustomFieldJson {
 
 pub async fn handle_put(
     initiator: from::Initiator,
-    app_wrapper: web::Data<state::AppState>,
-    posted_wrapper: web::Json<PutGlobalCustomFieldJson>,
+    db: state::WebDbState,
+    posted: web::Json<PutGlobalCustomFieldJson>,
     path: web::Path<FieldPath>,
 ) -> Result<impl Responder> {
     security::assert::is_admin(&initiator)?;
 
-    let app = app_wrapper.into_inner();
-    let posted = posted_wrapper.into_inner();
-    let conn = &mut *app.get_conn().await?;
+    let posted = posted.into_inner();
+    let conn = &mut *db.get_conn().await?;
 
     let _original = getters::global_custom_fields::get_via_id(conn, &path.field_id).await?;
 
@@ -103,13 +102,12 @@ pub async fn handle_put(
 
 pub async fn handle_delete(
     initiator: from::Initiator,
-    app_wrapper: web::Data<state::AppState>,
+    db: state::WebDbState,
     path: web::Path<FieldPath>,
 ) -> Result<impl Responder> {
     security::assert::is_admin(&initiator)?;
 
-    let app = app_wrapper.into_inner();
-    let conn = &mut *app.get_conn().await?;
+    let conn = &mut *db.get_conn().await?;
 
     let _original = getters::global_custom_fields::get_via_id(conn, &path.field_id).await?;
 

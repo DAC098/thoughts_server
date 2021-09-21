@@ -1,5 +1,5 @@
 import React from "react"
-import { CustomFieldEntryType } from "../../api/custom_field_entry_types"
+import { CustomFieldEntryType } from "../../apiv2/custom_field_entry_types"
 import { 
     CustomFieldType, 
     CustomFieldTypeName,
@@ -9,7 +9,7 @@ import {
     FloatRange as FloatRangeField,
     Time as TimeField,
     TimeRange as TimeRangeField
-} from "../../api/custom_field_types"
+} from "../../apiv2/custom_field_types"
 import { FloatRangeEditView, FloatRangeReadView } from "./FloatRangeView"
 import { FloatEditView, FloatReadView } from "./FloatView"
 import { IntegerRangeEditView, IntegerRangeReadView } from "./IntegerRangeView"

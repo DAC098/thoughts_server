@@ -22,7 +22,7 @@ pub async fn find_from_entry(
     select id, \
            thought, \
            private, \
-           entry
+           entry \
     from text_entries \
     where entry = $1".to_owned();
 

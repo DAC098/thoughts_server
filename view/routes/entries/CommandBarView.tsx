@@ -1,15 +1,17 @@
 import React, { useContext, useState, useEffect } from "react"
-import { CommandBar, DatePicker, Dropdown, ICommandBarItemProps, IconButton, IContextualMenuItem, IDropdownOption, ScrollablePane, Stack, Sticky, StickyPositionType, Text } from "@fluentui/react"
+import { CommandBar, DatePicker, Dropdown, ICommandBarItemProps, IconButton, IContextualMenuItem, IDropdownOption, Label, ScrollablePane, Stack, Sticky, StickyPositionType, Text } from "@fluentui/react"
 import { useHistory, useLocation } from "react-router-dom"
-import { useLoadEntries } from "../../hooks/useLoadEntries"
-import { useAppDispatch, useAppSelector } from "../../hooks/useApp"
+import useAppDispatch from "../../hooks/useAppDispatch"
+import useAppSelector from "../../hooks/useAppSelector"
 import { downloadLink } from "../../util/downloadLink"
-import { getURL } from "../../api"
 import { EntriesViewContext, EntriesViewState, entries_view_actions } from "./reducer"
 import { tags_actions } from "../../redux/slices/tags"
-import { useLoadFields } from "../../hooks/useLoadFields"
-import { noOriginUrlString, stringFromLocation, urlFromLocation } from "../../util/url"
+import { useGlobalFetchCustomFields } from "../../hooks/useGlobalFetchCustomFields"
+import { noOriginUrlString, stringFromLocation, urlFromLocation, urlFromString } from "../../util/url"
 import { dateFromUnixTime, unixTimeFromDate } from "../../util/time"
+import { entries_actions } from "../../redux/slices/entries"
+import { useGlobalFetchEntries } from "../../hooks/useGlobalFetchEntries"
+import { useGlobalFetchTags } from "../../hooks/useGlobalFetchTags"
 
 function getFromDate(url: URL) {
     if (url.searchParams.has("from")) {
@@ -51,27 +53,27 @@ function getDates(url: URL) {
 }
 
 export interface CommandBarViewProps {
-    owner: number
-    user_specific: boolean
+    user_id?: number | string
 
     entries_view_state: EntriesViewState
 }
 
 export function CommandBarView({
-    owner, user_specific, 
+    user_id,
     entries_view_state
 }: CommandBarViewProps) {
-    const history = useHistory();
-    const location = useLocation();
-    const active_user_state = useAppSelector(state => state.active_user);
     const tags_state = useAppSelector(state => state.tags);
     const entries_state = useAppSelector(state => state.entries);
     const custom_fields_state = useAppSelector(state => state.custom_fields);
+
+    const history = useHistory();
+    const location = useLocation();
     const appDispatch = useAppDispatch();
     const dispatch = useContext(EntriesViewContext);
     
-    const loadEntries = useLoadEntries();
-    const loadFields = useLoadFields();
+    const globalFetchCustomFields = useGlobalFetchCustomFields();
+    const globalFetchEntries = useGlobalFetchEntries();
+    const globalFetchTags = useGlobalFetchTags();
 
     const [from_date, setFromDate] = useState<Date>(getFromDate(urlFromLocation(location)));
     const [to_date, setToDate] = useState<Date>(getToDate(urlFromLocation(location)));
@@ -81,18 +83,18 @@ export function CommandBarView({
     });
 
     useEffect(() => {
-        if (entries_state.owner !== owner) {
-            loadEntries(owner, user_specific, {from: from_date, to: to_date});
+        if (entries_state.owner !== user_id) {
+            globalFetchEntries({user_id, query: {from: from_date, to: to_date}});
         }
 
-        if (custom_fields_state.owner !== owner) {
-            loadFields(owner, user_specific);
+        if (custom_fields_state.owner !== user_id) {
+            globalFetchCustomFields({user_id});
         }
 
-        if (tags_state.owner !== owner) {
-            appDispatch(tags_actions.fetchTags({owner, user_specific}));
+        if (tags_state.owner !== user_id) {
+            globalFetchTags({user_id});
         }
-    }, [owner]);
+    }, [user_id]);
 
     useEffect(() => {
         const onPopState = (ev: PopStateEvent) => {
@@ -107,7 +109,9 @@ export function CommandBarView({
 
             setFromDate(dates.from);
             setToDate(dates.to);
-            loadEntries(owner, user_specific, {from: dates.from, to: dates.to});
+            appDispatch(entries_actions.fetchEntries({
+                user_id, query: {from: dates.from, to: dates.to}
+            }));
         };
 
         window.addEventListener("popstate", onPopState);
@@ -118,10 +122,10 @@ export function CommandBarView({
     }, []);
 
     const loading_state = custom_fields_state.loading || entries_state.loading || tags_state.loading;
-    const owner_is_active_user = active_user_state.user.id === owner;
+    const viewing_another_user =  user_id != null;
 
     const default_download = () => {
-        let url = getURL("/backup");
+        let url = urlFromString("/backup");
         let filename = [];
 
         if (from_date != null) {
@@ -147,6 +151,7 @@ export function CommandBarView({
             key: "search",
             text: "Search",
             iconProps: {iconName: "Search"},
+            disabled: entries_state.loading,
             onClick: () => {
                 let url = new URL(location.pathname, window.location.origin);
 
@@ -159,12 +164,12 @@ export function CommandBarView({
                 }
 
                 history.push(noOriginUrlString(url));
-                loadEntries(owner, user_specific, {from: from_date, to: to_date});
+                appDispatch(entries_actions.fetchEntries({user_id, query: {from: from_date, to: to_date}}));
             }
         }
     ];
 
-    if (owner_is_active_user) {
+    if (!viewing_another_user) {
         command_bar_actions.push({
             key: "new_item",
             text: "New Entry",
@@ -186,16 +191,16 @@ export function CommandBarView({
     command_bar_actions.push({
         key: "download",
         text: "Download",
-        split: owner_is_active_user,
+        split: !viewing_another_user,
         iconProps: {iconName: "Download"},
-        onClick: owner_is_active_user ? default_download : null,
+        onClick: !viewing_another_user ? default_download : null,
         disabled: download_options.length === 0,
         subMenuProps: {
             items: download_options
         }
     });
 
-    if (owner_is_active_user) {
+    if (!viewing_another_user) {
         command_bar_actions.push({
             key: "upload",
             text: "Upload",
@@ -237,21 +242,19 @@ export function CommandBarView({
     return <Stack tokens={{childrenGap: 8}}>
         <Stack tokens={{padding: "8px 8px 0", childrenGap: 8}}>
             <Stack horizontal tokens={{childrenGap: 8}}>
-                <Stack horizontal  verticalAlign="end">
-                    <DatePicker label="From" value={from_date} onSelectDate={d => {
-                        setFromDate(d);
-                    }}/>
-                    <IconButton iconProps={{iconName: "Delete"}} onClick={() => {
-                        setFromDate(null);
-                    }}/>
+                <Stack>
+                    <Label htmlFor="from-date-selector">From</Label>
+                    <Stack horizontal>
+                        <DatePicker id="from-date-selector" value={from_date} onSelectDate={d => setFromDate(d)}/>
+                        <IconButton iconProps={{iconName: "Delete"}} onClick={() => setFromDate(null)}/>
+                    </Stack>
                 </Stack>
-                <Stack horizontal verticalAlign="end">
-                    <DatePicker label="To" value={to_date} onSelectDate={d => {
-                        setToDate(d);
-                    }}/>
-                    <IconButton iconProps={{iconName: "Delete"}} onClick={() => {
-                        setToDate(null);
-                    }}/>
+                <Stack>
+                    <Label htmlFor="to-date-selector">To</Label>
+                    <Stack horizontal>
+                        <DatePicker id="to-date-selector" value={to_date} onSelectDate={d => setToDate(d)}/>
+                        <IconButton iconProps={{iconName: "Delete"}} onClick={() => setToDate(null)}/>
+                    </Stack>
                 </Stack>
                 <Dropdown
                     label={"Tags"}

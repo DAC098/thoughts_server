@@ -81,7 +81,7 @@ pub async fn permission_to_read(
 ) -> error::Result<()> {
     let result = conn.query(
         "select ability, allowed_for from user_access where owner = $1",
-        &[&user]
+        &[&initiator]
     ).await?;
 
     if result.len() > 0 {
@@ -89,7 +89,7 @@ pub async fn permission_to_read(
             let ability: String = row.get(0);
             let allowed_for: i32 = row.get(1);
 
-            if ability.eq("r") && initiator == allowed_for {
+            if ability.eq("r") && user == allowed_for {
                 return Ok(());
             }
         }
@@ -111,5 +111,30 @@ pub fn is_admin(initiator: &from::Initiator) -> error::Result<()> {
         ))
     } else {
         Ok(())
+    }
+}
+
+pub async fn is_owner_of_entry(
+    conn: &impl GenericClient,
+    owner: &i32,
+    entry: &i32,
+) -> error::Result<()> {
+    let result = conn.query(
+        "select owner from entries where id = $1",
+        &[entry]
+    ).await?;
+
+    if result.len() == 1 {
+        let entry_owner: i32 = result[0].get(0);
+
+        if *owner == entry_owner {
+            Ok(())
+        } else {
+            Err(error::ResponseError::PermissionDenied(
+                format!("entry owner mis-match. requested entry is not owned by {}", *owner)
+            ))
+        }
+    } else {
+        Err(error::ResponseError::EntryNotFound(*entry))
     }
 }

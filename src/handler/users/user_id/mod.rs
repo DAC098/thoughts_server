@@ -14,16 +14,17 @@ use response::error;
 pub async fn handle_get(
     req: HttpRequest,
     session: Session,
-    app: web::Data<state::AppState>,
+    db: state::WebDbState,
+    template: state::WebTemplateState<'_>,
     path: web::Path<url_paths::UserPath>,
 ) -> error::Result<impl Responder> {
     let accept_html = response::check_if_html_req(&req, true)?;
-    let conn = &*app.get_conn().await?;
+    let conn = &*db.get_conn().await?;
     let initiator_opt = from::get_initiator(conn, &session).await?;
 
     if accept_html {
         if initiator_opt.is_some() {
-            Ok(response::respond_index_html(Some(initiator_opt.unwrap().user)))
+            Ok(response::respond_index_html(&template.into_inner(), Some(initiator_opt.unwrap().user))?)
         } else {
             let redirect = format!("/auth/login?jump_to=/users/{}", path.user_id);
             Ok(response::redirect_to_path(redirect.as_str()))
@@ -33,7 +34,7 @@ pub async fn handle_get(
     } else {
         let initiator = initiator_opt.unwrap();
         security::assert::permission_to_read(conn, initiator.user.id, path.user_id).await?;
-        let user_opt = db::users::find_from_id(conn, path.user_id).await?;
+        let user_opt = db::users::find_from_id(conn, &path.user_id).await?;
 
         Ok(response::json::respond_json(
             http::StatusCode::OK,

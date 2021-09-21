@@ -1,4 +1,4 @@
-use actix_web::{web, http, HttpRequest, Responder};
+use actix_web::{http, HttpRequest, Responder};
 use actix_session::{Session};
 use serde::{Serialize};
 
@@ -27,33 +27,33 @@ pub struct UserListJson {
 pub async fn handle_get(
     req: HttpRequest,
     session: Session,
-    app: web::Data<state::AppState>,
+    db: state::WebDbState,
+    template: state::WebTemplateState<'_>,
 ) -> error::Result<impl Responder> {
     let accept_html = response::check_if_html_req(&req, true)?;
-    let conn = &*app.get_conn().await?;
+    let conn = &*db.get_conn().await?;
     let initiator_opt = from::get_initiator(conn, &session).await?;
 
     if accept_html {
         if initiator_opt.is_some() {
-            Ok(response::respond_index_html(Some(initiator_opt.unwrap().user)))
+            Ok(response::respond_index_html(&template.into_inner(), Some(initiator_opt.unwrap().user))?)
         } else {
-            Ok(response::redirect_to_path("/auth/login?jump_to=/users"))
+            Ok(response::redirect_to_login(&req))
         }
     } else if initiator_opt.is_none() {
         Err(error::ResponseError::Session)
     } else {
         let initiator = initiator_opt.unwrap();
         let allowed_result = conn.query(
-            r#"
-            select user_access.owner as id,
-                   users.full_name as full_name,
-                   users.username as username,
-                   user_access.ability as ability
-            from user_access
-            join users on user_access.owner = users.id
-            where user_access.allowed_for = $1
-            order by user_access.owner
-            "#,
+            "\
+            select user_access.owner as id, \
+                   users.full_name as full_name, \
+                   users.username as username, \
+                   user_access.ability as ability \
+            from user_access \
+            join users on user_access.owner = users.id \
+            where user_access.allowed_for = $1 \
+            order by user_access.owner",
             &[&initiator.user.id]
         ).await?;
         let mut allowed = Vec::<UserJson>::with_capacity(allowed_result.len());
@@ -68,16 +68,15 @@ pub async fn handle_get(
         }
 
         let given_result = conn.query(
-            r#"
-            select user_access.allowed_for as id,
-                   users.full_name as full_name,
-                   users.username as username,
-                   user_access.ability as ability
-            from user_access
-            join users on user_access.allowed_for = users.id
-            where user_access.owner = $1
-            order by user_access.allowed_for
-            "#,
+            "\
+            select user_access.allowed_for as id, \
+                   users.full_name as full_name, \
+                   users.username as username, \
+                   user_access.ability as ability \
+            from user_access \
+            join users on user_access.allowed_for = users.id \
+            where user_access.owner = $1 \
+            order by user_access.allowed_for",
             &[&initiator.user.id]
         ).await?;
         let mut given = Vec::<UserJson>::with_capacity(given_result.len());

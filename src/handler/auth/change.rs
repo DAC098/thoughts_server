@@ -16,10 +16,10 @@ pub struct ChangePasswordJson {
 
 pub async fn handle_post(
     initiator: from::Initiator,
-    app: web::Data<state::AppState>,
+    db: state::WebDbState,
     posted: web::Json<ChangePasswordJson>,
 ) -> error::Result<impl Responder> {
-    let conn = &mut app.get_conn().await?;
+    let conn = &mut *db.get_conn().await?;
     let result = conn.query_one(
         "select id, hash from users where id = $1",
         &[&initiator.user.id]

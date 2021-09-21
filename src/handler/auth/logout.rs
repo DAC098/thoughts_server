@@ -1,4 +1,4 @@
-use actix_web::{web, http, Responder};
+use actix_web::{http, Responder};
 use actix_session::{Session};
 
 use tlib::db::{user_sessions};
@@ -11,9 +11,9 @@ use response::error;
 
 pub async fn handle_post(
     session: Session,
-    app: web::Data<state::AppState>,
+    db: state::WebDbState,
 ) -> error::Result<impl Responder> {
-    let conn = &mut app.get_conn().await?;
+    let conn = &mut *db.get_conn().await?;
     let token_opt = from::get_session_token(&session)?;
     session.purge();
     

@@ -2,11 +2,11 @@ import { ColorPicker, DefaultButton, Dialog, DialogFooter, DialogType, IconButto
 import { createSlice, PayloadAction } from "@reduxjs/toolkit"
 import React, { Reducer, useEffect, useReducer } from "react"
 import { useHistory, useParams } from "react-router"
-import api from "../../api"
-import { cloneTagJson, makeTagJson, Tag } from "../../api/types"
+import api from "../../apiv2"
+import { cloneTag, newTag, Tag } from "../../apiv2/types"
 import OverlayedPage from "../../components/OverlayedPage"
-import { useAppDispatch, useAppSelector } from "../../hooks/useApp"
-import { useOwner } from "../../hooks/useOwner"
+import useAppDispatch from "../../hooks/useAppDispatch"
+import useAppSelector from "../../hooks/useAppSelector"
 import { tags_actions } from "../../redux/slices/tags"
 import { SliceActionTypes } from "../../redux/types"
 import { cloneString } from "../../util/clone"
@@ -86,8 +86,8 @@ interface TagsIDViewState {
 
 function makeInitialState(): TagsIDViewState {
     return {
-        original: makeTagJson(),
-        current: makeTagJson(),
+        original: newTag(),
+        current: newTag(),
 
         loading: false,
         sending: false,
@@ -104,13 +104,13 @@ const tagsIDViewSlice = createSlice({
     initialState: makeInitialState(),
     reducers: {
         new_tag: (state) => {
-            state.original = makeTagJson();
-            state.current = makeTagJson();
+            state.original = newTag();
+            state.current = newTag();
             state.changes_made = false;
         },
         set_tag: (state, action: PayloadAction<Tag>) => {
             state.original = action.payload;
-            state.current = cloneTagJson(action.payload);
+            state.current = cloneTag(action.payload);
             state.changes_made = false;
             state.custom_color = !(action.payload.color in color_swatches);
         },
@@ -119,7 +119,7 @@ const tagsIDViewSlice = createSlice({
             state.changes_made = true;
         },
         reset_tag: (state) => {
-            state.current = cloneTagJson(state.original);
+            state.current = cloneTag(state.original);
             state.changes_made = false;
             state.custom_color = !(state.original.color in color_swatches);
         },
@@ -173,8 +173,8 @@ const TagsIDView = ({}: TagsIDViewProps) => {
 
         dispatch(reducer_actions.set_loading(true));
 
-        api.tags.id.get(params.tag_id).then(tag => {
-            dispatch(reducer_actions.set_tag(tag));
+        api.tags.id.get({id: params.tag_id}).then(res => {
+            dispatch(reducer_actions.set_tag(res.body.data));
         }).catch(console.error).then(() => {
             dispatch(reducer_actions.set_loading(false))
         });
@@ -190,20 +190,27 @@ const TagsIDView = ({}: TagsIDViewProps) => {
         let promise = null;
 
         if (state.current.id) {
-            promise = api.tags.id.put(state.current.id, {
-                title: state.current.title,
-                color: state.current.color,
-                comment: state.current.comment?.length !== 0 ? state.current.comment : null ?? null
-            }).then(tag => {
+            promise = api.tags.id.put({
+                id: state.current.id,
+                post: {
+                    title: state.current.title,
+                    color: state.current.color,
+                    comment: state.current.comment?.length !== 0 ? state.current.comment : null ?? null
+                }
+            }).then(res => {
+                let tag = res.body.data;
                 app_dispatch(tags_actions.update_tag(tag));
                 dispatch(reducer_actions.set_tag(tag));
             })
         } else {
             promise = api.tags.post({
-                title: state.current.title,
-                color: state.current.color,
-                comment: state.current.comment?.length !== 0 ? state.current.comment : null ?? null
-            }).then(tag => {
+                post: {
+                    title: state.current.title,
+                    color: state.current.color,
+                    comment: state.current.comment?.length !== 0 ? state.current.comment : null ?? null
+                }
+            }).then(res => {
+                let tag = res.body.data;
                 app_dispatch(tags_actions.add_tag(tag));
                 history.push(`/tags/${tag.id}`);
             })
@@ -225,7 +232,7 @@ const TagsIDView = ({}: TagsIDViewProps) => {
 
         dispatch(reducer_actions.set_deleting(true));
 
-        api.tags.id.del(state.current.id).then(() => {
+        api.tags.id.del({id: state.current.id}).then(() => {
             app_dispatch(tags_actions.delete_tag(state.current.id));
             history.push("/tags");
         }).catch(e => {

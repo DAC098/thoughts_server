@@ -7,6 +7,8 @@ use chrono::serde::{ts_seconds};
 
 use tlib::{db};
 
+pub mod comments;
+
 use crate::response;
 use crate::state;
 use crate::request::from;
@@ -66,16 +68,17 @@ pub struct EntryPath {
 pub async fn handle_get(
     req: HttpRequest,
     session: Session,
-    app: web::Data<state::AppState>,
+    db: state::WebDbState,
+    template: state::WebTemplateState<'_>,
     path: web::Path<EntryPath>
 ) -> app_error::Result<impl Responder> {
-    let conn = &*app.get_conn().await?;
+    let conn = &*db.get_conn().await?;
     let accept_html = response::check_if_html_req(&req, true).unwrap();
     let initiator_opt = from::get_initiator(conn, &session).await?;
 
     if accept_html {
         if initiator_opt.is_some() {
-            Ok(response::respond_index_html(Some(initiator_opt.unwrap().user)))
+            Ok(response::respond_index_html(&template.into_inner(), Some(initiator_opt.unwrap().user))?)
         } else {
             Ok(response::redirect_to_login(&req))
         }
@@ -95,7 +98,7 @@ pub async fn handle_get(
             owner = initiator.user.id;
         }
 
-        if let Some(record) = db::composed::find_from_entry_id(conn, &path.entry_id, &is_private).await? {
+        if let Some(record) = db::composed::ComposedEntry::find_from_entry(conn, &path.entry_id, &is_private).await? {
             if record.entry.owner == owner {
                 Ok(response::json::respond_json(
                     http::StatusCode::OK, 
@@ -122,12 +125,12 @@ pub async fn handle_get(
  */
 pub async fn handle_put(
     initiator: from::Initiator,
-    app: web::Data<state::AppState>,
+    db: state::WebDbState,
     path: web::Path<EntryPath>,
-    posted_cntr: web::Json<PutComposedEntry>
+    posted: web::Json<PutComposedEntry>
 ) -> app_error::Result<impl Responder> {
-    let posted = posted_cntr.into_inner();
-    let conn = &mut *app.get_conn().await?;
+    let posted = posted.into_inner();
+    let conn = &mut *db.get_conn().await?;
     let created = posted.entry.day.clone();
     security::assert::is_owner_for_entry(conn, path.entry_id, initiator.user.id).await?;
 
@@ -162,13 +165,12 @@ pub async fn handle_put(
 
             let value_json = serde_json::to_value(custom_field_entry.value.clone())?;
             let _result = transaction.execute(
-                r#"
-                insert into custom_field_entries (field, value, comment, entry) values
-                ($1, $2, $3, $4)
-                on conflict on constraint entry_field_key do update
-                set value = excluded.value,
-                    comment = excluded.comment
-                "#,
+                "\
+                insert into custom_field_entries (field, value, comment, entry) \
+                values ($1, $2, $3, $4) \
+                on conflict on constraint entry_field_key do update \
+                set value = excluded.value, \
+                    comment = excluded.comment",
                 &[&field.id, &value_json, &custom_field_entry.comment, &path.entry_id]
             ).await?;
 
@@ -208,12 +210,11 @@ pub async fn handle_put(
         for text_entry in t {
             if let Some(id) = text_entry.id {
                 let check = transaction.query(
-                    r#"
-                    select entries.owner
-                    from text_entries
-                    join entries on text_entries.entry = entries.id
-                    where text_entries.id = $1
-                    "#,
+                    "\
+                    select entries.owner \
+                    from text_entries \
+                    join entries on text_entries.entry = entries.id \
+                    where text_entries.id = $1",
                     &[&id]
                 ).await?;
 
@@ -282,13 +283,12 @@ pub async fn handle_put(
 
         for tag_id in tags {
             let result = transaction.query_one(
-                r#"
-                insert into entries2tags (tag, entry) 
-                values ($1, $2)
-                on conflict on constraint unique_entry_tag do update
-                set tag = excluded.tag
-                returning id
-                "#,
+                "\
+                insert into entries2tags (tag, entry) \
+                values ($1, $2) \
+                on conflict on constraint unique_entry_tag do update \
+                set tag = excluded.tag \
+                returning id",
                 &[&tag_id, &path.entry_id]
             ).await?;
 
@@ -323,12 +323,11 @@ pub async fn handle_put(
         for marker in markers {
             if let Some(id) = marker.id {
                 let check = transaction.query(
-                    r#"
-                    select entries.owner
-                    from entry_markers
-                    join entries on entry_markers.entry = entries.id
-                    where entry_markers.entry = $1
-                    "#,
+                    "\
+                    select entries.owner \
+                    from entry_markers \
+                    join entries on entry_markers.entry = entries.id \
+                    where entry_markers.entry = $1",
                     &[&path.entry_id]
                 ).await?;
 
@@ -343,9 +342,7 @@ pub async fn handle_put(
                 }
 
                 transaction.execute(
-                    r#"
-                    update entry_markers set title = $1, comment = $2 where id = $3
-                    "#,
+                    "update entry_markers set title = $1, comment = $2 where id = $3",
                     &[&marker.title, &marker.comment, &id]
                 ).await?;
 
@@ -358,11 +355,10 @@ pub async fn handle_put(
                 });
             } else {
                 let result = transaction.query_one(
-                    r#"
-                    insert into entry_markers (title, comment, entry) values
-                    ($1, $2, $3)
-                    returning id
-                    "#,
+                    "\
+                    insert into entry_markers (title, comment, entry) \
+                    values ($1, $2, $3) \
+                    returning id",
                     &[&marker.title, &marker.comment, &path.entry_id]
                 ).await?;
 
@@ -395,11 +391,10 @@ pub async fn handle_put(
  */
 pub async fn handle_delete(
     initiator: from::Initiator,
-    app_data: web::Data<state::AppState>,
+    db: state::WebDbState,
     path: web::Path<EntryPath>
 ) -> app_error::Result<impl Responder> {
-    let app = app_data.into_inner();
-    let mut conn = app.get_conn().await?;
+    let conn = &mut *db.get_conn().await?;
     let transaction = conn.transaction().await?;
 
     let check = transaction.query(

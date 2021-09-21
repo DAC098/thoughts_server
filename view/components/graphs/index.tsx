@@ -1,6 +1,6 @@
 import React from "react"
-import { CustomFieldTypeName } from "../../api/custom_field_types"
-import { CustomField, ComposedEntry } from "../../api/types"
+import { CustomFieldTypeName } from "../../apiv2/custom_field_types"
+import { CustomField, ComposedEntry } from "../../apiv2/types"
 import FloatGraph from "./Float"
 import FloatRangeGraph from "./FloatRange"
 import IntegerGraph from "./Integer"

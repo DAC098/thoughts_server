@@ -1,6 +1,7 @@
 use std::fmt::{Write};
 
 pub mod time;
+pub mod string;
 
 pub fn clone_option<T>(opt: &Option<T>) -> Option<T>
 where
@@ -12,10 +13,13 @@ where
     }
 }
 
-pub fn hex_string(slice: &[u8]) -> Result<String, std::fmt::Error> {
-    let mut rtn = String::with_capacity(slice.len() * 2);
+pub fn hex_string<T>(slice: T) -> Result<String, std::fmt::Error>
+where
+    T: AsRef<[u8]>
+{
+    let mut rtn = String::with_capacity(slice.as_ref().len() * 2);
 
-    for byte in slice {
+    for byte in slice.as_ref() {
         write!(rtn, "{:02x}", byte)?;
     }
 

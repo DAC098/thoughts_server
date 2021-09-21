@@ -1,4 +1,4 @@
-use actix_web::{web, Responder};
+use actix_web::{Responder};
 use lettre::{Message, Transport};
 use lettre::message::{Mailbox};
 
@@ -10,9 +10,9 @@ use response::error;
 
 pub async fn handle_get(
     initiator: from::Initiator,
-    app: web::Data<state::AppState>
+    email: state::WebEmailState,
 ) -> error::Result<impl Responder> {
-    if app.email.enabled {
+    if email.is_enabled() {
         if initiator.user.email.is_none() {
             return Ok(response::json::respond_message("no email specified"));
         }
@@ -27,16 +27,20 @@ pub async fn handle_get(
             return Ok(response::json::respond_message("invalid user email"));
         }
 
-        let transport = app.email.get_transport()?;
-        let email_message = Message::builder()
-            .from(app.email.get_from())
+        if email.can_get_transport() && email.has_from() {
+            let email_message = Message::builder()
+            .from(email.get_from().unwrap())
             .to(to_address_result.unwrap())
             .subject("test email")
             .body("test email being sent".to_owned())?;
 
-        transport.send(&email_message)?;
+            let transport = email.get_transport()?;
+            transport.send(&email_message)?;
 
-        Ok(response::json::respond_message("email sent"))
+            Ok(response::json::respond_message("email sent"))
+        } else {
+            Ok(response::json::respond_message("missing email information"))
+        }
     } else {
         Ok(response::json::respond_message("email disabled"))
     }

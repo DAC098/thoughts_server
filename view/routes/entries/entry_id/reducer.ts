@@ -1,11 +1,11 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { createContext, Dispatch, Reducer } from "react"
-import { CustomFieldEntryType } from "../../../api/custom_field_entry_types";
-import { cloneComposedEntry, ComposedEntry, makeComposedEntry, makeCustomFieldEntryJson, makeTextEntry, CustomFieldEntry, TextEntry, EntryMarker, makeEntryMarker } from "../../../api/types"
+import { CustomFieldEntryType } from "../../../apiv2/custom_field_entry_types";
+import { cloneComposedEntry, ComposedEntry, newComposedEntry, newCustomFieldEntry, newTextEntry, CustomFieldEntry, TextEntry, EntryMarker, newEntryMarker } from "../../../apiv2/types"
 import { store } from "../../../redux/store";
 import { SliceActionTypes } from "../../../redux/types";
 import { cloneInteger } from "../../../util/clone";
-import { unixTimeFromDate } from "../../../util/time";
+import { unixNow, unixTimeFromDate } from "../../../util/time";
 
 interface UIKey {
     key?: number | string
@@ -19,17 +19,16 @@ export interface CustomFieldEntryUI extends UIKey, CustomFieldEntry {
     error_msg?: string
 }
 
-export interface EntryUIState extends ComposedEntry {
+export interface ComposedEntryUI extends ComposedEntry {
     markers: EntryMarkerUI[],
     text_entries: TextEntryUI[]
     custom_field_entries: {[id: string]: CustomFieldEntryUI}
 }
 
 export interface EntryIdViewState {
-    original?: EntryUIState
-    current?: EntryUIState
+    original?: ComposedEntryUI
+    current?: ComposedEntryUI
     tag_mapping: {[id: string]: boolean}
-    existing_fields: {[id: string]: boolean}
     changes_made: boolean
     prep_delete: boolean
     edit_view: boolean
@@ -45,7 +44,6 @@ export function initialState(allow_edit: boolean, params: {entry_id: string, use
     return {
         current: null, original: null,
         tag_mapping: {},
-        existing_fields: {},
         changes_made: false,
         prep_delete: false,
         edit_view: allow_edit && params.entry_id === "0",
@@ -61,7 +59,6 @@ export const entryIdViewSlice = createSlice({
         set_entry: (state, action: PayloadAction<ComposedEntry>) => {
             state.original = action.payload;
             state.current = cloneComposedEntry(action.payload);
-            state.existing_fields = {};
             state.tag_mapping = {};
             state.changes_made = false;
 
@@ -71,7 +68,6 @@ export const entryIdViewSlice = createSlice({
         },
         reset_entry: (state) => {
             state.current = cloneComposedEntry(state.original);
-            state.existing_fields = {};
             state.tag_mapping = {};
             state.changes_made = false;
 
@@ -87,15 +83,14 @@ export const entryIdViewSlice = createSlice({
             today.setSeconds(0);
             today.setMilliseconds(0);
 
-            state.original = makeComposedEntry();
+            state.original = newComposedEntry();
             state.original.entry.day = unixTimeFromDate(today);
-            state.current = makeComposedEntry();
+            state.current = newComposedEntry();
             state.current.entry.day = cloneInteger(state.original.entry.day);
             state.changes_made = true;
-            state.existing_fields = {};
 
             for (let field of store_state.custom_fields.custom_fields) {
-                let custom_field_entry = makeCustomFieldEntryJson(field.config.type);
+                let custom_field_entry = newCustomFieldEntry(field.config.type);
                 custom_field_entry.field = field.id;
                 state.current.custom_field_entries[field.id] = custom_field_entry;
             }
@@ -105,38 +100,82 @@ export const entryIdViewSlice = createSlice({
             state.changes_made = true;
         },
         
-        create_mood_entry: (state, action: PayloadAction<string>) => {
+        create_custom_field_entry: (state, action: PayloadAction<string>) => {
             const store_state = store.getState();
 
             let field = store_state.custom_fields.mapping[action.payload];
 
-            if (field == null) {
+            if (field == null || field.id in state.current.custom_field_entries) {
                 return;
             }
 
-            if (field.id in state.existing_fields) {
-                return;
-            }
-
-            let custom_field_entry = makeCustomFieldEntryJson(field.config.type);
+            let custom_field_entry = newCustomFieldEntry(field.config.type);
             custom_field_entry.field = field.id;
 
             state.current.custom_field_entries[field.id] = custom_field_entry;
             state.changes_made = true;
         },
-        update_mood_entry: (state, action: PayloadAction<{index: number, comment: string, value: CustomFieldEntryType}>) => {
+        update_custom_field_entry: (state, action: PayloadAction<{index: number, comment: string, value: CustomFieldEntryType}>) => {
             state.current.custom_field_entries[action.payload.index].comment = action.payload.comment;
             state.current.custom_field_entries[action.payload.index].value = action.payload.value;
             state.changes_made = true;
         },
-        delete_mood_entry: (state, action: PayloadAction<string>) => {
+        delete_custom_field_entry: (state, action: PayloadAction<string>) => {
             delete state.current.custom_field_entries[action.payload];
             state.changes_made = true;
         },
 
+        add_all_custom_fields: (state) => {
+            const store_state = store.getState();
+
+            for (let field of store_state.custom_fields.custom_fields) {
+                if (field.id in state.current.custom_field_entries) {
+                    continue;
+                }
+
+                let custom_field_entry = newCustomFieldEntry(field.config.type);
+                custom_field_entry.field = field.id;
+
+                state.current.custom_field_entries[field.id] = custom_field_entry;
+                state.changes_made = true;
+            }
+        },
+
+        add_personal_custom_fields: (state) => {
+            const store_state = store.getState();
+
+            for (let field of store_state.custom_fields.custom_fields) {
+                if (field.issued_by != null || field.id in state.current.custom_field_entries) {
+                    continue;
+                }
+
+                let custom_field_entry = newCustomFieldEntry(field.config.type);
+                custom_field_entry.field = field.id;
+
+                state.current.custom_field_entries[field.id] = custom_field_entry;
+                state.changes_made = true;
+            }
+        },
+
+        add_issued_by_custom_fields: (state) => {
+            const store_state = store.getState();
+
+            for (let field of store_state.custom_fields.custom_fields) {
+                if (field.issued_by == null || field.id in state.current.custom_field_entries) {
+                    continue;
+                }
+
+                let custom_field_entry = newCustomFieldEntry(field.config.type);
+                custom_field_entry.field = field.id;
+
+                state.current.custom_field_entries[field.id] = custom_field_entry;
+                state.changes_made = true;
+            }
+        },
+
         create_text_entry: (state) => {
-            let text_entry: TextEntryUI = makeTextEntry();
-            text_entry.key = Date.now().toString();
+            let text_entry: TextEntryUI = newTextEntry();
+            text_entry.key = unixNow();
 
             state.current.text_entries.push(text_entry);
             state.changes_made = true;
@@ -152,8 +191,8 @@ export const entryIdViewSlice = createSlice({
         },
 
         create_entry_marker: (state) => {
-            let entry_marker: EntryMarkerUI = makeEntryMarker();
-            entry_marker.key = Date.now().toString();
+            let entry_marker: EntryMarkerUI = newEntryMarker();
+            entry_marker.key = unixNow();
 
             state.current.markers.push(entry_marker);
             state.changes_made = true;

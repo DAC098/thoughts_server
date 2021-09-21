@@ -17,7 +17,7 @@ pub async fn find_from_entry(
 ) -> error::Result<Vec<EntryMarker>> {
     Ok(
         conn.query(
-            "
+            "\
             select id, \
                    title, \
                    comment, \

@@ -1,14 +1,24 @@
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
-import api from "../../api"
-import { CustomField } from "../../api/types"
+import apiv2 from "../../apiv2";
+import { CustomField } from "../../apiv2/types"
 import { compareNumbers, compareStrings } from "../../util/compare";
+import { GetCustomFieldsArgs } from "../../apiv2/custom_fields";
+import RequestError from "../../error/RequestError";
 
-const fetchCustomFields = createAsyncThunk<CustomField[], {owner: number | string, user_specific?: boolean}>(
+const fetchCustomFields = createAsyncThunk<CustomField[], GetCustomFieldsArgs>(
     "custom_fields/fetch_custom_fields",
-    ({owner, user_specific}) => {
-        return user_specific ?
-            api.users.id.custom_fields.get(owner) :
-            api.custom_fields.get()
+    async (args, thunkApi) => {
+        try {
+            let res = await apiv2.custom_fields.get(args);
+
+            return res.body.data;
+        } catch(err) {
+            if (err instanceof RequestError) {
+                thunkApi.rejectWithValue(err.toJson());
+            } else {
+                thunkApi.rejectWithValue(err)
+            }
+        }
     }
 )
 
@@ -87,7 +97,7 @@ export const custom_fields = createSlice({
             state.loading = true;
         }).addCase(fetchCustomFields.fulfilled, (state, {payload, meta}) => {
             state.loading = false;
-            state.owner = typeof meta.arg.owner === "string" ? parseInt(meta.arg.owner) : meta.arg.owner;
+            state.owner = typeof meta.arg.user_id === "string" ? parseInt(meta.arg.user_id) : meta.arg.user_id;
             state.custom_fields = payload;
             let mapping = {};
 
@@ -96,13 +106,16 @@ export const custom_fields = createSlice({
             }
 
             state.mapping = mapping;
-        }).addCase(fetchCustomFields.rejected, (state) => {
+        }).addCase(fetchCustomFields.rejected, (state, {meta}) => {
             state.loading = false;
+            state.custom_fields = [];
+            state.mapping = {};
+            state.owner = typeof meta.arg.user_id === "string" ? parseInt(meta.arg.user_id) : meta.arg.user_id;
         });
     }
 });
 
 export const custom_field_actions = {
     ...custom_fields.actions,
-    fetchMoodFields: fetchCustomFields
+    fetchCustomFields
 };

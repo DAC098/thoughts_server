@@ -2,14 +2,18 @@ use std::collections::{HashMap};
 
 use actix_web::{web, http, HttpRequest, Responder};
 use actix_session::{Session};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize};
+use lettre::{Message, Transport};
+use lettre::message::{Mailbox};
 
-use tlib::db;
+use tlib::{db};
 
 use crate::request::from;
 use crate::response;
 use crate::state;
 use crate::security::{assert};
+use crate::util;
+use crate::email;
 
 use response::error;
 
@@ -18,40 +22,22 @@ pub struct UserIdPath {
     user_id: i32
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-pub struct UserAccessInfoJson {
-    id: i32,
-    username: String,
-    full_name: Option<String>,
-    ability: String
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct UserInfoJson {
-    id: i32,
-    username: String,
-    level: i32,
-    full_name: Option<String>,
-    email: Option<String>,
-    user_access: Vec<UserAccessInfoJson>
-}
-
 pub async fn handle_get(
     req: HttpRequest,
     session: Session,
-    app: web::Data<state::AppState>,
+    db: state::WebDbState,
+    template: state::WebTemplateState<'_>,
     path: web::Path<UserIdPath>
 ) -> error::Result<impl Responder> {
     let accept_html = response::check_if_html_req(&req, true)?;
-    let conn = &*app.get_conn().await?;
+    let conn = &*db.get_conn().await?;
     let initiator_opt = from::get_initiator(conn, &session).await?;
 
     if accept_html {
         if initiator_opt.is_some() {
-            Ok(response::respond_index_html(Some(initiator_opt.unwrap().user)))
+            Ok(response::respond_index_html(&template.into_inner(), Some(initiator_opt.unwrap().user))?)
         } else {
-            let redirect = format!("/auth/login?jump_to=/admin/users/{}", path.user_id);
-            Ok(response::redirect_to_path(redirect.as_str()))
+            Ok(response::redirect_to_login(&req))
         }
     } else if initiator_opt.is_none() {
         Err(error::ResponseError::Session)
@@ -60,121 +46,209 @@ pub async fn handle_get(
 
         assert::is_admin(&initiator)?;
 
-        let result = conn.query(
-            "select id, username, level, full_name, email from users where id = $1",
-            &[&path.user_id]
-        ).await?;
-
-        if result.len() == 0 {
-            Err(error::ResponseError::UserIDNotFound(path.user_id))
-        } else {
-            let user_id: i32 = result[0].get(0);
-            let user_level: i32 = result[0].get(2);
-            let query = format!(
-                r#"
-                select users.id,
-                       users.username,
-                       users.full_name,
-                       user_access.ability
-                from users
-                join user_access on users.id = user_access.{}
-                where user_access.{} = $1
-                "#, 
-                if user_level == 20 {"allowed_for"} else {"owner"},
-                if user_level == 20 {"owner"} else {"allowed_for"}
-            );
-            let list_result = conn.query(query.as_str(), &[&user_id]).await?;
-            let mut user_access: Vec<UserAccessInfoJson> = Vec::with_capacity(list_result.len());
-
-            for row in list_result {
-                user_access.push(UserAccessInfoJson {
-                    id: row.get(0),
-                    username: row.get(1),
-                    full_name: row.get(2),
-                    ability: row.get(3)
-                });
-            }
+        if let Some(user_record) = db::composed::ComposedUser::find_from_id(conn, &path.user_id).await? {
+            let access = db::composed::ComposedUserAccess::find(
+                conn, &user_record.user.id,
+                user_record.user.level == (db::users::Level::Manager as i32)
+            ).await?;
 
             Ok(response::json::respond_json(
                 http::StatusCode::OK,
                 response::json::MessageDataJSON::build(
                     "successful",
-                    UserInfoJson {
-                        id: result[0].get(0),
-                        username: result[0].get(1),
-                        level: result[0].get(2),
-                        full_name: result[0].get(3),
-                        email: result[0].get(4),
-                        user_access
+                    db::composed::ComposedFullUser {
+                        user: user_record.user,
+                        data: user_record.data,
+                        access
                     }
                 )
             ))
+        } else {
+            Err(error::ResponseError::UserIDNotFound(path.user_id))
         }
     }
 }
 
 #[derive(Deserialize)]
-pub struct PutUserAccess {
-    id: i32
+pub struct PutUserData {
+    prefix: Option<String>,
+    suffix: Option<String>,
+    first_name: String,
+    last_name: String,
+    middle_name: Option<String>,
+    dob: String
 }
 
 #[derive(Deserialize)]
-pub struct PutUserJson {
+pub struct PutUser {
     username: String,
     level: i32,
     full_name: Option<String>,
-    email: Option<String>,
-    user_access: Vec<PutUserAccess>
+    email: String
+}
+
+#[derive(Deserialize)]
+pub struct PutJson {
+    user: PutUser,
+    data: PutUserData,
+    access: Vec<i32>
 }
 
 pub async fn handle_put(
     initiator: from::Initiator,
-    app: web::Data<state::AppState>,
-    posted: web::Json<PutUserJson>,
+    db: state::WebDbState,
+    email: state::WebEmailState,
+    server_info: state::WebSserverInfoState,
+    posted: web::Json<PutJson>,
     path: web::Path<UserIdPath>,
 ) -> error::Result<impl Responder> {
+    let conn = &mut *db.get_conn().await?;
+    let posted = posted.into_inner();
+
     assert::is_admin(&initiator)?;
 
-    let conn = &mut *app.get_conn().await?;
+    let original = db::users::find_from_id(conn, &path.user_id).await?;
+
+    if original.is_none() {
+        return Err(error::ResponseError::UserIDNotFound(path.user_id));
+    }
+
+    let original = original.unwrap();
+    let mut email_verified: bool = false;
+    let mut email_value: Option<String> = None;
+    let mut to_mailbox: Option<Mailbox> = None;
+
+    if email.is_enabled() {
+        let to_mailbox_result = posted.user.email.parse::<Mailbox>();
+
+        if to_mailbox_result.is_err() {
+            return Err(error::ResponseError::Validation(
+                format!("given email address is invalid. {}", posted.user.email)
+            ));
+        } else {
+            to_mailbox = Some(to_mailbox_result.unwrap());
+        }
+
+        if let Some(check) = conn.query_opt("select id from users where email = $1", &[&posted.user.email]).await? {
+            if check.get::<usize, i32>(0) != original.id {
+                return Err(error::ResponseError::EmailExists(posted.user.email))
+            }
+        }
+
+        if let Some(current_email) = original.email {
+            email_verified = if current_email == posted.user.email {
+                original.email_verified
+            } else {
+                false
+            };
+        }
+
+        email_value = Some(posted.user.email);
+    }
+
     let transaction = conn.transaction().await?;
 
     let result = transaction.query_one(
-        r#"
-        update users
-        set username = $2,
-            level = $3,
-            full_name = $4,
-            email = $5
-        where id = $1
-        returning id, username, level, full_name, email
-        "#, 
-        &[&path.user_id, &posted.username, &posted.level, &posted.full_name, &posted.email]
+        "\
+        update users \
+        set username = $2, \
+            level = $3, \
+            full_name = $4, \
+            email = $5, \
+            email_verified = $6 \
+        where id = $1 \
+        returning id, username, level, full_name, email",
+        &[
+            &path.user_id,
+            &posted.user.username,
+            &posted.user.level,
+            &posted.user.full_name,
+            &email_value,
+            &email_verified
+        ]
     ).await?;
 
-    let mut user_access: Vec<UserAccessInfoJson> = vec!();
+    if email.is_enabled() && !email_verified && email.can_get_transport() && email.has_from() {
+        let mut rand_bytes: [u8; 32] = [0; 32];
+        openssl::rand::rand_bytes(&mut rand_bytes)?;
+        let hex_str = util::hex_string(&rand_bytes)?;
+        let issued = util::time::now();
+
+        transaction.execute(
+            "\
+            insert into email_verifications (owner, key_id, issued) \
+            values ($1, $2, $3) \
+            on conflict on constraint email_verifications_pkey do update \
+            set key_id = excluded.key_id, \
+                issued = excluded.issued",
+            &[&original.id, &hex_str, &issued]
+        ).await?;
+
+        let email_message = Message::builder()
+        .from(email.get_from().unwrap())
+        .to(to_mailbox.unwrap())
+        .subject("Verify Changed Email")
+        .multipart(email::message_body::verify_email_body(
+            server_info.url_origin(), hex_str
+        ))?;
+
+        email.get_transport()?.send(&email_message)?;
+    }
+
+    let user_data = {
+        let prefix = util::string::trimmed_optional_string(posted.data.prefix);
+        let suffix = util::string::trimmed_optional_string(posted.data.suffix);
+        let first_name = util::string::trimmed_string(posted.data.first_name);
+        let last_name = util::string::trimmed_string(posted.data.last_name);
+        let middle_name = util::string::trimmed_optional_string(posted.data.middle_name);
+        let dob = util::time::now_naive_date_utc();
+
+        transaction.execute(
+            "\
+            update user_data \
+            set prefix = $2, \
+                suffix = $3, \
+                first_name = $4, \
+                last_name = $5, \
+                middle_name = $6, \
+                dob = $7 \
+            where owner = $1",
+            &[
+                &path.user_id,
+                &prefix, &suffix,
+                &first_name, &last_name, &middle_name,
+                &dob
+            ]
+        ).await?;
+
+        db::user_data::UserData {
+            owner: path.user_id,
+            prefix, suffix,
+            first_name, last_name, middle_name,
+            dob
+        }
+    };
+
+    let mut user_access: Vec<db::composed::ComposedUserAccess> = vec!();
     
     {
         let user_level: i32 = result.get(2);
-        let check_level: i32 = if user_level == 10 { 20 } else { 10 };
-        let mut id_list: Vec<i32> = Vec::with_capacity(posted.user_access.len());
-        let mut invalid: Vec<String> = Vec::with_capacity(posted.user_access.len());
+        let is_manager = user_level == (db::users::Level::Manager as i32);
+        let check_level: i32 = if is_manager { 20 } else { 10 };
+        let mut invalid: Vec<String> = Vec::with_capacity(posted.access.len());
         let mut user_mapping: HashMap<i32, db::users::User> = HashMap::new();
 
-        for user in &posted.user_access {
-            id_list.push(user.id);
-        }
-
         let check_result = transaction.query(
-            r#"
-            select users.id, 
-                   users.username, 
-                   users.level, 
-                   users.full_name, 
-                   users.email,
-                   users.email_verified
-            from users 
-            where users.id = any($1)"#,
-            &[&id_list]
+            "\
+            select users.id, \
+                   users.username, \
+                   users.level, \
+                   users.full_name, \
+                   users.email, \
+                   users.email_verified \
+            from users \
+            where users.id = any($1)",
+            &[&posted.access]
         ).await?;
 
         for check in check_result {
@@ -202,16 +276,23 @@ pub async fn handle_put(
 
         user_access.reserve(user_mapping.len());
 
-        transaction.execute(
-            "delete from user_access where owner = $1 or allowed_for = $1",
-            &[&path.user_id]
-        ).await?;
+        if is_manager {
+            transaction.execute(
+                "delete from user_access where owner = $1",
+                &[&path.user_id]
+            ).await?;
+        } else {
+            transaction.execute(
+                "delete from user_access where allowed_for = $1",
+                &[&path.user_id]
+            ).await?;
+        }
 
         let ability = "r";
         // the static field for the current user
-        let first_arg = if user_level == 10 { "allowed_for" } else { "owner" };
+        let first_arg = if is_manager { "owner" } else { "allowed_for" };
         // the dynamic field that will assigned for the user_access list given
-        let second_arg = if user_level == 10 { "owner" } else { "allowed_for" };
+        let second_arg = if is_manager { "allowed_for" } else { "owner" };
         let mut insert_query_list: Vec<String> = vec!();
         let mut insert_query_slice: db::query::QueryParams = db::query::QueryParams::with_capacity(2);
         insert_query_slice.push(&path.user_id);
@@ -235,11 +316,21 @@ pub async fn handle_put(
             let id: i32 = record.get(0);
             let user_info = user_mapping.remove(&id).unwrap();
 
-            user_access.push(UserAccessInfoJson {
-                id: user_info.id,
-                username: user_info.username,
-                full_name: user_info.full_name,
-                ability: "r".to_owned()
+            user_access.push(db::composed::ComposedUserAccess {
+                user: user_info,
+                access: db::user_access::UserAccess {
+                    owner: if is_manager {
+                        path.user_id
+                    } else {
+                        id
+                    },
+                    ability: "r".to_owned(),
+                    allowed_for: if is_manager {
+                        id
+                    } else {
+                        path.user_id
+                    }
+                }
             });
         }
     }
@@ -250,13 +341,17 @@ pub async fn handle_put(
         http::StatusCode::OK,
         response::json::MessageDataJSON::build(
             "successful",
-            UserInfoJson {
-                id: path.user_id,
-                username: result.get(1),
-                level: result.get(2),
-                full_name: result.get(3),
-                email: result.get(4),
-                user_access
+            db::composed::ComposedFullUser {
+                user: db::users::User {
+                    id: path.user_id,
+                    username: result.get(1),
+                    level: result.get(2),
+                    full_name: result.get(3),
+                    email: result.get(4),
+                    email_verified
+                },
+                data: user_data,
+                access: user_access
             }
         )
     ))
@@ -264,7 +359,7 @@ pub async fn handle_put(
 
 pub async fn handle_delete(
     initiator: from::Initiator,
-    app: web::Data<state::AppState>,
+    db: state::WebDbState,
     path: web::Path<UserIdPath>,
 ) -> error::Result<impl Responder> {
     if initiator.user.level != 1 {
@@ -273,8 +368,7 @@ pub async fn handle_delete(
         ));
     }
 
-    let app = app.into_inner();
-    let conn = &mut *app.get_conn().await?;
+    let conn = &mut *db.get_conn().await?;
     let check = conn.query(
         "select id from users where id = $1",
         &[&path.user_id]

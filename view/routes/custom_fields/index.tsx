@@ -1,11 +1,13 @@
 import { CommandBar, DetailsList, ScrollablePane, ShimmeredDetailsList, Stack, Sticky, StickyPositionType } from "@fluentui/react";
 import React, { useEffect } from "react"
 import { useHistory, useParams } from "react-router";
-import { useAppDispatch, useAppSelector } from "../../hooks/useApp";
-import { CustomField } from "../../api/types";
+import useAppDispatch from "../../hooks/useAppDispatch"
+import useAppSelector from "../../hooks/useAppSelector"
+import { CustomField } from "../../apiv2/types";
 import { custom_field_actions } from "../../redux/slices/custom_fields"
 import { Link } from "react-router-dom";
-import { useOwner } from "../../hooks/useOwner";
+import { useUserId } from "../../hooks/useUserId";
+import { useGlobalFetchCustomFields } from "../../hooks/useGlobalFetchCustomFields";
 
 interface CustomFieldsViewProps {
     user_specific?: boolean
@@ -16,26 +18,16 @@ const CustomFieldsView = ({user_specific = false}: CustomFieldsViewProps) => {
     const history = useHistory();
 
     const custom_fields_state = useAppSelector(state => state.custom_fields);
-    const dispatch = useAppDispatch();
 
-    const owner = useOwner(user_specific);
+    const globalFetchCustomFields = useGlobalFetchCustomFields();
 
-    const loadFields = () => {
-        if (custom_fields_state.loading) {
-            return;
-        }
-
-        dispatch(custom_field_actions.fetchMoodFields({
-            owner,
-            user_specific
-        }));
-    }
+    const user_id = useUserId();
 
     useEffect(() => {
-        if (custom_fields_state.owner !== owner) {
-            loadFields();
+        if (custom_fields_state.owner !== user_id) {
+            globalFetchCustomFields({});
         }
-    }, [owner])
+    }, [user_id])
 
     return <Stack
         style={{
@@ -50,7 +42,7 @@ const CustomFieldsView = ({user_specific = false}: CustomFieldsViewProps) => {
                         key: "refresh",
                         text: "Refresh",
                         iconProps: {iconName: "Refresh"},
-                        onClick: loadFields
+                        onClick: () => globalFetchCustomFields({})
                     },
                     {
                         key: "new_field",
@@ -76,8 +68,7 @@ const CustomFieldsView = ({user_specific = false}: CustomFieldsViewProps) => {
                         maxWidth: 120,
                         onRender: (item: CustomField) => {
                             return <Link to={{
-                                pathname: `${user_specific ? `/users/${params.user_id}` : ""}/custom_fields/${item.id}`,
-                                state: {field: item}
+                                pathname: `${user_id ? `/users/${user_id}` : ""}/custom_fields/${item.id}`
                             }}>
                                 {item.name}
                             </Link>

@@ -3,38 +3,45 @@ use std::convert::{From};
 
 use tlib::{cli, config};
 
-pub type Result = std::result::Result<i32, AppError>;
+pub type Result<T> = std::result::Result<T, AppError>;
 
 #[derive(Debug)]
 pub enum AppError {
+    General(String),
     CliError(cli::error::Error),
     SslError(String),
     ConfigError(config::error::Error),
 
     IoError(std::io::Error),
 
-    DatabaseError(tokio_postgres::Error)
+    DatabaseError(tokio_postgres::Error),
+
+    TemplateError(handlebars::TemplateError)
 }
 
 impl AppError {
 
     pub fn get_code(&self) -> i32 {
         match &*self {
+            AppError::General(_) |
             AppError::CliError(_) |
             AppError::SslError(_) |
             AppError::ConfigError(_) |
             AppError::IoError(_) |
-            AppError::DatabaseError(_) => 1,
+            AppError::DatabaseError(_) |
+            AppError::TemplateError(_) => 1,
         }
     }
 
     pub fn get_msg(&self) -> String {
         match &*self {
+            AppError::General(msg) => format!("AppError::General: {}", msg),
             AppError::CliError(cli_error) => format!("AppError::CliError: {}", cli_error.get_msg()),
             AppError::SslError(msg) => format!("AppError::SslError: {}", msg),
             AppError::ConfigError(msg) => format!("AppError::ConfigError: {}", msg),
             AppError::IoError(io_error) => format!("AppError::IoError: {:?}", io_error),
-            AppError::DatabaseError(db_error) => format!("AppError::DatabaseError: {:?}", db_error)
+            AppError::DatabaseError(db_error) => format!("AppError::DatabaseError: {:?}", db_error),
+            AppError::TemplateError(hb_error) => format!("AppError::TemplateError: {:?}", hb_error)
         }
     }
 }
@@ -77,4 +84,10 @@ impl From<tokio_postgres::Error> for AppError {
         AppError::DatabaseError(error)
     }
     
+}
+
+impl From<handlebars::TemplateError> for AppError {
+    fn from(error: handlebars::TemplateError) -> Self {
+        AppError::TemplateError(error)
+    }
 }

@@ -1,14 +1,24 @@
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit"
-import api from "../../api";
-import { Tag } from "../../api/types";
+import { Tag } from "../../apiv2/types";
+import { GetTagsArgs } from "../../apiv2/tags";
 import { compareStrings } from "../../util/compare";
+import apiv2 from "../../apiv2";
+import RequestError from "../../error/RequestError";
 
-const fetchTags = createAsyncThunk<any, {owner: number | string, user_specific?: boolean}>(
+const fetchTags = createAsyncThunk<Tag[], GetTagsArgs>(
     "tags/fetch_tags",
-    ({owner, user_specific = false}) => {
-        return user_specific ?
-        api.users.id.tags.get(owner) :
-        api.tags.get();
+    async (args, thunkApi) => {
+        try {
+            let res = await apiv2.tags.get(args);
+
+            return res.body.data;
+        } catch(err) {
+            if (err instanceof RequestError) {
+                thunkApi.rejectWithValue(err.toJson());
+            } else {
+                thunkApi.rejectWithValue(err);
+            }
+        }
     }
 );
 
@@ -76,7 +86,7 @@ export const tags = createSlice({
         builder.addCase(fetchTags.pending, (state) => {
             state.loading = true;
         }).addCase(fetchTags.fulfilled, (state, {payload, meta}) => {
-            state.owner = typeof meta.arg.owner === "string" ? parseInt(meta.arg.owner) : meta.arg.owner;
+            state.owner = typeof meta.arg.user_id === "string" ? parseInt(meta.arg.user_id) : meta.arg.user_id;
             state.loading = false;
             state.tags = payload;
             state.mapping = {};
@@ -84,8 +94,11 @@ export const tags = createSlice({
             for (let tag of state.tags) {
                 state.mapping[tag.id] = tag;
             }
-        }).addCase(fetchTags.rejected, (state, {}) => {
+        }).addCase(fetchTags.rejected, (state, {meta}) => {
+            state.owner = typeof meta.arg.user_id === "string" ? parseInt(meta.arg.user_id) : meta.arg.user_id;
             state.loading = false;
+            state.tags = [];
+            state.mapping = {};
         })
     }
 });

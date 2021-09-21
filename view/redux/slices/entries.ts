@@ -1,19 +1,27 @@
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
-import api from "../../api"
-import { ComposedEntry, GetEntriesQuery } from "../../api/types"
-import { ResponseJSON } from "../../request";
-import { compareDates, compareNumbers } from "../../util/compare";
+import { ComposedEntry } from "../../apiv2/types"
+import { GetEntriesArgs } from "../../apiv2/entries";
+import apiv2 from "../../apiv2";
+import { compareNumbers } from "../../util/compare";
 import { rand } from "../../util/rand";
+import RequestError from "../../error/RequestError";
 
 type FetchEntriesReturned = ComposedEntry[];
-type FetchEntriesThunkArg = {owner: number | string, user_specific?: boolean, query?: GetEntriesQuery};
 
-const fetchEntries = createAsyncThunk<FetchEntriesReturned, FetchEntriesThunkArg>(
+const fetchEntries = createAsyncThunk<FetchEntriesReturned, GetEntriesArgs>(
     "entries/fetch_entries",
-    ({owner, user_specific = false, query = {}}) => {
-        return user_specific ?
-            api.users.id.entries.get(owner, query) :
-            api.entries.get(query);
+    async (args, thunkApi) => {
+        try {
+            let res = await apiv2.entries.get(args);
+            
+            return res.body.data;
+        } catch(err) {
+            if (err instanceof RequestError) {
+                thunkApi.rejectWithValue(err.toJson())
+            } else {
+                thunkApi.rejectWithValue(err);
+            }
+        }
     }
 )
 
@@ -108,14 +116,14 @@ export const entries = createSlice({
         }).addCase(fetchEntries.fulfilled, (state, {payload, meta}) => {
             state.loading = false;
             state.entries = payload;
-            state.owner = typeof meta.arg.owner === "string" ? parseInt(meta.arg.owner) : meta.arg.owner;
+            state.owner = typeof meta.arg.user_id === "string" ? parseInt(meta.arg.user_id) : meta.arg.user_id;
             state.from = meta.arg.query?.from?.getTime();
             state.to = meta.arg.query?.to?.getTime();
             state.key = rand();
-        }).addCase(fetchEntries.rejected, (state, {payload, meta}) => {
+        }).addCase(fetchEntries.rejected, (state, {meta}) => {
             state.loading = false;
             state.entries = [];
-            state.owner = typeof meta.arg.owner === "string" ? parseInt(meta.arg.owner) : meta.arg.owner;
+            state.owner = typeof meta.arg.user_id === "string" ? parseInt(meta.arg.user_id) : meta.arg.user_id;
             state.from = meta.arg.query?.from?.getTime();
             state.to = meta.arg.query?.to?.getTime();
             state.key = rand();
@@ -123,7 +131,7 @@ export const entries = createSlice({
     }
 });
 
-export const actions = {
+export const entries_actions = {
     ...entries.actions,
     fetchEntries
 };

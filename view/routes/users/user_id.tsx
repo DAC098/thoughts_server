@@ -2,11 +2,11 @@ import { DefaultButton, IconButton, Persona, PersonaSize, Stack } from "@fluentu
 import React, { useEffect, useState } from "react"
 import { useHistory, useLocation, useParams } from "react-router"
 import { Link } from "react-router-dom"
-import api from "../../api"
-import { UserDataJson } from "../../api/types"
+import api from "../../apiv2"
+import { User } from "../../apiv2/types"
 
 interface UserInformationViewProps {
-    user: UserDataJson
+    user: User
 }
 
 const UserInformationView = ({user}: UserInformationViewProps) => {
@@ -40,7 +40,7 @@ const UserIdView = () => {
     const location = useLocation();
 
     let [loading, setLoading] = useState(false);
-    let [user, setUser] = useState<UserDataJson>(null);
+    let [user, setUser] = useState<User>(null);
     
     const fetchUser = () => {
         if (loading) {
@@ -49,8 +49,8 @@ const UserIdView = () => {
 
         setLoading(true);
 
-        api.users.id.get(params.user_id).then(data => {
-            setUser(data);
+        api.users.id.get({id: params.user_id}).then(res => {
+            setUser(res.body.data);
         }).catch(console.error).then(() => {
             setLoading(false);
         });

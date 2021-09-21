@@ -1,6 +1,6 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit"
 import { createContext, Dispatch, Reducer } from "react";
-import { CustomField } from "../../api/types";
+import { CustomField } from "../../apiv2/types";
 import { SliceActionTypes } from "../../redux/types";
 
 export interface EntriesViewState {

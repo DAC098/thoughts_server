@@ -1,7 +1,7 @@
 import React from "react"
 import { SpinButton, Stack, Text } from "@fluentui/react";
-import { Float } from "../../api/custom_field_entry_types";
-import { Float as FloatField, CustomFieldTypeName} from "../../api/custom_field_types"
+import { Float } from "../../apiv2/custom_field_entry_types";
+import { Float as FloatField, CustomFieldTypeName} from "../../apiv2/custom_field_types"
 
 interface DetailsTextProps {
     value: Float

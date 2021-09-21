@@ -1,23 +1,23 @@
 import { DefaultButton, Dialog, DialogFooter, DialogType, Dropdown, IconButton, Persona, PersonaSize, ScrollablePane, SearchBox, Separator, Stack, TextField } from "@fluentui/react"
-import React, { Reducer, useEffect, useReducer, useState } from "react"
+import React, { Reducer, useEffect, useReducer } from "react"
 import { useHistory, useLocation, useParams } from "react-router"
-import { cloneUserInfoJson, makeUserInfoJson, UserDataJson, UserInfoJson } from "../../../api/types"
+import { cloneComposedFullUser, ComposedFullUser, newComposedFullUser, User, UserLevel } from "../../../apiv2/types"
 import IndentSection from "../../../components/IndentSection"
-import api from "../../../api"
+import api from "../../../apiv2"
 import { json } from "../../../request"
 import { createSlice, PayloadAction } from "@reduxjs/toolkit"
 import { SliceActionTypes } from "../../../redux/types"
 
 interface AdminUserIdViewState {
-    original: UserInfoJson
-    current: UserInfoJson
+    original: ComposedFullUser
+    current: ComposedFullUser
     
     loading: boolean
     sending: boolean
     deleting: boolean
     loading_available_users: boolean
     
-    available_users: UserDataJson[]
+    available_users: User[]
     known_users: {[key: string]: boolean}
 
     password: string
@@ -28,8 +28,8 @@ interface AdminUserIdViewState {
 
 function makeInitialState(): AdminUserIdViewState { 
     return {
-        original: makeUserInfoJson(),
-        current: makeUserInfoJson(),
+        original: newComposedFullUser(),
+        current: newComposedFullUser(),
     
         loading: false,
         sending: false,
@@ -67,30 +67,30 @@ const adminUserIdViewSlice = createSlice({
             state.loading_available_users = action.payload;
         },
 
-        set_available_users: (state, action: PayloadAction<UserDataJson[]>) => {
+        set_available_users: (state, action: PayloadAction<User[]>) => {
             state.available_users = action.payload;
         },
 
-        set_user: (state, action: PayloadAction<UserInfoJson>) => {
+        set_user: (state, action: PayloadAction<ComposedFullUser>) => {
             state.original = action.payload;
-            state.current = cloneUserInfoJson(action.payload);
+            state.current = cloneComposedFullUser(action.payload);
             state.password = "";
             state.known_users = {};
 
-            for (let user of state.current.user_access) {
-                state.known_users[user.id] = true;
+            for (let rec of state.current.access) {
+                state.known_users[rec.user.id] = true;
             }
         },
         update_user: (state, action: PayloadAction<any>) => {
             state.current[action.payload.key] = action.payload.value;
         },
         reset_user: (state) => {
-            state.current = cloneUserInfoJson(state.original);
+            state.current = cloneComposedFullUser(state.original);
             state.password = "";
             state.known_users = {};
 
-            for (let user of state.current.user_access) {
-                state.known_users[user.id] = true;
+            for (let rec of state.current.access) {
+                state.known_users[rec.user.id] = true;
             }
         },
 
@@ -98,22 +98,26 @@ const adminUserIdViewSlice = createSlice({
             state.prep_delete = action.payload;
         },
 
-        add_user_access: (state, action: PayloadAction<UserDataJson>) => {
+        add_user_access: (state, action: PayloadAction<User>) => {
             if (state.known_users[action.payload.id] ?? false) {
                 return;
             }
+            let is_manager = state.current.user.level === UserLevel.Manager;
+            let access = {
+                owner: is_manager ? state.current.user.id : action.payload.id,
+                ability: "r",
+                allowed_for: is_manager ? action.payload.id : state.current.user.id
+            }
 
-            state.current.user_access.push({
-                id: action.payload.id,
-                username: action.payload.username,
-                full_name: action.payload.full_name,
-                ability: "r"
+            state.current.access.push({
+                user: action.payload,
+                access
             });
             state.known_users[action.payload.id] = true;
         },
         drop_user_access: (state, action: PayloadAction<number>) => {
-            delete state.known_users[state.current.user_access[action.payload].id];
-            state.current.user_access.splice(action.payload, 1);
+            delete state.known_users[state.current.access[action.payload].user.id];
+            state.current.access.splice(action.payload, 1);
         }
     }
 });
@@ -143,16 +147,26 @@ const UserInformation = () => {
         let promise = null;
         
         if (params.user_id === "0") {
-            promise = api.admin.users.post({
-                ...state.current, 
-                password: state.password
-            }).then(u => {
-                dispatch(reducer_actions.set_user(u));
-                history.push(`/admin/users/${u.id}`);
+            let post: any = {...state.current};
+            post.user["password"] = state.password;
+
+            promise = api.admin.users.post({post}).then(res => {
+                let record = res.body.data;
+                dispatch(reducer_actions.set_user(record));
+                history.push(`/admin/users/${record.user.id}`);
             });
         } else {
-            promise = api.admin.users.id.put(params.user_id, state.current).then(u => {
-                dispatch(reducer_actions.set_user(u));
+            promise = api.admin.users.id.put({
+                id: params.user_id, 
+                post: {
+                    user: {...state.current.user},
+                    data: {...state.current.data},
+                    access: state.current.access.map(rec => {
+                        return rec.user.id
+                    })
+                }
+            }).then(res => {
+                dispatch(reducer_actions.set_user(res.body.data));
             });
         }
 
@@ -180,7 +194,7 @@ const UserInformation = () => {
         });
     }
 
-    const fetchUser = async (): Promise<UserInfoJson | null> => {
+    const fetchUser = async (): Promise<ComposedFullUser | null> => {
         if (state.loading) {
             return;
         }
@@ -189,7 +203,8 @@ const UserInformation = () => {
         let u = null;
         
         try {
-            u = await api.admin.users.id.get(params.user_id);
+            let res = await api.admin.users.id.get({id: params.user_id});
+            u = res.body.data;
             dispatch(reducer_actions.set_user(u));
         } catch (e) {
             console.error(e);
@@ -200,15 +215,15 @@ const UserInformation = () => {
         return u;
     }
 
-    const fetchAvailableUsers = (current_level = state.current.level) => {
+    const fetchAvailableUsers = (current_level = state.current.user.level) => {
         if (state.loading_available_users || state.loading) {
             return;
         }
 
         dispatch(reducer_actions.set_loading_available_users(true));
 
-        api.admin.users.get({level: current_level == 20 ? 10 : 20}).then(list => {
-            dispatch(reducer_actions.set_available_users(list));
+        api.admin.users.get({query: {level: current_level == 20 ? 10 : 20}}).then(res => {
+            dispatch(reducer_actions.set_available_users(res.body.data));
         }).catch(console.error).then(() => {
             dispatch(reducer_actions.set_loading_available_users(false));
         });
@@ -223,7 +238,7 @@ const UserInformation = () => {
         }
 
         fetchUser().then(v => {
-            if (v) fetchAvailableUsers(v.level)
+            if (v) fetchAvailableUsers(v.user.level)
         });
     }, [params.user_id]);
 
@@ -274,10 +289,10 @@ const UserInformation = () => {
             <Persona size={PersonaSize.size120}/>
             <Stack horizontal tokens={{childrenGap: 8}}>
                 <Stack tokens={{childrenGap: 8}}>
-                    <TextField placeholder="Full Name" value={state.current.full_name ?? ""} onChange={(e, full_name) =>
+                    <TextField placeholder="Full Name" value={state.current.user.full_name ?? ""} onChange={(e, full_name) =>
                         dispatch(reducer_actions.update_user({key: "full_name", value: full_name}))
                     }/>
-                    <TextField placeholder="Username" value={state.current.username} onChange={(e, username) => 
+                    <TextField placeholder="Username" value={state.current.user.username} onChange={(e, username) => 
                         dispatch(reducer_actions.update_user({key: "username", value: username}))
                     }/>
                 </Stack>
@@ -285,8 +300,8 @@ const UserInformation = () => {
                     <Dropdown
                         styles={{"root": {width: 120}}}
                         options={[
-                            {key: "manager", text: "Manager", selected: state.current.level === 10, data: 10},
-                            {key: "user", text: "User", selected: state.current.level === 20, data: 20}
+                            {key: "manager", text: "Manager", selected: state.current.user.level === 10, data: 10},
+                            {key: "user", text: "User", selected: state.current.user.level === 20, data: 20}
                         ]}
                         onChange={(e, o, i) => {
                             dispatch(reducer_actions.update_user({key: "level", value: o.data}));
@@ -298,7 +313,7 @@ const UserInformation = () => {
         </Stack>
         <IndentSection content="Personal Information">
             <Stack tokens={{childrenGap: 8}} styles={{root: {width: 250}}}>
-                <TextField label="Email" value={state.current.email ?? ""} onChange={(e, email) => 
+                <TextField label="Email" value={state.current.user.email ?? ""} onChange={(e, email) => 
                     dispatch(reducer_actions.update_user({key: "email", value: email}))
                 }/>
             </Stack>
@@ -324,12 +339,12 @@ const UserInformation = () => {
                 <Stack.Item grow>
                     <Stack tokens={{childrenGap: 8}}>
                         <Separator children={"Assigned"}/>
-                        {state.current.user_access.map((v, index) =>
-                            <Stack key={v.id} horizontal verticalAlign="center">
+                        {state.current.access.map((v, index) =>
+                            <Stack key={v.user.id} horizontal verticalAlign="center">
                                 <Stack.Item grow>
                                     <Persona
-                                        text={v.full_name ?? v.username}
-                                        secondaryText={v.full_name != null ? v.username : null}
+                                        text={v.user.full_name ?? v.user.username}
+                                        secondaryText={v.user.full_name != null ? v.user.username : null}
                                     />
                                 </Stack.Item>
                                 <IconButton 

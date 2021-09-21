@@ -20,6 +20,7 @@ mod parsing;
 mod util;
 mod email;
 mod getters;
+mod template;
 
 use error::{AppError, Result};
 
@@ -34,7 +35,7 @@ fn main() {
     });
 }
 
-fn app_runner() -> Result {
+fn app_runner() -> Result<i32> {
     let mut conf_files: Vec<std::path::PathBuf> = Vec::new();
     let mut args = std::env::args();
     args.next();
@@ -65,17 +66,15 @@ fn app_runner() -> Result {
     let conf = config::load_server_config(conf_files)?;
 
     config::validate_server_config(&conf)?;
-
-    let system_runner = actix_web::rt::System::new();
     
-    let result = system_runner.block_on(server_runner(conf));
+    let result = actix_web::rt::System::new().block_on(server_runner(conf));
 
     log::info!("server shutdown");
 
     result
 }
 
-async fn server_runner(config: config::ServerConfig) -> Result {
+async fn server_runner(config: config::ServerConfig) -> Result<i32> {
     let db_config = {
         let mut rtn = PGConfig::new();
         rtn.user(config.db.username.as_ref());
@@ -89,19 +88,22 @@ async fn server_runner(config: config::ServerConfig) -> Result {
     let session_domain = config.session.domain;
     let ssl_config = config.ssl;
     let bind_config = config.bind;
+    let file_serving_config = config.file_serving;
 
-    let static_dir = {
-        let mut rtn = std::env::current_dir()?;
-        rtn.push("static");
-        rtn
-    };
-    let app_state = state::AppState::new(
+    let db_state_ref = web::Data::new(state::db::DBState::new(
         bb8::Pool::builder().build(
             PostgresConnectionManager::new(db_config, NoTls)
-        ).await?,
-        config.email,
+        ).await?
+    ));
+    let template_state_ref = web::Data::new(state::template::TemplateState::new(
+        template::get_built_registry(config.template)?
+    ));
+    let email_state_ref = web::Data::new(state::email::EmailState::new(
+        config.email
+    ));
+    let server_info_state_ref = web::Data::new(state::server_info::ServerInfoState::new(
         config.info
-    );
+    ));
 
     let mut server = HttpServer::new(move || {
         App::new()
@@ -109,7 +111,10 @@ async fn server_runner(config: config::ServerConfig) -> Result {
                 web::JsonConfig::default()
                     .error_handler(handler::handle_json_error)
             )
-            .data(app_state.clone())
+            .app_data(db_state_ref.clone())
+            .app_data(template_state_ref.clone())
+            .app_data(email_state_ref.clone())
+            .app_data(server_info_state_ref.clone())
             .wrap(Logger::new("%a XF-%{X-Forwarded-For}i:%{X-Forwarded-Port}i %t \"%r\" %s %b \"%{Referer}i\" %T"))
             .wrap(
                 CookieSession::signed(&[0; 32])
@@ -143,26 +148,44 @@ async fn server_runner(config: config::ServerConfig) -> Result {
                 web::scope("/custom_fields")
                     .route("", web::get().to(handler::custom_fields::handle_get))
                     .route("", web::post().to(handler::custom_fields::handle_post))
-                    .route("/{field_id}", web::get().to(handler::custom_fields::field_id::handle_get))
-                    .route("/{field_id}", web::put().to(handler::custom_fields::field_id::handle_put))
-                    .route("/{field_id}", web::delete().to(handler::custom_fields::field_id::handle_delete))
+                    .service(
+                        web::scope("/{field_id}")
+                            .route("", web::get().to(handler::custom_fields::field_id::handle_get))
+                            .route("", web::put().to(handler::custom_fields::field_id::handle_put))
+                            .route("", web::delete().to(handler::custom_fields::field_id::handle_delete))
+                    )
             )
             .route("/email", web::get().to(handler::email::handle_get))
             .service(
                 web::scope("/entries")
                     .route("", web::get().to(handler::entries::handle_get))
                     .route("", web::post().to(handler::entries::handle_post))
-                    .route("/{entry_id}", web::get().to(handler::entries::entry_id::handle_get))
-                    .route("/{entry_id}", web::put().to(handler::entries::entry_id::handle_put))
-                    .route("/{entry_id}", web::delete().to(handler::entries::entry_id::handle_delete))
+                    .service(
+                        web::scope("/{entry_id}")
+                            .route("", web::get().to(handler::entries::entry_id::handle_get))
+                            .route("", web::put().to(handler::entries::entry_id::handle_put))
+                            .route("", web::delete().to(handler::entries::entry_id::handle_delete))
+                            .service(
+                                web::scope("/comments")
+                                    .route("", web::get().to(handler::entries::entry_id::comments::handle_get))
+                                    .route("", web::post().to(handler::entries::entry_id::comments::handle_post))
+                                    .route("/{comment_id}", web::put().to(handler::entries::entry_id::comments::comment_id::handle_put))
+                            )
+                    )
             )
             .service(
                 web::scope("/global")
-                    .route("/custom_fields", web::get().to(handler::global::custom_fields::handle_get))
-                    .route("/custom_fields", web::post().to(handler::global::custom_fields::handle_post))
-                    .route("/custom_fields/{field_id}", web::get().to(handler::global::custom_fields::field_id::handle_get))
-                    .route("/custom_fields/{field_id}", web::put().to(handler::global::custom_fields::field_id::handle_put))
-                    .route("/custom_fields/{field_id}", web::delete().to(handler::global::custom_fields::field_id::handle_delete))
+                    .service(
+                        web::scope("/custom_fields")
+                            .route("", web::get().to(handler::global::custom_fields::handle_get))
+                            .route("", web::post().to(handler::global::custom_fields::handle_post))
+                            .service(
+                                web::scope("/{field_id}")
+                                    .route("", web::get().to(handler::global::custom_fields::field_id::handle_get))
+                                    .route("", web::put().to(handler::global::custom_fields::field_id::handle_put))
+                                    .route("", web::delete().to(handler::global::custom_fields::field_id::handle_delete))
+                            )
+                    )
             )
             .route("/settings", web::get().to(handler::okay))
             .route("/settings", web::put().to(handler::okay))
@@ -181,15 +204,27 @@ async fn server_runner(config: config::ServerConfig) -> Result {
                         web::scope("/{user_id}")
                             .route("", web::get().to(handler::users::user_id::handle_get))
                             .route("", web::put().to(handler::okay))
-                            .route("/entries", web::get().to(handler::entries::handle_get))
-                            .route("/entries/{entry_id}", web::get().to(handler::entries::entry_id::handle_get))
-                            .route("/custom_fields", web::get().to(handler::custom_fields::handle_get))
-                            .route("/custom_fields/{field_id}", web::get().to(handler::custom_fields::field_id::handle_get))
+                            .service(
+                                web::scope("/entries")
+                                    .route("", web::get().to(handler::entries::handle_get))
+                                    .route("/{entry_id}", web::get().to(handler::entries::entry_id::handle_get))
+                                    .service(
+                                        web::scope("/{entry_id}/comments")
+                                            .route("", web::get().to(handler::entries::entry_id::comments::handle_get))
+                                            .route("", web::post().to(handler::entries::entry_id::comments::handle_post))
+                                            .route("/{comment_id}", web::put().to(handler::entries::entry_id::comments::comment_id::handle_put))
+                                    )
+                            )
+                            .service(
+                                web::scope("/custom_fields")
+                                    .route("", web::get().to(handler::custom_fields::handle_get))
+                                    .route("/{field_id}", web::get().to(handler::custom_fields::field_id::handle_get))
+                            )
                             .route("/tags", web::get().to(handler::tags::handle_get))
                     )
             )
             .service(
-                actix_files::Files::new("/static", &static_dir)
+                actix_files::Files::new("/static", &file_serving_config.directory)
                     .show_files_listing()
                     .redirect_to_slash_directory()
             )

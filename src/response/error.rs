@@ -21,6 +21,7 @@ pub enum ResponseError {
 
     PermissionDenied(String),
     Validation(String),
+    BadRequest(String),
 
     UsernameNotFound(String),
     UserIDNotFound(i32),
@@ -30,6 +31,7 @@ pub enum ResponseError {
     GlobalCustomFieldNotFound(i32),
     TagNotFound(i32),
     EntryMarkerNotFound(i32),
+    EntryCommentNotFound(i32),
 
     UsernameExists(String),
     EmailExists(String),
@@ -61,6 +63,8 @@ pub enum ResponseError {
     EmailBuilderError(lettre::error::Error),
 
     ChronoParserError(chrono::ParseError),
+
+    HBRenderError(handlebars::RenderError)
 }
 
 impl ResponseError {
@@ -73,6 +77,7 @@ impl ResponseError {
 
             ResponseError::PermissionDenied(_) => "PermissionDenied",
             ResponseError::Validation(_) => "Validation",
+            ResponseError::BadRequest(_) => "BadRequest",
 
             ResponseError::UsernameNotFound(_) => "UsernameNotFound",
             ResponseError::UserIDNotFound(_) => "UserIDNotFound",
@@ -82,6 +87,7 @@ impl ResponseError {
             ResponseError::GlobalCustomFieldNotFound(_) => "GlobalCustomFieldNotFound",
             ResponseError::TagNotFound(_) => "TagNotFound",
             ResponseError::EntryMarkerNotFound(_) => "EntryMarkerNotFound",
+            ResponseError::EntryCommentNotFound(_) => "EntryCommentNotFound",
 
             ResponseError::UsernameExists(_) => "UsernameExists",
             ResponseError::EmailExists(_) => "EmailExists",
@@ -92,37 +98,18 @@ impl ResponseError {
             ResponseError::PostgresError(_) |
             ResponseError::BB8Error(_) => "DatabaseError",
 
-            ResponseError::RustFMTError(_) |
-            ResponseError::RustIOError(_) |
-
-            ResponseError::SerdeJsonError(_) |
-
-            ResponseError::ActixError(_) |
-            ResponseError::HeaderError(_) |
-
-            ResponseError::Argon2Error(_) |
-
-            ResponseError::OpensslError(_) |
-            ResponseError::OpensslErrorStack(_) |
-
-            ResponseError::UuidError(_) |
-
-            ResponseError::EmailSmtpError(_) |
-            ResponseError::EmailBuilderError(_) |
-            
-            ResponseError::ChronoParserError(_) => "InternalError"
+            _ => "InternalError"
         }
     }
 
     fn get_msg(&self) -> String {
         match &*self {
-
-        
             ResponseError::Session => "no session found for request".to_owned(),
             ResponseError::InvalidPassword => "invalid password given for account".to_owned(),
 
             ResponseError::PermissionDenied(s) => s.clone(),
             ResponseError::Validation(s) => s.clone(),
+            ResponseError::BadRequest(s) => s.clone(),
 
             ResponseError::UsernameNotFound(username) => format!("failed to find the requested username: {}", username),
             ResponseError::UserIDNotFound(id) => format!("failed to find the requested user id: {}", id),
@@ -132,6 +119,7 @@ impl ResponseError {
             ResponseError::CustomFieldNotFound(id) => format!("failed to find the requested custom field id: {}", id),
             ResponseError::TagNotFound(id) => format!("failed to find the requested tag id: {}", id),
             ResponseError::EntryMarkerNotFound(id) => format!("failed to find the requested marker id: {}", id),
+            ResponseError::EntryCommentNotFound(id) => format!("failed to find the requested comment id: {}", id),
 
             ResponseError::UsernameExists(_) => format!("given username already exist"),
             ResponseError::EmailExists(_) => format!("given email already exists"),
@@ -142,25 +130,7 @@ impl ResponseError {
             ResponseError::PostgresError(_) |
             ResponseError::BB8Error(_) => "database server error".to_owned(),
 
-            ResponseError::RustFMTError(_) |
-            ResponseError::RustIOError(_) |
-
-            ResponseError::SerdeJsonError(_) |
-
-            ResponseError::ActixError(_) |
-            ResponseError::HeaderError(_) |
-
-            ResponseError::Argon2Error(_) |
-
-            ResponseError::OpensslError(_) |
-            ResponseError::OpensslErrorStack(_) |
-
-            ResponseError::UuidError(_) |
-
-            ResponseError::EmailSmtpError(_) |
-            ResponseError::EmailBuilderError(_) |
-            
-            ResponseError::ChronoParserError(_) => "internal server error".to_owned()
+            _ => "internal server error".to_owned()
         }
     }
     
@@ -177,6 +147,64 @@ impl fmt::Display for ResponseError {
 impl ActixResponseError for ResponseError {
 
     fn error_response(&self) -> HttpResponse {
+        match self {
+            ResponseError::RustFMTError(err) => {
+                log::error!("{}", err);
+            },
+            ResponseError::RustIOError(err) => {
+                log::error!("{}", err);
+            },
+
+            ResponseError::SerdeJsonError(err) => {
+                log::error!("{}", err);
+            },
+
+            ResponseError::ActixError(err) => {
+                log::error!("{}", err);
+            },
+            ResponseError::HeaderError(err) => {
+                log::error!("{}", err);
+            },
+
+            ResponseError::PostgresError(err) => {
+                log::error!("{}", err);
+            },
+            ResponseError::BB8Error(err) => {
+                log::error!("{}", err);
+            },
+
+            ResponseError::Argon2Error(err) => {
+                log::error!("{}", err);
+            },
+
+            ResponseError::OpensslError(err) => {
+                log::error!("{}", err);
+            },
+            ResponseError::OpensslErrorStack(err) => {
+                log::error!("{}", err);
+            },
+            
+            ResponseError::UuidError(err) => {
+                log::error!("{}", err);
+            },
+
+            ResponseError::EmailSmtpError(err) => {
+                log::error!("{}", err);
+            },
+            ResponseError::EmailBuilderError(err) => {
+                log::error!("{}", err);
+            },
+
+            ResponseError::ChronoParserError(err) => {
+                log::error!("{}", err);
+            },
+
+            ResponseError::HBRenderError(err) => {
+                log::error!("{}", err);
+            },
+            _ => ()
+        };
+
         response::json::respond_json(
             self.status_code(),
             response::json::ErrorJSON::build(
@@ -203,34 +231,14 @@ impl ActixResponseError for ResponseError {
             ResponseError::EntryMarkerNotFound(_) => StatusCode::NOT_FOUND,
 
             ResponseError::Validation(_) |
+            ResponseError::BadRequest(_) |
             ResponseError::UsernameExists(_) |
             ResponseError::EmailExists(_) |
             ResponseError::EntryExists(_) |
             ResponseError::CustomFieldExists(_) |
             ResponseError::GlobalCustomFieldExists(_) => StatusCode::BAD_REQUEST,
 
-            ResponseError::RustFMTError(_) |
-            ResponseError::RustIOError(_) |
-
-            ResponseError::SerdeJsonError(_) |
-
-            ResponseError::ActixError(_) |
-            ResponseError::HeaderError(_) |
-
-            ResponseError::PostgresError(_) |
-            ResponseError::BB8Error(_) |
-
-            ResponseError::Argon2Error(_) |
-
-            ResponseError::OpensslError(_) |
-            ResponseError::OpensslErrorStack(_) |
-
-            ResponseError::UuidError(_) |
-
-            ResponseError::EmailSmtpError(_) |
-            ResponseError::EmailBuilderError(_) |
-
-            ResponseError::ChronoParserError(_) => StatusCode::INTERNAL_SERVER_ERROR
+            _ => StatusCode::INTERNAL_SERVER_ERROR
         }
     }
 }
@@ -359,4 +367,12 @@ impl From<chrono::ParseError> for ResponseError {
         ResponseError::ChronoParserError(error)
     }
 
+}
+
+impl From<handlebars::RenderError> for ResponseError {
+
+    fn from(error: handlebars::RenderError) -> Self {
+        ResponseError::HBRenderError(error)
+    }
+    
 }

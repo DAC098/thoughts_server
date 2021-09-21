@@ -1,4 +1,3 @@
-import { unixNow } from "../util/time";
 import { cloneInteger, cloneString } from "../util/clone";
 import { CustomFieldTypeName } from "./custom_field_types"
 
@@ -37,7 +36,7 @@ export type CustomFieldEntryType = Integer | IntegerRange |
     Float | FloatRange |
     Time | TimeRange;
 
-export function cloneMoodEntryType(entry: CustomFieldEntryType): CustomFieldEntryType {
+export function cloneCustomFieldEntryType(entry: CustomFieldEntryType): CustomFieldEntryType {
     switch (entry.type) {
         case CustomFieldTypeName.Integer: {
             return {
@@ -81,7 +80,7 @@ export function cloneMoodEntryType(entry: CustomFieldEntryType): CustomFieldEntr
     }
 }
 
-export function makeMoodEntryType(name: CustomFieldTypeName): CustomFieldEntryType {
+export function makeCustomFieldEntryType(name: CustomFieldTypeName): CustomFieldEntryType {
     switch (name) {
         case CustomFieldTypeName.Integer:
             return {

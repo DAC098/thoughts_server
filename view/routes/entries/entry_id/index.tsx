@@ -1,216 +1,27 @@
-import { ContextualMenuItemType, DatePicker, DefaultButton, Dialog, DialogFooter, DialogType, IBasePicker, IconButton, IContextualMenuItem, ITag, Label, ScrollablePane, Separator, Stack, Sticky, StickyPositionType, TagItem, TagItemSuggestion, TagPicker, Text, TextField, Toggle } from "@fluentui/react"
-import React, { Fragment, useContext, useEffect, useReducer, useRef } from "react"
+import { ContextualMenuItemType, DatePicker, DefaultButton, Dialog, DialogFooter, DialogType, IBasePicker, IconButton, IContextualMenuItem, ITag, Stack, Sticky, StickyPositionType, TagItem, TagItemSuggestion, TagPicker } from "@fluentui/react"
+import React, { useEffect, useReducer, useRef } from "react"
 import { useHistory, useLocation, useParams } from "react-router-dom"
-import api from "../../../api"
-import { CustomFieldEntryType } from "../../../api/custom_field_entry_types"
-import { ComposedEntry, CustomFieldEntry, CustomField, Tag, TextEntry } from "../../../api/types"
-import { CustomFieldEntryTypeEditView, CustomFieldEntryTypeReadView } from "../../../components/custom_field_entries"
-import { useAppDispatch, useAppSelector } from "../../../hooks/useApp"
-import { entryIdViewSlice, EntryIdViewContext, initialState, TextEntryUI, entry_id_view_actions, EntryIdViewReducer, EntryMarkerUI } from "./reducer"
-import { actions as entries_actions } from "../../../redux/slices/entries"
+import useAppDispatch from "../../../hooks/useAppDispatch"
+import useAppSelector from "../../../hooks/useAppSelector"
+import { entryIdViewSlice, EntryIdViewContext, initialState, entry_id_view_actions, EntryIdViewReducer } from "./reducer"
+import { entries_actions as entries_actions } from "../../../redux/slices/entries"
 import arrayFilterMap from "../../../util/arrayFilterMap"
 import { getBrightness } from "../../../util/colors"
 import TagToken from "../../../components/tags/TagItem"
 import OverlayedPage from "../../../components/OverlayedPage"
 import { stringFromLocation, urlFromLocation } from "../../../util/url"
 import { dateFromUnixTime, unixTimeFromDate } from "../../../util/time"
+import TextEntryEditView from "./TextEntryEditView";
+import TextEntryReadView from "./TextEntryReadView";
+import EntryMarkerEditView from "./EntryMarkerEditView";
+import EntryMarkerReadView from "./EntryMarkerReadView";
+import CustomFieldEntriesEditView from "./CustomFieldEntriesEditView";
+import CustomFieldEntriesReadView from "./CustomFieldEntriesReadView";
+import apiv2 from "../../../apiv2"
 
-interface TextEntryEditViewProps {
-    text_entries: TextEntryUI[]
-}
+interface EntryIdProps {}
 
-const TextEntryEditView = ({text_entries}: TextEntryEditViewProps) => {
-    let dispatch = useContext(EntryIdViewContext);
-
-    return <Stack tokens={{childrenGap: 8}}>
-        {text_entries.map((v, index) => {
-            return <Stack key={v.key ?? v.id} tokens={{childrenGap: 8}}>
-                <TextField multiline autoAdjustHeight value={v.thought} onChange={(e, thought) => {
-                    dispatch(entry_id_view_actions.update_text_entry({index, thought, private: v.private}));
-                }}/>
-                <Stack horizontal tokens={{childrenGap: 8}}>
-                    <Toggle label="Private" inlineLabel onText="Yes" offText="No" checked={v.private} onChange={(e,checked) => {
-                        dispatch(entry_id_view_actions.update_text_entry({index, thought: v.thought, private: checked}))
-                    }}/>
-                    <IconButton iconProps={{iconName: "Delete"}} onClick={() => {
-                        dispatch(entry_id_view_actions.delete_text_entry(index));
-                    }}/>
-                </Stack>
-            </Stack>
-        })}
-    </Stack>
-}
-
-interface TextEntryReadViewProps {
-    text_entries: TextEntry[]
-}
-
-const TextEntryReadView = ({text_entries}: TextEntryReadViewProps) => {
-    return <Stack tokens={{childrenGap: 8}}>
-        {text_entries.map((v) => {
-            let line_splits = v.thought.split(/\n/);
-            let total = line_splits.length;
-
-            return <div key={v.id}>
-                {line_splits.map((t, i) =>
-                    <div key={i} style={{paddingBottom: total - 1 !== i ? 4 : 0}}>
-                        <Text>{t}</Text>
-                    </div>
-                )}
-            </div>
-        })}
-    </Stack>
-}
-
-interface CustomFieldEntryInputProps {
-    field: CustomField
-    entry: CustomFieldEntry
-
-    onDelete?: () => void
-    onChange?: (entry: {comment: string, value: CustomFieldEntryType}) => void
-}
-
-const CustomFieldEntryInputs = ({
-    field,
-    entry,
-    onDelete,
-    onChange
-}: CustomFieldEntryInputProps) => {
-    let similar_types = entry.value.type === field.config.type;
-
-    return <Stack tokens={{childrenGap: 8}}>
-        <Separator alignContent="start">
-            <Stack horizontal tokens={{childrenGap: 8}}>
-                <Label title={field.comment}>{field.name}</Label>
-                <IconButton iconProps={{iconName: "Delete"}} onClick={() => {
-                    onDelete?.();
-                }}/>
-            </Stack>
-        </Separator>
-        <CustomFieldEntryTypeEditView value={entry.value} config={similar_types ? field.config : null} onChange={value => {
-            onChange?.({comment: entry.comment, value});
-        }}/>
-        <TextField type="text" placeholder="comment" value={entry.comment ?? ""} onChange={(e,v) => {
-            onChange?.({comment: v, value: entry.value});
-        }}/>
-    </Stack>
-}
-
-interface CustomFieldEntriesEditViewProps {
-    custom_fields: CustomField[]
-    custom_field_entries: {[id: string]: CustomFieldEntry}
-}
-
-const CustomFieldEntriesEditView = ({custom_fields, custom_field_entries}: CustomFieldEntriesEditViewProps) => {
-    let dispatch = useContext(EntryIdViewContext);
-
-    return <Stack tokens={{childrenGap: 8}}>
-        {custom_fields.filter(field => field.id in custom_field_entries).map((field, index) =>
-            <CustomFieldEntryInputs
-                key={field.id}
-                field={field}
-                entry={custom_field_entries[field.id]}
-        
-                onDelete={() => dispatch(entry_id_view_actions.delete_mood_entry(field.id.toString()))}
-                onChange={(value) => dispatch(entry_id_view_actions.update_mood_entry({index: field.id, ...value}))}
-            />
-        )}
-    </Stack>
-}
-
-interface CustomFieldEntriesReadViewProps {
-    custom_field_entries: {[id: string]: CustomFieldEntry}
-    custom_fields: CustomField[]
-}
-
-const CustomFieldEntriesReadView = ({custom_fields, custom_field_entries}: CustomFieldEntriesReadViewProps) => {
-    return <Stack tokens={{childrenGap: 8}}>
-        {custom_fields.filter(field => field.id in custom_field_entries).map((field) => 
-            <Stack key={field.id} tokens={{childrenGap: 8}}>
-                <Stack tokens={{childrenGap: 8}}>
-                    <Separator alignContent="start">
-                        <Label title={field.comment}>{field.name}</Label>
-                    </Separator>
-                    <CustomFieldEntryTypeReadView 
-                        value={custom_field_entries[field.id].value}
-                        config={field.config}
-                    />
-                </Stack>
-                <Text>{custom_field_entries[field.id].comment}</Text>
-            </Stack>
-        )}
-    </Stack>
-}
-
-interface EntryMarkerEditViewProps {
-    markers: EntryMarkerUI[]
-}
-
-const EntryMarkerEditView = ({markers}: EntryMarkerEditViewProps) => {
-    const dispatch = useContext(EntryIdViewContext);
-
-    return <Stack tokens={{childrenGap: 8}}>
-        {markers.length > 0 ?
-            <Separator alignContent="start">
-                <Label>Markers</Label>
-            </Separator>
-            :
-            null
-        }
-        {markers.map((marker, index) =>
-            <Stack key={marker.id ?? marker.key} horizontal tokens={{childrenGap: 8}} verticalAlign="end">
-                <TextField
-                    label="Title"
-                    type="text"
-                    value={marker.title}
-                    onChange={(e, v) => 
-                        dispatch(entry_id_view_actions.update_entry_marker({index, title: v, comment: marker.comment}))
-                    }
-                />
-                <TextField
-                    label="Comment"
-                    type="text"
-                    value={marker.comment ?? ""}
-                    styles={{root: {flex: 1}}}
-                    onChange={(e, v) =>
-                        dispatch(entry_id_view_actions.update_entry_marker({index, title: marker.title, comment: v}))
-                    }
-                />
-                <IconButton iconProps={{iconName: "Delete"}} onClick={() =>
-                    dispatch(entry_id_view_actions.delete_entry_marker(index))
-                }/>
-            </Stack>
-        )}
-    </Stack>
-}
-
-interface EntryMarkerReadViewProps {
-    markers: EntryMarkerUI[]
-}
-
-const EntryMarkerReadView = ({markers}: EntryMarkerReadViewProps) => {
-    return <Stack tokens={{childrenGap: 8}}>
-        {markers.length > 0 ?
-            <Separator alignContent="start">
-                <Label>Markers</Label>
-            </Separator>
-            :
-            null
-        }
-        {markers.map((marker) =>
-            <Stack key={marker.id ?? marker.key} horizontal tokens={{childrenGap: 8}} verticalAlign="end">
-                <Text>{marker.title}</Text>
-                <Text variant="small">{marker.comment?.length ? marker.comment : ""}</Text>
-            </Stack>
-        )}
-    </Stack>
-}
-
-interface EntryIdProps {
-    user_specific?: boolean
-}
-
-const EntryId = ({user_specific = false}: EntryIdProps) => {
+const EntryId = ({}: EntryIdProps) => {
     const location = useLocation();
     const history = useHistory();
     const params = useParams<{entry_id: string, user_id?: string}>();
@@ -232,20 +43,17 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
 
         dispatch(entry_id_view_actions.set_loading(true));
 
-        (user_specific ?
-            api.users.id.entries.id.get(params.user_id, params.entry_id) :
-            api.entries.id.get(params.entry_id)
-        ).then(entry => {
-            dispatch(entry_id_view_actions.set_entry(entry));
+        apiv2.entries.id.get({
+            id: params.entry_id, 
+            user_id: params.user_id
+        }).then(res => {
+            dispatch(entry_id_view_actions.set_entry(res.body.data));
         }).catch(console.error).then(() => {
             dispatch(entry_id_view_actions.set_loading(false));
         })
     }
 
     const sendEntry = () => {
-        if (user_specific)
-            return;
-
         if (state.current == null)
             return;
         
@@ -257,54 +65,65 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
         let promise = null;
         
         if (state.current.entry.id) {
-            promise = api.entries.id.put(state.current.entry.id, {
-                entry: {
-                    day: state.current.entry.day
-                },
-                tags: state.current.tags,
-                markers: state.current.markers,
-                custom_field_entries: Object.values(
-                    state.current.custom_field_entries
-                    ).map(v => ({
-                        field: v.field,
-                        value: v.value,
+            promise = apiv2.entries.id.put({
+                id: state.current.entry.id, 
+                post: {
+                    entry: {
+                        day: state.current.entry.day
+                    },
+                    tags: state.current.tags,
+                    markers: state.current.markers.map(v => ({
+                        id: v.id === 0 ? null : v.id,
+                        title: v.title,
                         comment: v.comment
                     })),
-                text_entries: state.current.text_entries.map(v => ({
-                    id: v.id, thought: v.thought, private: v.private}
-                ))
-            }).then(entry => {
-                dispatch(entryIdViewSlice.actions.set_entry(entry));
-                appDispatch(entries_actions.update_entry(entry));
+                    custom_field_entries: Object.values(
+                        state.current.custom_field_entries
+                        ).map(v => ({
+                            field: v.field,
+                            value: v.value,
+                            comment: v.comment
+                        })),
+                    text_entries: state.current.text_entries.map(v => ({
+                        id: v.id === 0 ? null: v.id, 
+                        thought: v.thought, 
+                        private: v.private
+                    }))
+                }
+            }).then(res => {
+                dispatch(entryIdViewSlice.actions.set_entry(res.body.data));
+                appDispatch(entries_actions.update_entry(res.body.data));
             })
         } else {
-            promise = api.entries.post({
-                entry: {
-                    day: state.current.entry.day
-                },
-                tags: state.current.tags,
-                markers: state.current.markers,
-                custom_field_entries: Object.values(
-                    state.current.custom_field_entries
-                    ).map(v => ({
-                        field: v.field,
-                        value: v.value,
-                        comment: v.comment
-                    })),
-                text_entries: state.current.text_entries.map(v => ({
-                    thought: v.thought, private: v.private
-                }))
-            }).then(entry => {
+            promise = apiv2.entries.post({
+                post: {
+                    entry: {
+                        day: state.current.entry.day
+                    },
+                    tags: state.current.tags,
+                    markers: state.current.markers,
+                    custom_field_entries: Object.values(
+                        state.current.custom_field_entries
+                        ).map(v => ({
+                            field: v.field,
+                            value: v.value,
+                            comment: v.comment
+                        })),
+                    text_entries: state.current.text_entries.map(v => ({
+                        thought: v.thought, private: v.private
+                    }))
+                }
+            }).then(res => {
                 let base_path = location.pathname.split("/");
                 base_path.pop();
-                base_path.push(entry.entry.id.toString());
+                base_path.push(res.body.data.entry.id.toString());
 
                 history.push(stringFromLocation({
                     ...location, 
                     pathname: base_path.join("/")
                 }));
-                dispatch(entry_id_view_actions.set_entry(entry));
-                appDispatch(entries_actions.add_entry(entry));
+                dispatch(entry_id_view_actions.set_entry(res.body.data));
+                appDispatch(entries_actions.add_entry(res.body.data));
             });
         }
 
@@ -314,10 +133,6 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
     }
 
     const deleteEntry = () => {
-        if (user_specific) {
-            return;
-        }
-
         if (state.current == null || state.current.entry.id === 0) {
             return;
         }
@@ -328,7 +143,7 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
 
         dispatch(entry_id_view_actions.set_deleting(true));
 
-        api.entries.id.del(state.current.entry.id).then(() => {
+        apiv2.entries.id.del({id: state.current.entry.id}).then(() => {
             appDispatch(entries_actions.delete_entry(state.current.entry.id));
             let url = urlFromLocation(location);
             
@@ -349,7 +164,7 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
     useEffect(() => {
         let entry_id = parseInt(params.entry_id);
 
-        if (isNaN(entry_id) || entry_id === 0) {
+        if (entry_id === 0) {
             dispatch(entry_id_view_actions.new_entry());
             return;
         }
@@ -368,8 +183,8 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
         }
     }, [params.entry_id]);
 
-    let fields_section = [];
-    let issued_fields_section = [];
+    let fields_section: IContextualMenuItem[] = [];
+    let issued_fields_section: IContextualMenuItem[] = [];
 
     for (let field of custom_fields_state.custom_fields) {
         if (state.current && field.id in state.current?.custom_field_entries) {
@@ -382,7 +197,7 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
                 text: custom_fields_state[field.id].name,
                 title: custom_fields_state[field.id].comment,
                 onClick: () => {
-                    dispatch(entry_id_view_actions.create_mood_entry(field.id.toString()))
+                    dispatch(entry_id_view_actions.create_custom_field_entry(field.id.toString()))
                 }
             });
         } else {
@@ -391,10 +206,36 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
                 text: custom_fields_state.mapping[field.id].name,
                 title: custom_fields_state.mapping[field.id].comment,
                 onClick: () => {
-                    dispatch(entry_id_view_actions.create_mood_entry(field.id.toString()))
+                    dispatch(entry_id_view_actions.create_custom_field_entry(field.id.toString()))
                 }
             });
         }
+    }
+
+    if (fields_section.length > 0) {
+        fields_section.unshift({
+            key: "add_all_fields",
+            text: "Add All",
+            iconProps: {
+                iconName: "Add"
+            },
+            onClick: () => {
+                dispatch(entry_id_view_actions.add_personal_custom_fields());
+            }
+        });
+    }
+
+    if (issued_fields_section.length > 0) {
+        issued_fields_section.unshift({
+            key: "add_all_fields",
+            text: "Add All",
+            iconProps: {
+                iconName: "Add"
+            },
+            onClick: () => {
+                dispatch(entry_id_view_actions.add_issued_by_custom_fields());
+            }
+        })
     }
 
     let entry_options: IContextualMenuItem[] = [
@@ -410,6 +251,17 @@ const EntryId = ({user_specific = false}: EntryIdProps) => {
             text: "Marker",
             onClick: () => {
                 dispatch(entry_id_view_actions.create_entry_marker())
+            }
+        },
+        {
+            key: "add_all_fields",
+            disabled: fields_section.length == 0 && issued_fields_section.length == 0,
+            text: "Add All Fields",
+            iconProps: {
+                iconName: "Add"
+            },
+            onClick: () => {
+                dispatch(entry_id_view_actions.add_all_custom_fields());
             }
         },
         {

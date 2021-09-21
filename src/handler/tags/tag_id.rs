@@ -19,16 +19,17 @@ pub struct TagIdPath {
 pub async fn handle_get(
     req: HttpRequest,
     session: Session,
-    app: web::Data<state::AppState>,
+    db: state::WebDbState,
+    template: state::WebTemplateState<'_>,
     path: web::Path<TagIdPath>,
 ) -> error::Result<impl Responder> {
     let accept_html = response::check_if_html_req(&req, true)?;
-    let conn = &*app.get_conn().await?;
+    let conn = &*db.get_conn().await?;
     let initiator_opt = from::get_initiator(conn, &session).await?;
 
     if accept_html {
         if initiator_opt.is_some() {
-            Ok(response::respond_index_html(Some(initiator_opt.unwrap().user)))
+            Ok(response::respond_index_html(&template.into_inner(), Some(initiator_opt.unwrap().user))?)
         } else {
             let redirect = format!("/auth/login?jump_to=/tags/{}", path.tag_id);
             Ok(response::redirect_to_path(redirect.as_str()))
@@ -67,11 +68,11 @@ pub struct PutTagJson {
 
 pub async fn handle_put(
     initiator: from::Initiator,
-    app: web::Data<state::AppState>,
+    db: state::WebDbState,
     path: web::Path<TagIdPath>,
     posted: web::Json<PutTagJson>,
 ) -> error::Result<impl Responder> {
-    let conn = &mut *app.get_conn().await?;
+    let conn = &mut *db.get_conn().await?;
     security::assert::is_owner_for_tag(conn, path.tag_id, initiator.user.id).await?;
 
     let transaction = conn.transaction().await?;
@@ -99,10 +100,10 @@ pub async fn handle_put(
 
 pub async fn handle_delete(
     initiator: from::Initiator,
-    app: web::Data<state::AppState>,
+    db: state::WebDbState,
     path: web::Path<TagIdPath>,
 ) -> error::Result<impl Responder> {
-    let conn = &mut *app.get_conn().await?;
+    let conn = &mut *db.get_conn().await?;
     security::assert::is_owner_for_tag(conn, path.tag_id, initiator.user.id).await?;
 
     let transaction = conn.transaction().await?;

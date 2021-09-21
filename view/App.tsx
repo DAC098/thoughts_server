@@ -15,9 +15,12 @@ import AdminUserListView from "./routes/admin/users"
 import AdminUserIdView from "./routes/admin/users/users_id"
 import TagsView from "./routes/tags"
 import TagsIDView from "./routes/tags/tag_id"
-import { useAppDispatch, useAppSelector } from "./hooks/useApp"
+import useAppDispatch from "./hooks/useAppDispatch"
+import useAppSelector from "./hooks/useAppSelector"
 import { view_actions } from "./redux/slices/view"
 import resize_listener from "./util/ResizeListener"
+import GlobalCustomFieldsView from "./routes/global/custom_fields"
+import GlobalCustomFieldIdView from "./routes/global/custom_fields/field_id"
 
 const App = () => {
     const location = useLocation();
@@ -141,13 +144,13 @@ const App = () => {
                                     match ? <>
                                         <EntriesView user_specific/>
                                         <Route path="/users/:user_id/entries/:entry_id" exact children={({match}) =>
-                                            match ? <EntryId user_specific/> : null
+                                            match ? <EntryId/> : null
                                         }/>
                                     </> : null
                                 }/>
                                 <Route path={["/users/:user_id/tags"]} exact children={({match}) => 
                                     match ? <>
-                                        <TagsView user_specific/>
+                                        <TagsView/>
                                     </> : null
                                 }/>
                                 <Route path={["/users", "/users/:user_id"]} exact children={({match}) => 
@@ -169,6 +172,14 @@ const App = () => {
                                     </> : null
                                 }/>
                             </Switch> : null
+                        }/>
+                        <Route path={["/global/custom_fields", "/global/custom_fields/:field_id"]} exact children={({match}) =>
+                            match ? <>
+                                <GlobalCustomFieldsView/>
+                                <Route path="/global/custom_fields/:field_id" exact children={({match}) => 
+                                    match ? <GlobalCustomFieldIdView/> : null
+                                }/>
+                            </> : null
                         }/>
                         <Route component={() => <div>Page Not Found</div>}/>
                     </Switch>

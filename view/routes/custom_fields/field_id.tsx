@@ -1,15 +1,16 @@
 import { DefaultButton, Dialog, DialogFooter, DialogType, Dropdown, IconButton, IDropdownOption, Position, SpinButton, Stack, TextField } from "@fluentui/react"
 import React, { createContext, Dispatch, Reducer, useContext, useEffect, useReducer } from "react"
 import { useHistory, useLocation, useParams } from "react-router"
-import { cloneCustomFieldJson, makeCustomField, CustomField } from "../../api/types"
-import api from "../../api"
-import { useOwner } from "../../hooks/useOwner"
-import { makeCustomFieldType, CustomFieldType, CustomFieldTypeName } from "../../api/custom_field_types"
+import { cloneCustomField, newCustomField, CustomField } from "../../apiv2/types"
+import { useUserId } from "../../hooks/useUserId"
+import { makeCustomFieldType, CustomFieldType, CustomFieldTypeName } from "../../apiv2/custom_field_types"
 import { CustomFieldTypeEditView } from "../../components/custom_fields"
-import { useAppDispatch, useAppSelector } from "../../hooks/useApp"
+import useAppDispatch from "../../hooks/useAppDispatch"
+import useAppSelector from "../../hooks/useAppSelector"
 import { custom_field_actions } from "../../redux/slices/custom_fields"
 import { createSlice, PayloadAction } from "@reduxjs/toolkit"
 import { SliceActionTypes } from "../../redux/types"
+import apiv2 from "../../apiv2"
 
 interface FieldState {
     original?: CustomField
@@ -57,16 +58,16 @@ const fieldStateSlice = createSlice({
 
         set_field: (state, action: PayloadAction<CustomField>) => {
             state.original = action.payload;
-            state.current = cloneCustomFieldJson(action.payload);
+            state.current = cloneCustomField(action.payload);
             state.changes_made = false;
         },
         reset_field: (state) => {
-            state.current = cloneCustomFieldJson(state.original);
+            state.current = cloneCustomField(state.original);
             state.changes_made = false;
         },
         new_field: (state) => {
-            state.original = makeCustomField();
-            state.current = makeCustomField();
+            state.original = newCustomField(CustomFieldTypeName.Integer);
+            state.current = newCustomField(CustomFieldTypeName.Integer);
             state.changes_made = false;
         },
 
@@ -101,15 +102,12 @@ const reducer_actions = {
 type FieldStateActionsTypes = SliceActionTypes<typeof reducer_actions>;
 type FieldStateReducer = Reducer<FieldState, FieldStateActionsTypes>;
 
-interface FieldIdViewProps {
-    user_specific?: boolean
-}
+interface FieldIdViewProps {}
 
-const FieldIdView = ({user_specific = false}: FieldIdViewProps) => {
+const FieldIdView = ({}: FieldIdViewProps) => {
     const location = useLocation<{field?: CustomField}>();
     const history = useHistory();
     const params = useParams<{field_id: string, user_id?: string}>();
-    const owner = useOwner(user_specific);
     const custom_fields_state = useAppSelector(state => state.custom_fields);
     const appDispatch = useAppDispatch();
 
@@ -127,21 +125,18 @@ const FieldIdView = ({user_specific = false}: FieldIdViewProps) => {
 
         dispatch(reducer_actions.set_loading(true));
 
-        (user_specific ?
-            api.users.id.custom_fields.id.get(owner, params.field_id) :
-            api.custom_fields.id.get(params.field_id)
-        ).then((field) => {
-            dispatch(reducer_actions.set_field(field));
+
+        apiv2.custom_fields.id.get({
+            id: params.field_id,
+            user_id: params.user_id
+        }).then((res) => {
+            dispatch(reducer_actions.set_field(res.body.data));
         }).catch(console.error).then(() => {
             dispatch(reducer_actions.set_loading(false));
         });
     }
 
     const sendField = () => {
-        if (user_specific) {
-            return;
-        }
-
         if (state.current == null) {
             return;
         }
@@ -155,13 +150,19 @@ const FieldIdView = ({user_specific = false}: FieldIdViewProps) => {
         let promise = null;
 
         if (state.current.id) {
-            promise = api.custom_fields.id.put(state.current.id, state.current).then(field => {
-                history.replace(`/custom_fields/${field.id}`);
+            promise = apiv2.custom_fields.id.put({
+                id: state.current.id, 
+                post: state.current
+            }).then(res => {
+                let field = res.body.data;
                 dispatch(reducer_actions.set_field(field));
                 appDispatch(custom_field_actions.update_field(field))
             });
         } else {
-            promise = api.custom_fields.post(state.current).then(field => {
+            promise = apiv2.custom_fields.post({
+                post: state.current
+            }).then(res => {
+                let field = res.body.data;
                 history.push(`/custom_fields/${field.id}`);
                 dispatch(reducer_actions.set_field(field));
                 appDispatch(custom_field_actions.add_field(field));
@@ -174,10 +175,6 @@ const FieldIdView = ({user_specific = false}: FieldIdViewProps) => {
     }
 
     const deleteField = () => {
-        if (user_specific) {
-            return;
-        }
-
         if (state.current == null || state.current.id === 0) {
             return;
         }
@@ -188,7 +185,7 @@ const FieldIdView = ({user_specific = false}: FieldIdViewProps) => {
 
         dispatch(reducer_actions.set_deleting(true));
 
-        api.custom_fields.id.del(state.current.id).then(() => {
+        apiv2.custom_fields.id.del({id: state.current.id}).then(() => {
             appDispatch(custom_field_actions.delete_field(state.current.id));
             history.push("/custom_fields");
         }).catch((e) => {
@@ -200,7 +197,7 @@ const FieldIdView = ({user_specific = false}: FieldIdViewProps) => {
     useEffect(() => {
         let field_id = parseInt(params.field_id);
 
-        if (isNaN(field_id) || field_id === 0) {
+        if (field_id === 0) {
             dispatch(reducer_actions.new_field());
             return;
         }
@@ -210,7 +207,7 @@ const FieldIdView = ({user_specific = false}: FieldIdViewProps) => {
         } else {
             for (let field of custom_fields_state.custom_fields) {
                 if (field.id === field_id) {
-                    dispatch(reducer_actions.set_field(cloneCustomFieldJson(field)));
+                    dispatch(reducer_actions.set_field(cloneCustomField(field)));
                     return;
                 }
             }

@@ -1,5 +1,5 @@
 import { optionalCloneInteger, cloneInteger, optionalCloneString, cloneString, cloneBoolean } from "../util/clone";
-import { cloneMoodEntryType, makeMoodEntryType, CustomFieldEntryType } from "./custom_field_entry_types";
+import { cloneCustomFieldEntryType, makeCustomFieldEntryType, CustomFieldEntryType } from "./custom_field_entry_types";
 import { cloneCustomFieldType, makeCustomFieldType, CustomFieldType, CustomFieldTypeName } from "./custom_field_types";
 
 export interface IssuedByJson {
@@ -182,7 +182,7 @@ export function makeCustomFieldEntryJson(type: CustomFieldTypeName = CustomField
     return {
         field: 0,
         entry: 0,
-        value: makeMoodEntryType(type),
+        value: makeCustomFieldEntryType(type),
         comment: null
     }
 }
@@ -191,7 +191,7 @@ export function cloneCustomFieldEntryJson(custom_field_entry: CustomFieldEntry):
     return {
         field: cloneInteger(custom_field_entry.field),
         entry: cloneInteger(custom_field_entry.entry),
-        value: cloneMoodEntryType(custom_field_entry.value),
+        value: cloneCustomFieldEntryType(custom_field_entry.value),
         comment: optionalCloneString(custom_field_entry.comment)
     };
 }

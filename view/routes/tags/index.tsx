@@ -2,44 +2,35 @@ import { CommandBar, ScrollablePane, ShimmeredDetailsList, Stack, Sticky, Sticky
 import React, { useEffect } from "react"
 import { useHistory } from "react-router";
 import { Link } from "react-router-dom";
-import { Tag } from "../api/types";
-import ColorSwatch from "../components/ColorSwatch";
-import { useAppDispatch, useAppSelector } from "../hooks/useApp";
-import { useOwner } from "../hooks/useOwner";
-import { tags_actions } from "../redux/slices/tags";
-import { getBrightness, min_brightness } from "../util/colors";
+import { Tag } from "../../apiv2/types";
+import ColorSwatch from "../../components/ColorSwatch";
+import useAppDispatch from "../../hooks/useAppDispatch"
+import useAppSelector from "../../hooks/useAppSelector"
+import { useGlobalFetchTags } from "../../hooks/useGlobalFetchTags";
+import { useUserId } from "../../hooks/useUserId";
+import { tags_actions } from "../../redux/slices/tags";
+import { getBrightness, min_brightness } from "../../util/colors";
 
-interface TagsViewProps {
-    user_specific?: boolean
-}
+interface TagsViewProps {}
 
-const TagsView = ({user_specific = false}: TagsViewProps) => {
-    const color_preview_size = 20;
+const TagsView = ({}: TagsViewProps) => {
     const history = useHistory();
-    const owner = useOwner(user_specific);
+    const user_id = useUserId();
     const tags_state = useAppSelector(state => state.tags);
-    const app_dispatch = useAppDispatch();
-
-    const fetchTags = () => {
-        if (tags_state.loading) {
-            return;
-        }
-
-        app_dispatch(tags_actions.fetchTags({owner, user_specific}));
-    }
+    const globalFetchTags = useGlobalFetchTags();
 
     useEffect(() => {
-        if (tags_state.owner !== owner) {
-            fetchTags();
+        if (tags_state.owner !== user_id) {
+            globalFetchTags({});
         }
-    }, [owner]);
+    }, [user_id]);
 
     let command_bar_actions = [
         {
             key: "refresh",
             text: "Refresh",
             iconProps: {iconName: "Refresh"},
-            onClick: fetchTags
+            onClick: () => globalFetchTags({})
         },
         {
             key: "new_tag",
@@ -70,7 +61,7 @@ const TagsView = ({user_specific = false}: TagsViewProps) => {
                         minWidth: 100,
                         maxWidth: 150,
                         onRender: (item: Tag) => {
-                            return user_specific ?
+                            return user_id ?
                                 item.title :
                                 <Link to={`/tags/${item.id}`}>{item.title}</Link>;
                         }

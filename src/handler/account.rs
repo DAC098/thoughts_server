@@ -17,15 +17,16 @@ use response::error;
 pub async fn handle_get(
     req: HttpRequest,
     session: Session,
-    app: web::Data<state::AppState>
+    db: state::WebDbState,
+    template: state::WebTemplateState<'_>,
 ) -> error::Result<impl Responder> {
     let accept_html = response::check_if_html_req(&req, true)?;
-    let conn = &*app.as_ref().get_conn().await?;
+    let conn = &*db.get_conn().await?;
     let initiator_opt = from::get_initiator(conn, &session).await?;
 
     if accept_html {
         if initiator_opt.is_some() {
-            Ok(response::respond_index_html(Some(initiator_opt.unwrap().user)))
+            Ok(response::respond_index_html(&template.into_inner(), Some(initiator_opt.unwrap().user))?)
         } else {
             Ok(response::redirect_to_path("/auth/login?jump_to=/account"))
         }
@@ -53,17 +54,18 @@ pub struct PutAccountJson {
 
 pub async fn handle_put(
     initiator: from::Initiator,
-    app_data: web::Data<state::AppState>,
+    db: state::WebDbState,
+    email: state::WebEmailState,
+    server_info: state::WebSserverInfoState,
     posted_json: web::Json<PutAccountJson>,
 ) -> error::Result<impl Responder> {
-    let app = app_data.into_inner();
     let posted = posted_json.into_inner();
-    let conn = &mut *app.get_conn().await?;
+    let conn = &mut *db.get_conn().await?;
     let mut email_value: Option<String> = None;
     let mut email_verified: bool = false;
     let mut to_mailbox: Option<Mailbox> = None;
 
-    if app.email.enabled {
+    if email.is_enabled() {
         let to_mailbox_result = posted.email.parse::<Mailbox>();
 
         if to_mailbox_result.is_err() {
@@ -97,14 +99,13 @@ pub async fn handle_put(
     let transaction = conn.transaction().await?;
 
     let _result = transaction.execute(
-        r#"
-        update users
-        set username = $2,
-            full_name = $3,
-            email = $4,
-            email_verified = $5
-        where id = $1
-        "#,
+        "\
+        update users \
+        set username = $2, \
+            full_name = $3, \
+            email = $4, \
+            email_verified = $5 \
+        where id = $1",
         &[
             &initiator.user.id,
             &posted.username,
@@ -114,36 +115,34 @@ pub async fn handle_put(
         ]
     ).await?;
 
-    transaction.commit().await?;
-
-    if app.email.enabled && !email_verified {
+    if email.is_enabled() && !email_verified && email.can_get_transport() && email.has_from() {
         let mut rand_bytes: [u8; 32] = [0; 32];
         openssl::rand::rand_bytes(&mut rand_bytes)?;
         let hex_str = util::hex_string(&rand_bytes)?;
         let issued = util::time::now();
 
-        conn.execute(
-            r#"
-            insert into email_verifications (owner, key_id, issued) values
-            ($1, $2, $3)
-            on conflict on constraint email_verifications_pkey do update
-            set key_id = excluded.key_id,
-                issued = excluded.issued
-            "#,
+        transaction.execute(
+            "\
+            insert into email_verifications (owner, key_id, issued) values \
+            ($1, $2, $3) \
+            on conflict on constraint email_verifications_pkey do update \
+            set key_id = excluded.key_id, \
+                issued = excluded.issued",
             &[&initiator.user.id, &hex_str, &issued]
         ).await?;
 
-        let transport = app.email.get_transport()?;
         let email_message = Message::builder()
-            .from(app.email.get_from())
-            .to(to_mailbox.unwrap())
-            .subject("Verify Changed Email")
-            .multipart(email::message_body::verify_email_body(
-                app.info.url_origin(), hex_str
-            ))?;
+        .from(email.get_from().unwrap())
+        .to(to_mailbox.unwrap())
+        .subject("Verify Changed Email")
+        .multipart(email::message_body::verify_email_body(
+            server_info.url_origin(), hex_str
+        ))?;
 
-        transport.send(&email_message)?;
+        email.get_transport()?.send(&email_message)?;
     }
+
+    transaction.commit().await?;
     
     Ok(response::json::respond_json(
         http::StatusCode::OK,

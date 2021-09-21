@@ -5,8 +5,8 @@ import { LinePath } from '@visx/shape'
 import { AxisLeft, AxisBottom } from '@visx/axis'
 import { GridRows, GridColumns } from '@visx/grid'
 import { scaleTime, scaleLinear } from '@visx/scale'
-import { Time } from "../../api/custom_field_entry_types";
-import { CustomField, ComposedEntry } from "../../api/types";
+import { Time } from "../../apiv2/custom_field_entry_types";
+import { CustomField, ComposedEntry } from "../../apiv2/types";
 import { SolidLinePath } from "./line_paths"
 import { CircleMarker } from "./markers"
 import { defaultGetX } from "./getters"

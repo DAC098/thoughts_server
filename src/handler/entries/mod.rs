@@ -6,6 +6,7 @@ use std::collections::{HashMap};
 use actix_web::{web, http, HttpRequest, Responder};
 use actix_session::{Session};
 use serde::{Deserialize};
+use chrono::{DateTime, Utc};
 use chrono::serde::{ts_seconds};
 //use tokio_postgres::{Client, RowStream};
 //use futures::{pin_mut, Stream, TryStreamExt, future};
@@ -79,6 +80,8 @@ pub struct EntriesQuery {
     to: Option<String>,
     tags: Option<String>,
     version: Option<i32>,
+    from_marker: Option<i32>,
+    to_marker: Option<i32>,
 }
 
 /**
@@ -87,21 +90,21 @@ pub struct EntriesQuery {
  * available and allowed entries for the current user from the session
  */
 pub async fn handle_get(
-    req: HttpRequest, 
+    req: HttpRequest,
     session: Session,
-    app: web::Data<state::AppState>,
+    db: state::WebDbState,
+    template: state::WebTemplateState<'_>,
     info: web::Query<EntriesQuery>,
     path: web::Path<EntriesPath>,
 ) -> app_error::Result<impl Responder> {
     let info = info.into_inner();
-    let app = app.into_inner();
-    let pool_conn = app.get_pool().get().await?;
+    let pool_conn = db.get_pool().get().await?;
     let accept_html = response::check_if_html_req(&req, true).unwrap();
     let initiator_opt = from::get_initiator(&*pool_conn, &session).await?;
 
     if accept_html {
         if initiator_opt.is_some() {
-            Ok(response::respond_index_html(Some(initiator_opt.unwrap().user)))
+            Ok(response::respond_index_html(&template.into_inner(), Some(initiator_opt.unwrap().user))?)
         } else {
             Ok(response::redirect_to_login(&req))
         }
@@ -111,7 +114,6 @@ pub async fn handle_get(
         let owner: i32;
         let is_private: Option<bool>;
         let initiator = initiator_opt.unwrap();
-        let mut entries_where: String = String::new();
 
         if let Some(user_id) = path.user_id {
             security::assert::permission_to_read(&*pool_conn, initiator.user.id, user_id).await?;
@@ -144,39 +146,77 @@ pub async fn handle_get(
         }
 
         let mut results = {
-            let rows_statement = {
-                let mut query_str = "select id, day, owner from entries where".to_owned();
+            let mut entries_where: String = String::new();
 
-                write!(&mut query_str, " owner = {}", owner)?;
-                write!(&mut entries_where, "entries.owner = {}", owner)?;
+            write!(&mut entries_where, "entries.owner = {}", owner)?;
 
-                if let Some(from) = parsing::url_query::get_date(&info.from)? {
-                    write!(&mut query_str, " and day >= {}", from.timestamp())?;
-                    write!(&mut entries_where, " and entries.day >= {}", from.timestamp())?;
+            if let Some(from_marker) = info.from_marker {
+                let marker_check = (*pool_conn).query(
+                    "\
+                    select entries.day \
+                    from entries \
+                    join entry_markers on entries.id = entry_markers.entry \
+                    where entry_markers.id = $1 and entries.owner = $2",
+                    &[&from_marker, &owner]
+                ).await?;
+
+                if marker_check.is_empty() {
+                    Err(app_error::ResponseError::BadRequest(
+                        format!("from maker id given does not exist: {}", from_marker)
+                    ))?;
+                } else {
+                    let day: DateTime<Utc> = marker_check[0].get(0);
+                    write!(&mut entries_where, " and entries.day >= '{}'", day.to_rfc3339())?;
                 }
+            } else if let Some(from) = parsing::url_query::get_date(&info.from)? {
+                write!(&mut entries_where, " and entries.day >= '{}'", from.to_rfc3339())?;
+            }
 
-                if let Some(to) = parsing::url_query::get_date(&info.to)? {
-                    write!(&mut query_str, " and day <= {}", to.timestamp())?;
-                    write!(&mut entries_where, " and entries.day <= {}", to.timestamp())?;
+            if let Some(to_marker) = info.to_marker {
+                let marker_check = (*pool_conn).query(
+                    "\
+                    select entries.day \
+                    from entries \
+                    join entry_markers on entries.id = entry_markers.entry \
+                    where entry_markers.id = $1 and entries.owner = $2",
+                    &[&to_marker, &owner]
+                ).await?;
+
+                if marker_check.is_empty() {
+                    Err(app_error::ResponseError::BadRequest(
+                        format!("to marker id given does not exist: {}", to_marker)
+                    ))?;
+                } else {
+                    let day: DateTime<Utc> = marker_check[0].get(0);
+                    write!(&mut entries_where, " and entries.day <= '{}'", day.to_rfc3339())?;
                 }
+            } else if let Some(to) = parsing::url_query::get_date(&info.to)? {
+                write!(&mut entries_where, " and entries.day <= '{}'", to.to_rfc3339())?;
+            }
 
-                if let Some(tags) = parsing::url_query::get_tags(&info.tags) {
-                    let tags_str = tags.iter().map(|v| v.to_string()).collect::<Vec<String>>().join(",");
-                    write!(&mut query_str, " and id in (select entry from entries2tags where tag in ({}))", tags_str)?;
-                    write!(&mut entries_where, " and entries.id in (select entry from entries2tags where tag in ({}))", tags_str)?;
-                }
+            if let Some(tags) = parsing::url_query::get_tags(&info.tags) {
+                write!(
+                    &mut entries_where,
+                    " and entries.id in (select entry from entries2tags where tag in ({}))", 
+                    tags.iter().map(|v| v.to_string()).collect::<Vec<String>>().join(",")
+                )?;
+            }
 
-                write!(&mut query_str, " order by day desc")?;
-
-                query_str
-            };
+            let rows_statement = format!(
+                "\
+                select id, day, owner \
+                from entries \
+                where {} \
+                order by day desc",
+                entries_where
+            );
 
             let custom_field_entries_statement = format!(
                 "\
                 select custom_field_entries.field, \
-                        custom_field_entries.value, \
-                        custom_field_entries.comment, \
-                        custom_field_entries.entry \
+                       custom_field_entries.value, \
+                       custom_field_entries.comment, \
+                       custom_field_entries.entry \
                 from custom_field_entries \
                 join entries on custom_field_entries.entry = entries.id \
                 join custom_fields on custom_field_entries.field = custom_fields.id \
@@ -188,9 +228,9 @@ pub async fn handle_get(
             let entry_markers_statement = format!(
                 "\
                 select entry_markers.id, \
-                        entry_markers.title, \
-                        entry_markers.comment, \
-                        entry_markers.entry \
+                       entry_markers.title, \
+                       entry_markers.comment, \
+                       entry_markers.entry \
                 from entry_markers \
                 join entries on entry_markers.entry = entries.id \
                 where {} \
@@ -202,9 +242,9 @@ pub async fn handle_get(
                 let mut query_str = format!(
                     "\
                     select text_entries.id, \
-                        text_entries.thought, \
-                        text_entries.private, \
-                        text_entries.entry \
+                           text_entries.thought, \
+                           text_entries.private, \
+                           text_entries.entry \
                     from text_entries \
                     join entries on text_entries.entry = entries.id \
                     where {}",
@@ -232,10 +272,10 @@ pub async fn handle_get(
             );
 
             future::try_join_all(vec![
-                (*pool_conn).query(rows_statement.as_str(), &[]), 
+                (*pool_conn).query(rows_statement.as_str(), &[]),
                 (*pool_conn).query(custom_field_entries_statement.as_str(), &[]),
-                (*pool_conn).query(entry_markers_statement.as_str(), &[]), 
-                (*pool_conn).query(text_entries_statement.as_str(), &[]), 
+                (*pool_conn).query(entry_markers_statement.as_str(), &[]),
+                (*pool_conn).query(text_entries_statement.as_str(), &[]),
                 (*pool_conn).query(tags_statement.as_str(), &[])
             ]).await?
         };
@@ -299,7 +339,7 @@ pub async fn handle_get(
                         if field.entry == row.id {
                             custom_field_entries_vec.insert(field.field, field);
                         } else {
-                            next_custom_field_entry.insert(field);
+                            next_custom_field_entry = Some(field);
                             break;
                         }
                     } else {
@@ -321,7 +361,7 @@ pub async fn handle_get(
                         if marker.entry == row.id {
                             entry_markers_vec.push(marker);
                         } else {
-                            next_entry_marker.insert(marker);
+                            next_entry_marker = Some(marker);
                             break;
                         }
                     } else {
@@ -343,7 +383,7 @@ pub async fn handle_get(
                         if text.entry == row.id {
                             text_entries_vec.push(text);
                         } else {
-                            next_text_entry.insert(text);
+                            next_text_entry = Some(text);
                             break;
                         }
                     } else {
@@ -365,7 +405,7 @@ pub async fn handle_get(
                         if tag.1 == row.id {
                             tags_vec.push(tag.0);
                         } else {
-                            next_tag.insert(tag);
+                            next_tag = Some(tag);
                             break;
                         }
                     } else {
@@ -400,12 +440,11 @@ pub async fn handle_get(
  */
 pub async fn handle_post(
     initiator: from::Initiator,
-    app: web::Data<state::AppState>,
-    posted_cntr: web::Json<PostEntryJson>
+    db: state::WebDbState,
+    posted: web::Json<PostEntryJson>
 ) -> app_error::Result<impl Responder> {
-    let posted = posted_cntr.into_inner();
-    let app = app.into_inner();
-    let conn = &mut *app.get_conn().await?;
+    let posted = posted.into_inner();
+    let conn = &mut *db.get_conn().await?;
 
     let entry_check = conn.query(
         "select id from entries where day = $1 and owner = $2",

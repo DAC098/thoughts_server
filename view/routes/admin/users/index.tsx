@@ -1,7 +1,7 @@
 import { Stack, ScrollablePane, Sticky, StickyPositionType, CommandBar, Spinner, DetailsList, ShimmeredDetailsList } from "@fluentui/react";
 import React, { useEffect, useState } from "react"
 import { Link, useHistory } from "react-router-dom";
-import { json } from "../../request";
+import { json } from "../../../request";
 
 const AdminUserListView = () => {
     const history = useHistory();

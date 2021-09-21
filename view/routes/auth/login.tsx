@@ -1,9 +1,10 @@
 import { DefaultButton, Stack, TextField } from "@fluentui/react"
 import React, { useState } from "react"
 import { useHistory, useLocation } from "react-router";
-import { useAppDispatch } from "../../hooks/useApp";
+import useAppDispatch from "../../hooks/useAppDispatch"
 import { actions } from "../../redux/slices/active_user"
-import api from "../../api"
+import api from "../../apiv2"
+import { urlFromLocation } from "../../util/url";
 
 const Login = () => {
     const location = useLocation();
@@ -28,9 +29,11 @@ const Login = () => {
         setUsernameError("");
         setPasswordError("");
 
-        api.login.post({username,password}).then((user) => {
+        api.auth.login.post({post: {username,password}}).then((res) => {
+            let user = res.body.data;
+            let url = urlFromLocation(location);
+            
             dispatch(actions.set_user(user));
-            let url = new URL(location.pathname + location.search, window.location.origin);
 
             history.push(url.searchParams.get("jump_to") ?? "/entries");
         }).catch(err => {

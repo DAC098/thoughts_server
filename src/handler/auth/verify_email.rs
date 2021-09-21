@@ -13,16 +13,15 @@ pub struct QueryOptions {
 }
 
 pub async fn handle_get(
-    app_data: web::Data<state::AppState>,
+    db: state::WebDbState,
+    email: state::WebEmailState,
     info: web::Query<QueryOptions>,
 ) -> error::Result<impl Responder> {
-    let app = app_data.into_inner();
-
-    if !app.email.enabled {
+    if !email.is_enabled() {
         return Ok(response::json::respond_message("email disabled for server"));
     }
 
-    let conn = &mut *app.get_conn().await?;
+    let conn = &mut *db.get_conn().await?;
 
     let record = conn.query(
         "select owner, issued from email_verifications where key_id = $1",

@@ -4,8 +4,8 @@ import { Threshold } from '@visx/threshold'
 import { scaleTime, scaleLinear } from '@visx/scale'
 import { AxisLeft, AxisBottom } from '@visx/axis'
 import { GridRows, GridColumns } from '@visx/grid'
-import { IntegerRange } from "../../api/custom_field_entry_types"
-import { CustomField, ComposedEntry } from '../../api/types'
+import { IntegerRange } from "../../apiv2/custom_field_entry_types"
+import { CustomField, ComposedEntry } from '../../apiv2/types'
 import { CircleMarker, TransCircleMarker } from './markers'
 import { DashedLinePath, SolidLinePath } from './line_paths'
 import { defaultGetX } from './getters'

@@ -30,17 +30,18 @@ pub struct BackupJson {
 pub async fn handle_get(
     req: HttpRequest,
     session: Session,
-    app: web::Data<state::AppState>,
+    db: state::WebDbState,
+    template: state::WebTemplateState<'_>,
     info: web::Query<url_query::QueryEntries>,
 ) -> error::Result<impl Responder> {
     let info = info.into_inner();
     let accept_html = response::check_if_html_req(&req, true)?;
-    let conn = &*app.get_conn().await?;
+    let conn = &*db.get_conn().await?;
     let initiator_opt = from::get_initiator(conn, &session).await?;
 
     if accept_html {
         if initiator_opt.is_some() {
-            Ok(response::respond_index_html(Some(initiator_opt.unwrap().user)))
+            Ok(response::respond_index_html(&template.into_inner(), Some(initiator_opt.unwrap().user))?)
         } else {
             Ok(response::redirect_to_path("/auth/login"))
         }
@@ -73,11 +74,11 @@ pub async fn handle_get(
 
 pub async fn handle_post(
     initiator: from::Initiator,
-    app: web::Data<state::AppState>,
+    db: state::WebDbState,
     posted: web::Json<BackupJson>,
 ) -> error::Result<impl Responder> {
     let json_data = posted.into_inner();
-    let conn = &mut *app.get_conn().await?;
+    let conn = &mut *db.get_conn().await?;
 
     let mut custom_field_mapping: HashMap<i32, i32> = HashMap::with_capacity(json_data.data.custom_fields.len());
     let mut custom_field_config_mapping: HashMap<i32, db::custom_fields::CustomFieldType> = HashMap::with_capacity(json_data.data.custom_fields.len());

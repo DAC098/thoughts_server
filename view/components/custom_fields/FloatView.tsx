@@ -1,6 +1,6 @@
 import { Label, Position, SpinButton, Stack, Toggle } from "@fluentui/react";
 import React from "react"
-import { Float, CustomFieldTypeName } from "../../api/custom_field_types";
+import { Float, CustomFieldTypeName } from "../../apiv2/custom_field_types";
 
 interface FloatEditViewProps {
     config: Float

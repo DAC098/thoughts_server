@@ -1,21 +1,21 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit"
-import { makeUserDataJson, UserDataJson } from "../../api/types"
+import { newUser, User } from "../../apiv2/types"
 
 export const active_user = createSlice({
     name: "active_user",
     initialState: {
-        user: <UserDataJson>window["active_user"] ?? makeUserDataJson(),
+        user: <User>window["active_user"] ?? newUser(),
         loading: false
     },
     reducers: {
         set_loading: (state, action: PayloadAction<boolean>) => {
             state.loading = action.payload;
         },
-        set_user: (state, action: PayloadAction<UserDataJson>) => {
+        set_user: (state, action: PayloadAction<User>) => {
             state.user = action.payload
         },
         clear_user: (state) => {
-            state.user = makeUserDataJson();
+            state.user = newUser();
         },
         update_info: (state, action: PayloadAction<{full_name: string, username: string, email?: string, email_verified: boolean}>) => {
             state.user.username = action.payload.username;

@@ -21,16 +21,17 @@ pub struct TagsPath {
 pub async fn handle_get(
     req: HttpRequest,
     session: Session,
-    app: web::Data<state::AppState>,
+    db: state::WebDbState,
+    template: state::WebTemplateState<'_>,
     path: web::Path<TagsPath>,
 ) -> error::Result<impl Responder> {
     let accept_html = response::check_if_html_req(&req, true)?;
-    let conn = &*app.get_conn().await?;
+    let conn = &*db.get_conn().await?;
     let initiator_opt = from::get_initiator(conn, &session).await?;
 
     if accept_html {
         if initiator_opt.is_some() {
-            Ok(response::respond_index_html(Some(initiator_opt.unwrap().user)))
+            Ok(response::respond_index_html(&template.into_inner(), Some(initiator_opt.unwrap().user))?)
         } else {
             Ok(response::redirect_to_path("/auth/login?jump_to=/tags"))
         }
@@ -66,10 +67,10 @@ pub struct PostTagJson {
 
 pub async fn handle_post(
     initiator: from::Initiator,
-    app: web::Data<state::AppState>,
+    db: state::WebDbState,
     posted: web::Json<PostTagJson>
 ) -> error::Result<impl Responder> {
-    let conn = &mut *app.get_conn().await?;
+    let conn = &mut *db.get_conn().await?;
     let transaction = conn.transaction().await?;
 
     let result = transaction.query_one(

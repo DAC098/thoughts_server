@@ -4,6 +4,13 @@ use crate::response::error;
 
 pub mod assert;
 
+
+pub fn get_rand_bytes(size: usize) -> error::Result<Vec<u8>> {
+    let mut rand_bytes = vec![0; size];
+    openssl::rand::rand_bytes(rand_bytes.as_mut_slice())?;
+    Ok(rand_bytes)
+}
+
 pub fn default_argon2_config() -> Config<'static> {
     Config {
         variant: Variant::Argon2i,
@@ -22,12 +29,11 @@ pub fn generate_new_hash_with_config(
     password: &String, 
     config: &Config
 ) -> error::Result<String> {
-    let mut salt: [u8; 64] = [0; 64];
-    openssl::rand::rand_bytes(&mut salt)?;
+    let mut salt = get_rand_bytes(64)?;
 
     Ok(argon2::hash_encoded(
         &password.as_bytes(), 
-        &salt,
+        salt.as_slice(),
         &config
     )?)
 }

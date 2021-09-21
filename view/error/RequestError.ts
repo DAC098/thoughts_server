@@ -1,3 +1,5 @@
+import { cloneInteger, cloneString } from "../util/clone";
+
 export default class RequestError extends Error {
     private status_: number;
     private request_: Response;
@@ -24,5 +26,14 @@ export default class RequestError extends Error {
 
     get type() {
         return this.type_;
+    }
+
+    public toJson() {
+        return {
+            error: "RequestError",
+            status: cloneInteger(this.status_),
+            type: cloneString(this.type_),
+            message: cloneString(this.message)
+        }
     }
 }

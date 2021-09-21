@@ -1,7 +1,7 @@
 import { DatePicker, DefaultButton, Label, Stack, Text, TooltipHost } from "@fluentui/react";
 import React from "react"
-import { TimeRange } from "../../api/custom_field_entry_types";
-import { CustomFieldTypeName, TimeRange as TimeRangeField } from "../../api/custom_field_types";
+import { TimeRange } from "../../apiv2/custom_field_entry_types";
+import { CustomFieldTypeName, TimeRange as TimeRangeField } from "../../apiv2/custom_field_types";
 import { displayDate } from "../../util/time";
 import TimeInput from "../TimeInput";
 

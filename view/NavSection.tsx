@@ -2,7 +2,8 @@ import { CommandBarButton, IconButton, Nav, Persona, Stack } from "@fluentui/rea
 import { createSlice, PayloadAction } from "@reduxjs/toolkit"
 import React, { Reducer, useEffect, useReducer, useState } from "react"
 import { useHistory } from "react-router"
-import { useAppDispatch, useAppSelector } from "./hooks/useApp"
+import useAppDispatch from "./hooks/useAppDispatch"
+import useAppSelector from "./hooks/useAppSelector"
 import { view_actions } from "./redux/slices/view"
 import { SliceActionTypes } from "./redux/types"
 import {json} from "./request"
@@ -73,6 +74,10 @@ const NavSection = () => {
                 {
                     name: "Users",
                     url: "/admin/users"
+                },
+                {
+                    name: "Global Fields",
+                    url: "/global/custom_fields"
                 }
             ]
         });

@@ -1,41 +1,24 @@
 use actix_web::{http, HttpRequest, HttpResponse, Responder};
-use serde_json::{to_string};
+use serde_json::{json};
 
 use tlib::db::{users};
 
 pub mod json;
 pub mod error;
 
-pub fn respond_index_html(user_opt: Option<users::User>) -> HttpResponse {
-    let user_json = match user_opt {
-        Some(user) => match to_string(&user) {
-            Ok(rtn) => rtn,
-            Err(_) => "null".to_owned()
-        },
-        None => "null".to_owned()
-    };
+use crate::state::template::{TemplateState};
 
-    HttpResponse::Ok().body(format!(r#"
-<!DOCTYPE html>
-<html>
-    <head>
-        <title>Thoughts</title>
-        <link rel="icon" href="data:;base64,iVBORw0KGgo=">
-        <link rel="stylesheet" href="https://static2.sharepointonline.com/files/fabric/office-ui-fabric-core/11.0.0/css/fabric.min.css">
-        <script src="/static/runtime.b.js"></script>
-        <script src="/static/vendor.b.js"></script>
-        <script src="/static/fabric_ui.b.js"></script>
-        <script>
-            const active_user = {}; 
-            window.active_user = active_user;
-        </script>
-        <script src="/static/main.b.js"></script>
-    </head>
-    <body class="ms-Fabric" dir="ltr" style="margin: 0">
-        <div id="render-root"></div>
-    </body>
-</html>
-"#, user_json))
+pub fn respond_index_html(
+    template_state: &TemplateState,
+    user_opt: Option<users::User>
+) -> error::Result<HttpResponse> {
+    let render_data = json!({"user": user_opt});
+    let mut builder = HttpResponse::build(http::StatusCode::OK);
+    builder.insert_header((http::header::CONTENT_TYPE, "text/html"));
+
+    Ok(builder.body(
+        template_state.render("pages/index", &render_data)?
+    ))
 }
 
 pub fn check_if_html(
@@ -73,10 +56,18 @@ pub fn redirect_to_login(req: &HttpRequest) -> HttpResponse {
             req.uri().path()
         }
     ));
+
     HttpResponse::Found().insert_header((http::header::LOCATION, redirect_path.as_str())).finish()
+}
+
+#[inline]
+pub fn okay_response() -> HttpResponse {
+    HttpResponse::Ok()
+    .insert_header((http::header::CONTENT_TYPE, "text/plain"))
+    .body("okay")
 }
 
 #[allow(dead_code)]
 pub async fn okay() -> impl Responder {
-    HttpResponse::Ok().body("okay")
+    okay_response()
 }

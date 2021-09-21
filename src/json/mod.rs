@@ -2,7 +2,6 @@ use std::fmt::{Write};
 use std::collections::{HashMap};
 
 use tokio_postgres::{GenericClient};
-use serde::{Deserialize, Serialize};
 
 use tlib::db::{
     custom_field_entries,
@@ -14,24 +13,6 @@ use tlib::db::{
 use tlib::db::query::{QueryParams};
 
 use crate::response::error;
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct UserAccessInfoJson {
-    pub id: i32,
-    pub username: String,
-    pub full_name: Option<String>,
-    pub ability: String
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct UserInfoJson {
-    pub id: i32,
-    pub username: String,
-    pub level: i32,
-    pub full_name: Option<String>,
-    pub email: String,
-    pub user_access: Vec<UserAccessInfoJson>
-}
 
 fn search_text_entries_query_slice<'a>(
     entry_ids: &'a Vec<i32>,

@@ -1,3 +1,5 @@
+use std::path::{PathBuf};
+
 use serde::{Deserialize};
 
 pub trait MapShape {
@@ -6,7 +8,7 @@ pub trait MapShape {
 
 #[inline]
 fn assign_map_value<T>(lhs: &mut Option<T>, rhs: Option<T>) {
-    if let Some(rhs_value) = rhs { lhs.insert(rhs_value); }
+    if let Some(rhs_value) = rhs { lhs.replace(rhs_value); }
 }
 
 #[inline]
@@ -19,7 +21,7 @@ where
             MapShape::map_shape(lhs_value, rhs_value);
         }
     } else if let Some(rhs_value) = rhs {
-        lhs.insert(rhs_value);
+        lhs.replace(rhs_value);
     }
 }
 
@@ -111,6 +113,30 @@ impl MapShape for SslConfigShape {
 }
 
 #[derive(Deserialize)]
+pub struct TemplateConfigShape {
+    pub directory: Option<PathBuf>,
+    pub dev_mode: Option<bool>,
+}
+
+impl MapShape for TemplateConfigShape {
+    fn map_shape(&mut self, rhs: Self) {
+        assign_map_value(&mut self.directory, rhs.directory);
+        assign_map_value(&mut self.dev_mode, rhs.dev_mode);
+    }
+}
+
+#[derive(Deserialize)]
+pub struct FileServingConfitShape {
+    pub directory: Option<PathBuf>
+}
+
+impl MapShape for FileServingConfitShape {
+    fn map_shape(&mut self, rhs: Self) {
+        assign_map_value(&mut self.directory, rhs.directory);
+    }
+}
+
+#[derive(Deserialize)]
 pub struct ServerConfigShape {
     pub bind: Option<Vec<BindInterfaceShape>>,
     pub port: Option<u16>,
@@ -124,7 +150,9 @@ pub struct ServerConfigShape {
     pub session: Option<SessionConfigShape>,
     pub email: Option<EmailConfigShape>,
     pub info: Option<ServerInfoConfigShape>,
-    pub ssl: Option<SslConfigShape>
+    pub ssl: Option<SslConfigShape>,
+    pub template: Option<TemplateConfigShape>,
+    pub file_serving: Option<FileServingConfitShape>,
 }
 
 impl MapShape for ServerConfigShape {
@@ -141,5 +169,7 @@ impl MapShape for ServerConfigShape {
         assign_map_struct(&mut self.email, rhs.email);
         assign_map_struct(&mut self.info, rhs.info);
         assign_map_struct(&mut self.ssl, rhs.ssl);
+        assign_map_struct(&mut self.template, rhs.template);
+        assign_map_struct(&mut self.file_serving, rhs.file_serving);
     }
 }

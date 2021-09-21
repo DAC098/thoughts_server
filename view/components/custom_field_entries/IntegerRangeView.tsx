@@ -1,7 +1,7 @@
 import { SpinButton, Stack, Text } from "@fluentui/react";
 import React from "react"
-import { IntegerRange } from "../../api/custom_field_entry_types";
-import { CustomFieldTypeName, IntegerRange as IntegerRangeField } from "../../api/custom_field_types"
+import { IntegerRange } from "../../apiv2/custom_field_entry_types";
+import { CustomFieldTypeName, IntegerRange as IntegerRangeField } from "../../apiv2/custom_field_types"
 
 interface DetailsTextProps {
     value: IntegerRange

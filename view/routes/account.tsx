@@ -1,6 +1,7 @@
 import { DefaultButton, Icon, Label, Persona, PersonaSize, Stack, TextField } from "@fluentui/react"
 import React, { useEffect, useState } from "react"
-import { useAppDispatch, useAppSelector } from "../hooks/useApp"
+import useAppDispatch from "../hooks/useAppDispatch"
+import useAppSelector from "../hooks/useAppSelector"
 import { json } from "../request"
 import { actions as active_user_actions } from "../redux/slices/active_user"
 import IndentSection from "../components/IndentSection"

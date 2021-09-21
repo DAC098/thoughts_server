@@ -15,7 +15,7 @@ pub async fn find_from_id(
     conn: &impl GenericClient,
     id: &i32
 ) -> error::Result<Option<GlobalCustomField>> {
-    let result = conn.query(
+    if let Some(row) = conn.query_opt(
         "\
         select id, \
                name, \
@@ -24,17 +24,15 @@ pub async fn find_from_id(
         from global_custom_fields \
         where id = $1",
         &[id]
-    ).await?;
-
-    if result.len() == 0 {
-        Ok(None)
-    } else {
+    ).await? {
         Ok(Some(GlobalCustomField {
-            id: result[0].get(0),
-            name: result[0].get(1),
-            comment: result[0].get(2),
-            config: serde_json::from_value(result[0].get(3)).unwrap()
+            id: row.get(0),
+            name: row.get(1),
+            comment: row.get(2),
+            config: serde_json::from_value(row.get(3)).unwrap()
         }))
+    } else {
+        Ok(None)
     }
 }
 

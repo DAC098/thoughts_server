@@ -120,8 +120,8 @@ pub async fn find_from_owner(
                    \"order\", \
                    issued_by \
             from custom_fields \
-            where owner = $1
-            ",
+            where owner = $1 \
+            order by \"order\", name",
             &[owner]
         )
         .await?
