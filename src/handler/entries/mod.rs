@@ -116,7 +116,7 @@ pub async fn handle_get(
         let initiator = initiator_opt.unwrap();
 
         if let Some(user_id) = path.user_id {
-            security::assert::permission_to_read(&*pool_conn, initiator.user.id, user_id).await?;
+            security::assert::permission_to_read(&*pool_conn, &initiator.user.id, &user_id).await?;
             is_private = Some(false);
             owner = user_id;
         } else {

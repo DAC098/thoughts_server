@@ -4,6 +4,7 @@ static/runtime.*
 static/vendor.*
 static/fabric_ui.*
 static/manifest.json
+storage/
 node_modules/
 
 docker-compose.override.yml

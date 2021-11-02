@@ -32,12 +32,16 @@ pub enum ResponseError {
     TagNotFound(i32),
     EntryMarkerNotFound(i32),
     EntryCommentNotFound(i32),
+    AudioEntryNotFound(i32),
 
     UsernameExists(String),
     EmailExists(String),
     EntryExists(String),
     CustomFieldExists(String),
     GlobalCustomFieldExists(String),
+
+    General(String),
+    GeneralWithInternal(String, String),
 
     // specific module errors
 
@@ -88,6 +92,7 @@ impl ResponseError {
             ResponseError::TagNotFound(_) => "TagNotFound",
             ResponseError::EntryMarkerNotFound(_) => "EntryMarkerNotFound",
             ResponseError::EntryCommentNotFound(_) => "EntryCommentNotFound",
+            ResponseError::AudioEntryNotFound(_) => "AudioEntryNotFound",
 
             ResponseError::UsernameExists(_) => "UsernameExists",
             ResponseError::EmailExists(_) => "EmailExists",
@@ -120,6 +125,7 @@ impl ResponseError {
             ResponseError::TagNotFound(id) => format!("failed to find the requested tag id: {}", id),
             ResponseError::EntryMarkerNotFound(id) => format!("failed to find the requested marker id: {}", id),
             ResponseError::EntryCommentNotFound(id) => format!("failed to find the requested comment id: {}", id),
+            ResponseError::AudioEntryNotFound(id) => format!("failed to find the requested audio entry id: {}", id),
 
             ResponseError::UsernameExists(_) => format!("given username already exist"),
             ResponseError::EmailExists(_) => format!("given email already exists"),
@@ -127,10 +133,20 @@ impl ResponseError {
             ResponseError::CustomFieldExists(name) => format!("given custom field already exists. name: {}", name),
             ResponseError::GlobalCustomFieldExists(name) => format!("given global custom field already exists. name: {}", name),
 
+            ResponseError::General(s) => s.clone(),
+            ResponseError::GeneralWithInternal(s, _) => s.clone(),
+
             ResponseError::PostgresError(_) |
             ResponseError::BB8Error(_) => "database server error".to_owned(),
 
             _ => "internal server error".to_owned()
+        }
+    }
+
+    fn get_internal_msg(&self) -> Option<String> {
+        match self {
+            ResponseError::GeneralWithInternal(_, s) => Some(s.clone()),
+            _ => None
         }
     }
     
@@ -139,7 +155,11 @@ impl ResponseError {
 impl fmt::Display for ResponseError {
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.get_msg())
+        if let Some(msg) = self.get_internal_msg() {
+            write!(f, "{}", msg)
+        } else {
+            write!(f, "{}", self.get_msg())
+        }
     }
 
 }
@@ -228,7 +248,8 @@ impl ActixResponseError for ResponseError {
             ResponseError::CustomFieldNotFound(_) |
             ResponseError::GlobalCustomFieldNotFound(_) |
             ResponseError::TagNotFound(_) |
-            ResponseError::EntryMarkerNotFound(_) => StatusCode::NOT_FOUND,
+            ResponseError::EntryMarkerNotFound(_) |
+            ResponseError::AudioEntryNotFound(_) => StatusCode::NOT_FOUND,
 
             ResponseError::Validation(_) |
             ResponseError::BadRequest(_) |

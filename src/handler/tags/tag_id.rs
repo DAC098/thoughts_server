@@ -73,7 +73,7 @@ pub async fn handle_put(
     posted: web::Json<PutTagJson>,
 ) -> error::Result<impl Responder> {
     let conn = &mut *db.get_conn().await?;
-    security::assert::is_owner_for_tag(conn, path.tag_id, initiator.user.id).await?;
+    security::assert::is_owner_for_tag(conn, &path.tag_id, &initiator.user.id).await?;
 
     let transaction = conn.transaction().await?;
     let _result = transaction.execute(
@@ -104,7 +104,7 @@ pub async fn handle_delete(
     path: web::Path<TagIdPath>,
 ) -> error::Result<impl Responder> {
     let conn = &mut *db.get_conn().await?;
-    security::assert::is_owner_for_tag(conn, path.tag_id, initiator.user.id).await?;
+    security::assert::is_owner_for_tag(conn, &path.tag_id, &initiator.user.id).await?;
 
     let transaction = conn.transaction().await?;
 

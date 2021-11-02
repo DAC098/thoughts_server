@@ -104,6 +104,9 @@ async fn server_runner(config: config::ServerConfig) -> Result<i32> {
     let server_info_state_ref = web::Data::new(state::server_info::ServerInfoState::new(
         config.info
     ));
+    let storage_state_ref = web::Data::new(state::storage::StorageState::new(
+        config.storage
+    )?);
 
     let mut server = HttpServer::new(move || {
         App::new()
@@ -115,6 +118,7 @@ async fn server_runner(config: config::ServerConfig) -> Result<i32> {
             .app_data(template_state_ref.clone())
             .app_data(email_state_ref.clone())
             .app_data(server_info_state_ref.clone())
+            .app_data(storage_state_ref.clone())
             .wrap(Logger::new("%a XF-%{X-Forwarded-For}i:%{X-Forwarded-Port}i %t \"%r\" %s %b \"%{Referer}i\" %T"))
             .wrap(
                 CookieSession::signed(&[0; 32])
@@ -123,6 +127,9 @@ async fn server_runner(config: config::ServerConfig) -> Result<i32> {
                     .name("thoughts_session")
                     .path("/")
             )
+
+            .route("/ping", web::get().to(handler::ping::handle_get))
+
             .route("/", web::get().to(handler::handle_get))
             .route("/account", web::get().to(handler::account::handle_get))
             .route("/account", web::put().to(handler::account::handle_put))
@@ -170,6 +177,12 @@ async fn server_runner(config: config::ServerConfig) -> Result<i32> {
                                     .route("", web::get().to(handler::entries::entry_id::comments::handle_get))
                                     .route("", web::post().to(handler::entries::entry_id::comments::handle_post))
                                     .route("/{comment_id}", web::put().to(handler::entries::entry_id::comments::comment_id::handle_put))
+                            )
+                            .service(
+                                web::scope("/audio")
+                                    .route("", web::get().to(handler::entries::entry_id::audio::handle_get))
+                                    .route("", web::post().to(handler::entries::entry_id::audio::handle_post))
+                                    .route("/{audio_id}", web::get().to(handler::entries::entry_id::audio::audio_id::handle_get))
                             )
                     )
             )

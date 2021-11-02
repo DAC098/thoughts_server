@@ -60,6 +60,12 @@ pub fn redirect_to_login(req: &HttpRequest) -> HttpResponse {
     HttpResponse::Found().insert_header((http::header::LOCATION, redirect_path.as_str())).finish()
 }
 
+pub fn redirect_to_login_with(path: &str) -> HttpResponse {
+    let redirect_path = format!("/auth/login?jump_to={}", urlencoding::encode(path));
+
+    HttpResponse::Found().insert_header((http::header::LOCATION, redirect_path.as_str())).finish()
+}
+
 #[inline]
 pub fn okay_response() -> HttpResponse {
     HttpResponse::Ok()

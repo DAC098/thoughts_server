@@ -147,6 +147,22 @@ pub struct FileServingConfig {
 }
 
 // ----------------------------------------------------------------------------
+// StorageConfig
+// ----------------------------------------------------------------------------
+
+fn default_storage_directory() -> error::Result<PathBuf> {
+    let mut dir = std::env::current_dir()?;
+    dir.push("storage");
+
+    Ok(dir)
+}
+
+#[derive(Debug, Clone)]
+pub struct StorageConfig {
+    pub directory: PathBuf
+}
+
+// ----------------------------------------------------------------------------
 // SslConfig
 // ----------------------------------------------------------------------------
 
@@ -206,6 +222,7 @@ pub struct ServerConfig {
     pub ssl: SslConfig,
     pub template: TemplateConfig,
     pub file_serving: FileServingConfig,
+    pub storage: StorageConfig,
 }
 
 // ----------------------------------------------------------------------------
@@ -236,20 +253,7 @@ fn load_file(config_file: std::path::PathBuf) -> error::Result<shapes::ServerCon
 }
 
 pub fn load_server_config(files: Vec<std::path::PathBuf>) -> error::Result<ServerConfig> {
-    let mut base_shape = shapes::ServerConfigShape {
-        bind: None, port: None,
-        threads: None,
-        backlog: None,
-        max_connections: None,
-        max_connection_rate: None,
-        db: None,
-        session: None,
-        email: None,
-        info: None,
-        ssl: None,
-        template: None,
-        file_serving: None,
-    };
+    let mut base_shape: shapes::ServerConfigShape = std::default::Default::default();
 
     for file in files {
         base_shape.map_shape(load_file(file)?);
@@ -370,6 +374,16 @@ pub fn load_server_config(files: Vec<std::path::PathBuf>) -> error::Result<Serve
         }
     };
 
+    let storage_config = if let Some(storage) = base_shape.storage {
+        StorageConfig {
+            directory: storage.directory.unwrap_or(default_storage_directory()?)
+        }
+    } else {
+        StorageConfig {
+            directory: default_storage_directory()?
+        }
+    };
+
     Ok(ServerConfig {
         bind: bind_list,
         threads: base_shape.threads.unwrap_or(num_cpus::get()),
@@ -383,6 +397,7 @@ pub fn load_server_config(files: Vec<std::path::PathBuf>) -> error::Result<Serve
         ssl: ssl_config,
         template: template_config,
         file_serving: file_serving_config,
+        storage: storage_config,
     })
 }
 
@@ -434,6 +449,16 @@ pub fn validate_server_config(config: &ServerConfig) -> error::Result<()> {
     } else if !config.template.directory.is_dir() {
         return Err(error::Error::InvalidConfig(
             "template.directory must be a directory".to_owned()
+        ));
+    }
+
+    if !config.storage.directory.exists() {
+        return Err(error::Error::InvalidConfig(
+            "storage.directory does not exist".to_owned()
+        ));
+    } else if !config.storage.directory.is_dir() {
+        return Err(error::Error::InvalidConfig(
+            "storage.directory mut be a directory".to_owned()
         ));
     }
 

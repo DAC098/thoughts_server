@@ -98,7 +98,7 @@ pub async fn handle_put(
     initiator: from::Initiator,
     db: state::WebDbState,
     email: state::WebEmailState,
-    server_info: state::WebSserverInfoState,
+    server_info: state::WebServerInfoState,
     posted: web::Json<PutJson>,
     path: web::Path<UserIdPath>,
 ) -> error::Result<impl Responder> {

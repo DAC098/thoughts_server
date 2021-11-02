@@ -1,8 +1,9 @@
 use std::pin::Pin;
+
 use actix_web::{web, dev::Payload, FromRequest, HttpRequest};
 use actix_session::{UserSession, Session};
 use tokio_postgres::{Client};
-use futures::Future;
+use futures::{Future};
 
 use tlib::db::{users};
 

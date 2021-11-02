@@ -8,6 +8,7 @@ use chrono::serde::{ts_seconds};
 use tlib::{db};
 
 pub mod comments;
+pub mod audio;
 
 use crate::response;
 use crate::state;
@@ -90,7 +91,7 @@ pub async fn handle_get(
         let owner: i32;
 
         if let Some(user_id) = path.user_id {
-            security::assert::permission_to_read(conn, initiator.user.id, user_id).await?;
+            security::assert::permission_to_read(conn, &initiator.user.id, &user_id).await?;
             is_private = Some(false);
             owner = user_id;
         } else {
@@ -132,7 +133,7 @@ pub async fn handle_put(
     let posted = posted.into_inner();
     let conn = &mut *db.get_conn().await?;
     let created = posted.entry.day.clone();
-    security::assert::is_owner_for_entry(conn, path.entry_id, initiator.user.id).await?;
+    security::assert::is_owner_for_entry(conn, &path.entry_id, &initiator.user.id).await?;
 
     let transaction = conn.transaction().await?;
     let result = transaction.query_one(

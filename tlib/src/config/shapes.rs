@@ -1,4 +1,5 @@
 use std::path::{PathBuf};
+use std::default::{Default};
 
 use serde::{Deserialize};
 
@@ -126,11 +127,22 @@ impl MapShape for TemplateConfigShape {
 }
 
 #[derive(Deserialize)]
-pub struct FileServingConfitShape {
+pub struct FileServingConfigShape {
     pub directory: Option<PathBuf>
 }
 
-impl MapShape for FileServingConfitShape {
+impl MapShape for FileServingConfigShape {
+    fn map_shape(&mut self, rhs: Self) {
+        assign_map_value(&mut self.directory, rhs.directory);
+    }
+}
+
+#[derive(Deserialize)]
+pub struct StorageConfigShape {
+    pub directory: Option<PathBuf>
+}
+
+impl MapShape for StorageConfigShape {
     fn map_shape(&mut self, rhs: Self) {
         assign_map_value(&mut self.directory, rhs.directory);
     }
@@ -152,7 +164,8 @@ pub struct ServerConfigShape {
     pub info: Option<ServerInfoConfigShape>,
     pub ssl: Option<SslConfigShape>,
     pub template: Option<TemplateConfigShape>,
-    pub file_serving: Option<FileServingConfitShape>,
+    pub file_serving: Option<FileServingConfigShape>,
+    pub storage: Option<StorageConfigShape>,
 }
 
 impl MapShape for ServerConfigShape {
@@ -171,5 +184,29 @@ impl MapShape for ServerConfigShape {
         assign_map_struct(&mut self.ssl, rhs.ssl);
         assign_map_struct(&mut self.template, rhs.template);
         assign_map_struct(&mut self.file_serving, rhs.file_serving);
+        assign_map_struct(&mut self.storage, rhs.storage);
+    }
+}
+
+impl Default for ServerConfigShape {
+    fn default() -> ServerConfigShape {
+        ServerConfigShape {
+            bind: None,
+            port: None,
+            
+            threads: None,
+            backlog: None,
+            max_connections: None,
+            max_connection_rate: None,
+
+            db: None,
+            session: None,
+            email: None,
+            info: None,
+            ssl: None,
+            template: None,
+            file_serving: None,
+            storage: None,
+        }
     }
 }

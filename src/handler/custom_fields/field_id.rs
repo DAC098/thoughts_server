@@ -42,7 +42,7 @@ pub async fn handle_get(
         let owner: i32;
 
         if let Some(user_id) = path.user_id {
-            security::assert::permission_to_read(conn, initiator.user.id, user_id).await?;
+            security::assert::permission_to_read(conn, &initiator.user.id, &user_id).await?;
             owner = user_id;
         } else {
             owner = initiator.user.id;
@@ -83,7 +83,7 @@ pub async fn handle_put(
     posted: web::Json<PutCustomFieldJson>,
 ) -> Result<impl Responder> {
     let conn = &*db.get_conn().await?;
-    security::assert::is_owner_for_custom_field(conn, path.field_id, initiator.user.id).await?;
+    security::assert::is_owner_for_custom_field(conn, &path.field_id, &initiator.user.id).await?;
 
     let config_json = serde_json::to_value(posted.config.clone())?;
     let result = conn.query_one(
@@ -127,7 +127,7 @@ pub async fn handle_delete(
     path: web::Path<CustomFieldPath>,
 ) -> Result<impl Responder> {
     let conn = &*db.get_conn().await?;
-    security::assert::is_owner_for_custom_field(conn, path.field_id, initiator.user.id).await?;
+    security::assert::is_owner_for_custom_field(conn, &path.field_id, &initiator.user.id).await?;
 
     let _custom_field_entries_result = conn.execute(
         "delete from custom_field_entries where field = $1",

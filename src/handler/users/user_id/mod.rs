@@ -33,7 +33,7 @@ pub async fn handle_get(
         Err(error::ResponseError::Session)
     } else {
         let initiator = initiator_opt.unwrap();
-        security::assert::permission_to_read(conn, initiator.user.id, path.user_id).await?;
+        security::assert::permission_to_read(conn, &initiator.user.id, &path.user_id).await?;
         let user_opt = db::users::find_from_id(conn, &path.user_id).await?;
 
         Ok(response::json::respond_json(

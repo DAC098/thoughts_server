@@ -42,7 +42,7 @@ pub async fn handle_get(
         let owner: i32;
 
         if let Some(user_id) = path.user_id {
-            security::assert::permission_to_read(conn, initiator.user.id, user_id).await?;
+            security::assert::permission_to_read(conn, &initiator.user.id, &user_id).await?;
             owner = user_id;
         } else {
             owner = initiator.user.id;

@@ -7,6 +7,7 @@ use crate::state;
 
 use response::error as app_error;
 
+pub mod ping;
 pub mod auth;
 pub mod entries;
 pub mod custom_fields;

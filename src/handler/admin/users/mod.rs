@@ -129,7 +129,7 @@ pub async fn handle_post(
     initiator: from::Initiator,
     db: state::WebDbState,
     email: state::WebEmailState,
-    server_info: state::WebSserverInfoState,
+    server_info: state::WebServerInfoState,
     posted: web::Json<PostUserJson>,
 ) -> error::Result<impl Responder> {
     let email = email.into_inner();

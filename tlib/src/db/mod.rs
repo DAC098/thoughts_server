@@ -11,6 +11,7 @@ pub mod global_custom_fields;
 pub mod entries;
 pub mod entries2tags;
 pub mod text_entries;
+pub mod audio_entries;
 pub mod entry_markers;
 pub mod entry_comments;
 

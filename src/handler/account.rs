@@ -56,7 +56,7 @@ pub async fn handle_put(
     initiator: from::Initiator,
     db: state::WebDbState,
     email: state::WebEmailState,
-    server_info: state::WebSserverInfoState,
+    server_info: state::WebServerInfoState,
     posted_json: web::Json<PutAccountJson>,
 ) -> error::Result<impl Responder> {
     let posted = posted_json.into_inner();

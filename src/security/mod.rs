@@ -29,7 +29,7 @@ pub fn generate_new_hash_with_config(
     password: &String, 
     config: &Config
 ) -> error::Result<String> {
-    let mut salt = get_rand_bytes(64)?;
+    let salt = get_rand_bytes(64)?;
 
     Ok(argon2::hash_encoded(
         &password.as_bytes(), 
