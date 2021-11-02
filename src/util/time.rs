@@ -1,5 +1,3 @@
-use chrono::{Datelike};
-
 #[inline]
 pub fn now_rfc3339() -> String {
     chrono::Local::now().to_rfc3339()
@@ -13,11 +11,6 @@ pub fn now() -> chrono::DateTime<chrono::Local> {
 #[inline]
 pub fn now_utc() -> chrono::DateTime<chrono::Utc> {
     chrono::Utc::now()
-}
-
-#[inline]
-pub fn now_naive_date() -> chrono::NaiveDate {
-    now().naive_local().date()
 }
 
 #[inline]
