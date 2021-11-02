@@ -18,6 +18,8 @@ import EntryMarkerReadView from "./EntryMarkerReadView";
 import CustomFieldEntriesEditView from "./CustomFieldEntriesEditView";
 import CustomFieldEntriesReadView from "./CustomFieldEntriesReadView";
 import apiv2 from "../../../apiv2"
+import AudioEntryEditView from "./AudioEntryEditView"
+import BlobWrapper from "../../../util/BlobWrapper"
 
 interface EntryIdProps {}
 
@@ -30,6 +32,7 @@ const EntryId = ({}: EntryIdProps) => {
     const custom_fields_state = useAppSelector(state => state.custom_fields);
     const tags_state = useAppSelector(state => state.tags);
     const appDispatch = useAppDispatch();
+    const blob_map_ref = useRef(new Map<string, BlobWrapper>());
 
     const allow_edit = params.user_id == null;
 
@@ -247,6 +250,13 @@ const EntryId = ({}: EntryIdProps) => {
             }
         },
         {
+            key: "new-audio-entry",
+            text: "Audio Entry",
+            onClick: () => {
+                dispatch(entry_id_view_actions.create_audio_entry());
+            }
+        },
+        {
             key: "new-marker",
             text: "Marker",
             onClick: () => {
@@ -409,6 +419,10 @@ const EntryId = ({}: EntryIdProps) => {
                                 }}
                             />
                             <TextEntryEditView text_entries={state.current.text_entries}/>
+                            <AudioEntryEditView 
+                                audio_entries={state.audio_entries} 
+                                recording_in_progress={state.recording}
+                            />
                             <EntryMarkerEditView markers={state.current.markers}/>
                             {!custom_fields_state.loading ?
                                 <CustomFieldEntriesEditView 

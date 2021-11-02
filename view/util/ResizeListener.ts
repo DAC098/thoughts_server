@@ -1,4 +1,4 @@
-import Emitter, { BuiltInEvents, EventKey, EventReceiver } from "./Emitter"
+import { Emitter, BuiltInEvents, EventKey, EventReceiver } from "./events"
 
 type Events = {
     resize: [width: number, height: number]

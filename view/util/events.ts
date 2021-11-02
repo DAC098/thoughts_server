@@ -19,7 +19,7 @@ export type BuiltInEvents<T extends EventMap> = Merge<{
     removeListener: [eventName: keyof T, listener: EventReceiver<T[keyof T]>]
 }, T>;
 
-interface Emitter<T extends EventMap> extends EventEmitter {
+export interface Emitter<T extends EventMap> extends EventEmitter {
     on<K extends EventKey<T>>(event: K, listener: EventReceiver<T[K]>): this
     once<K extends EventKey<T>>(event: K, listener: EventReceiver<T[K]>): this
     addListener<K extends EventKey<T>>(event: K, listener: EventReceiver<T[K]>): this
@@ -39,6 +39,4 @@ interface Emitter<T extends EventMap> extends EventEmitter {
     eventNames(): EventKey<T>[];
 }
 
-class Emitter<T extends EventMap> extends EventEmitter {}
-
-export default Emitter;
+export class Emitter<T extends EventMap> extends EventEmitter {}

@@ -100,6 +100,28 @@ export function cloneTextEntry(text_entry: TextEntry): TextEntry {
     }
 }
 
+export interface AudioEntry {
+    id: i32
+    private: bool
+    entry: i32
+}
+
+export function newAudioEntry(): AudioEntry {
+    return {
+        id: 0,
+        private: false,
+        entry: 0
+    }
+}
+
+export function cloneAudioEntry(audio_entry: AudioEntry): AudioEntry {
+    return {
+        id: cloneInteger(audio_entry.id),
+        private: cloneBoolean(audio_entry.private),
+        entry: cloneInteger(audio_entry.id)
+    }
+}
+
 export interface ComposedEntry {
     entry: Entry
     tags: Vec<i32>
