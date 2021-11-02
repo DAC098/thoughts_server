@@ -1,5 +1,5 @@
 create table text_entries (
-    id serial primary key,
+    id integer primary key generated always as identity,
 
     thought text not null,
 

@@ -1,5 +1,5 @@
 create table global_custom_fields (
-    id serial primary key,
+    id integer primary key generated always as identity,
 
     name varchar not null,
     config json not null,

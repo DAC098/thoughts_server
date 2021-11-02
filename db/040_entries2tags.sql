@@ -1,6 +1,4 @@
 create table entries2tags (
-    id serial primary key,
-
     tag integer not null,
 
     entry integer not null,

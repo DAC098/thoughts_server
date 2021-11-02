@@ -1,5 +1,5 @@
 create table entry_comments (
-    id serial primary key not null,
+    id bigint primary key generated always as identity,
     
     entry integer not null,
     owner integer not null,

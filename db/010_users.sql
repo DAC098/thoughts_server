@@ -1,5 +1,5 @@
 create table users (
-    id serial primary key,
+    id integer primary key generated always as identity,
     level integer not null,
 
     full_name varchar,

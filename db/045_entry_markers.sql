@@ -1,5 +1,5 @@
 create table entry_markers (
-    id serial primary key,
+    id integer primary key generated always as identity,
     title varchar not null,
 
     comment varchar,

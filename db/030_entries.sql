@@ -1,5 +1,5 @@
 create table entries (
-    id serial primary key,
+    id integer primary key generated always as identity,
 
     day timestamp with time zone not null default CURRENT_DATE,
 

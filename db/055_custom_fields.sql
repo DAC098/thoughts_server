@@ -1,5 +1,5 @@
 create table custom_fields (
-    id serial primary key,
+    id integer primary key generated always as identity,
     
     name varchar not null,
     owner integer not null,

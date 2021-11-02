@@ -1,5 +1,5 @@
 create table tags (
-    id serial primary key,
+    id integer primary key generated always as identity,
 
     title varchar not null,
     
