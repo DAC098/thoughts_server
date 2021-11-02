@@ -35,7 +35,7 @@ pub async fn handle_get(
     info: web::Query<url_query::QueryEntries>,
 ) -> error::Result<impl Responder> {
     let info = info.into_inner();
-    let accept_html = response::check_if_html_req(&req, true)?;
+    let accept_html = response::try_check_if_html_req(&req);
     let conn = &*db.get_conn().await?;
     let initiator_opt = from::get_initiator(conn, &session).await?;
 

@@ -26,7 +26,7 @@ pub async fn handle_get(
 ) -> Result<impl Responder> {
     let conn = &*db.get_conn().await?;
     let initiator_opt = from::get_initiator(conn, &session).await?;
-    let accept_html = response::check_if_html_req(&req, true)?;
+    let accept_html = response::try_check_if_html_req(&req);
 
     if accept_html {
         if initiator_opt.is_some() {

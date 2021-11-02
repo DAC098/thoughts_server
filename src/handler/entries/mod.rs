@@ -99,7 +99,7 @@ pub async fn handle_get(
 ) -> app_error::Result<impl Responder> {
     let info = info.into_inner();
     let pool_conn = db.get_pool().get().await?;
-    let accept_html = response::check_if_html_req(&req, true).unwrap();
+    let accept_html = response::try_check_if_html_req(&req);
     let initiator_opt = from::get_initiator(&*pool_conn, &session).await?;
 
     if accept_html {

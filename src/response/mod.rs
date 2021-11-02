@@ -22,26 +22,42 @@ pub fn respond_index_html(
 }
 
 pub fn check_if_html(
-    headers: &http::HeaderMap,
-    ignore_err: bool
+    headers: &http::HeaderMap
 ) -> Result<bool, http::header::ToStrError> {
     let accept_opt = headers.get("accept");
 
     if let Some(accept_type) = accept_opt {
         match accept_type.to_str() {
             Ok(accept) => Ok(accept.contains("text/html")),
-            Err(e) => if ignore_err { Ok(false) } else { Err(e) }
+            Err(e) => Err(e)
         }
     } else {
         Ok(false)
     }
 }
 
+pub fn try_check_if_html(
+    headers: &http::HeaderMap,
+) -> bool {
+    if let Ok(answer) = check_if_html(headers) {
+        answer
+    } else {
+        false
+    }
+}
+
+#[inline]
 pub fn check_if_html_req(
-    req: &HttpRequest,
-    ignore_err: bool
+    req: &HttpRequest
 ) -> Result<bool, http::header::ToStrError> {
-    check_if_html(req.headers(), ignore_err)
+    check_if_html(req.headers())
+}
+
+#[inline]
+pub fn try_check_if_html_req(
+    req: &HttpRequest
+) -> bool {
+    try_check_if_html(req.headers())
 }
 
 pub fn redirect_to_path(path: &str) -> HttpResponse {

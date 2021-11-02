@@ -74,7 +74,7 @@ pub async fn handle_get(
     path: web::Path<EntryPath>
 ) -> app_error::Result<impl Responder> {
     let conn = &*db.get_conn().await?;
-    let accept_html = response::check_if_html_req(&req, true).unwrap();
+    let accept_html = response::try_check_if_html_req(&req);
     let initiator_opt = from::get_initiator(conn, &session).await?;
 
     if accept_html {

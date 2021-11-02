@@ -20,7 +20,7 @@ pub async fn handle_get(
     db: state::WebDbState,
     template: state::WebTemplateState<'_>,
 ) -> error::Result<impl Responder> {
-    let accept_html = response::check_if_html_req(&req, true)?;
+    let accept_html = response::try_check_if_html_req(&req);
     let conn = &*db.get_conn().await?;
     let initiator_opt = from::get_initiator(conn, &session).await?;
 

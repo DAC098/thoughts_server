@@ -24,7 +24,7 @@ pub async fn handle_get(
     template: state::WebTemplateState<'_>,
     path: web::Path<CustomFieldPath>
 ) -> Result<impl Responder> {
-    let accept_html = response::check_if_html_req(&req, true)?;
+    let accept_html = response::try_check_if_html_req(&req);
     let conn = &*db.get_conn().await?;
     let initiator_opt = from::get_initiator(conn, &session).await?;
 
