@@ -2,6 +2,7 @@ use std::fmt::{Write};
 
 pub mod time;
 pub mod string;
+pub mod file;
 
 pub fn clone_option<T>(opt: &Option<T>) -> Option<T>
 where

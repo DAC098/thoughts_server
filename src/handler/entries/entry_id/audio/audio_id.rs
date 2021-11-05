@@ -19,14 +19,21 @@ pub struct EntryIdAudioIdPath {
     audio_id: i32,
 }
 
+#[derive(Deserialize)]
+pub struct EntryIdAudioIdquery {
+    json: Option<String>
+}
+
 pub async fn handle_get(
     req: HttpRequest,
     session: Session,
     db: state::WebDbState,
     storage: state::WebStorageState,
     path: web::Path<EntryIdAudioIdPath>,
+    query: web::Query<EntryIdAudioIdquery>,
 ) -> response::error::Result<impl Responder> {
     let path = path.into_inner();
+    let query = query.into_inner();
     let conn = db.get_conn().await?;
     let accept_html = response::try_check_if_html_req(&req);
     let initiator = from::get_initiator(&conn, &session).await?;
@@ -45,6 +52,7 @@ pub async fn handle_get(
         let initiator = initiator.unwrap();
         let check_private: bool;
         let owner: i32;
+        let return_json: bool;
 
         if let Some(user_id) = path.user_id {
             security::assert::permission_to_read(&*conn, &initiator.user.id, &user_id).await?;
@@ -56,6 +64,12 @@ pub async fn handle_get(
         }
 
         security::assert::is_owner_of_entry(&*conn, &owner, &path.entry_id).await?;
+
+        if let Some(given) = query.json {
+            return_json = given.as_str() == "1";
+        } else {
+            return_json = false;
+        }
 
         if let Some(audio_entry) = db::audio_entries::find_from_id(&*conn, &path.audio_id).await? {
             if audio_entry.entry != path.entry_id {
@@ -70,9 +84,19 @@ pub async fn handle_get(
                 ));
             }
 
-            Ok(NamedFile::open(
-                storage.get_audio_file_path(&owner, &path.entry_id, &audio_entry.id, "webm")
-            )?.into_response(&req))
+            if return_json {
+                Ok(response::json::respond_json(
+                    http::StatusCode::OK,
+                    response::json::MessageDataJSON::build(
+                        "successful",
+                        audio_entry
+                    )
+                ))
+            } else {
+                Ok(NamedFile::open(
+                    storage.get_audio_file_path(&owner, &path.entry_id, &audio_entry.id, "webm")
+                )?.into_response(&req))
+            }
         } else {
             // responed audio entry not found
             Err(response::error::ResponseError::AudioEntryNotFound(path.audio_id))
@@ -82,7 +106,8 @@ pub async fn handle_get(
 
 #[derive(Deserialize)]
 pub struct PutAudioEntry {
-    private: bool
+    private: bool,
+    comment: Option<String>,
 }
 
 pub async fn handle_put(
@@ -92,9 +117,30 @@ pub async fn handle_put(
     posted: web::Json<PutAudioEntry>
 ) -> response::error::Result<impl Responder> {
     let path = path.into_inner();
+    let posted = posted.into_inner();
     let mut conn = db.get_conn().await?;
 
     security::assert::is_owner_for_entry(&*conn, &path.entry_id, &initiator.user.id).await?;
 
-    Ok(response::okay_response())
+    let transaction = conn.transaction().await?;
+    transaction.execute(
+        "\
+        update audio_entries \
+        set private = $2, \
+            comment = $3 \
+        where id = $1",
+        &[&path.audio_id, &posted.private, &posted.comment]
+    ).await?;
+
+    transaction.commit().await?;
+
+    Ok(response::json::respond_json(
+        http::StatusCode::OK,
+        db::audio_entries::AudioEntry {
+            id: path.audio_id,
+            private: posted.private,
+            comment: posted.comment,
+            entry: path.entry_id
+        }
+    ))
 }

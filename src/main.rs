@@ -182,7 +182,11 @@ async fn server_runner(config: config::ServerConfig) -> Result<i32> {
                                 web::scope("/audio")
                                     .route("", web::get().to(handler::entries::entry_id::audio::handle_get))
                                     .route("", web::post().to(handler::entries::entry_id::audio::handle_post))
-                                    .route("/{audio_id}", web::get().to(handler::entries::entry_id::audio::audio_id::handle_get))
+                                    .service(
+                                        web::scope("/{audio_id}")
+                                            .route("", web::get().to(handler::entries::entry_id::audio::audio_id::handle_get))
+                                            .route("", web::put().to(handler::entries::entry_id::audio::audio_id::handle_put))
+                                    )
                             )
                     )
             )
@@ -206,9 +210,12 @@ async fn server_runner(config: config::ServerConfig) -> Result<i32> {
                 web::scope("/tags")
                     .route("", web::get().to(handler::tags::handle_get))
                     .route("", web::post().to(handler::tags::handle_post))
-                    .route("/{tag_id}", web::get().to(handler::tags::tag_id::handle_get))
-                    .route("/{tag_id}", web::put().to(handler::tags::tag_id::handle_put))
-                    .route("/{tag_id}", web::delete().to(handler::tags::tag_id::handle_delete))
+                    .service(
+                        web::scope("/{tag_id}")
+                            .route("", web::get().to(handler::tags::tag_id::handle_get))
+                            .route("", web::put().to(handler::tags::tag_id::handle_put))
+                            .route("", web::delete().to(handler::tags::tag_id::handle_delete))
+                    )
             )
             .service(
                 web::scope("/users")
@@ -220,12 +227,19 @@ async fn server_runner(config: config::ServerConfig) -> Result<i32> {
                             .service(
                                 web::scope("/entries")
                                     .route("", web::get().to(handler::entries::handle_get))
-                                    .route("/{entry_id}", web::get().to(handler::entries::entry_id::handle_get))
                                     .service(
-                                        web::scope("/{entry_id}/comments")
-                                            .route("", web::get().to(handler::entries::entry_id::comments::handle_get))
-                                            .route("", web::post().to(handler::entries::entry_id::comments::handle_post))
-                                            .route("/{comment_id}", web::put().to(handler::entries::entry_id::comments::comment_id::handle_put))
+                                        web::scope("/{entry_id}")
+                                            .route("", web::get().to(handler::entries::entry_id::handle_get))
+                                            .service(
+                                                web::scope("/comments")
+                                                    .route("", web::get().to(handler::entries::entry_id::comments::handle_get))
+                                                    .route("", web::post().to(handler::entries::entry_id::comments::handle_post))
+                                                    .route("/{comment_id}", web::put().to(handler::entries::entry_id::comments::comment_id::handle_put))
+                                            ).service(
+                                                web::scope("/audio")
+                                                    .route("", web::get().to(handler::entries::entry_id::audio::handle_get))
+                                                    .route("/{audio_id}", web::get().to(handler::entries::entry_id::audio::audio_id::handle_get))
+                                            )
                                     )
                             )
                             .service(

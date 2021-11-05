@@ -9,6 +9,7 @@ use crate::db::{error, query};
 pub struct AudioEntry {
     pub id: i32,
     pub private: bool,
+    pub comment: Option<String>,
     pub entry: i32
 }
 
@@ -20,6 +21,7 @@ pub async fn find_from_id(
         "\
         select id, \
                private, \
+               comment, \
                entry \
         from audio_entries \
         where id = $1",
@@ -28,7 +30,8 @@ pub async fn find_from_id(
         Ok(Some(AudioEntry {
             id: row.get(0),
             private: row.get(1),
-            entry: row.get(2)
+            comment: row.get(2),
+            entry: row.get(3)
         }))
     } else {
         Ok(None)
@@ -43,6 +46,7 @@ pub async fn find_from_entry(
     let mut query_str = format!("\
     select id, \
            private, \
+           comment, \
            entry \
     from audio_entries \
     where entry_id = $1");
@@ -60,7 +64,8 @@ pub async fn find_from_entry(
         .map(|row| AudioEntry {
             id: row.get(0),
             private: row.get(1),
-            entry: row.get(2)
+            comment: row.get(2),
+            entry: row.get(3)
         })
         .collect()
     )

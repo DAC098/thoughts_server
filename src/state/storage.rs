@@ -7,26 +7,48 @@ use tlib::config::{StorageConfig};
 use crate::error;
 
 pub struct StorageState {
-    pub audio: PathBuf
+    audio: PathBuf,
+    tmp: PathBuf
 }
 
 impl StorageState {
 
-    pub fn new(conf: StorageConfig) -> error::Result<StorageState> {
-        let mut audio = conf.directory.clone();
-        audio.push("audio");
-
-        if audio.exists() {
-            if !audio.is_dir() {
+    fn check_create_dir(name: &str, path: &PathBuf) -> error::Result<()> {
+        if path.exists() {
+            if !path.is_dir() {
                 return Err(error::AppError::General(
-                    format!("storage audio directory must be a directory: {}", audio.display())
+                    format!("storage {} directory must be a directory: {}", name, path.display())
                 ));
             }
         } else {
-            fs::create_dir(&audio)?;
+            fs::create_dir(&path)?;
         }
+
+        Ok(())
+    }
+
+    pub fn new(conf: StorageConfig) -> error::Result<StorageState> {
+        let mut audio = conf.directory.clone();
+        audio.push("audio");
+        let mut tmp = conf.directory.clone();
+        tmp.push("tmp");
+
+        StorageState::check_create_dir("audio", &audio)?;
+        StorageState::check_create_dir("tmp", &tmp)?;
         
-        Ok(StorageState { audio })
+        Ok(StorageState { audio, tmp })
+    }
+
+    pub fn get_audio_dir(&self) -> PathBuf {
+        self.audio.clone()
+    }
+
+    pub fn get_tmp_dir(&self) -> PathBuf {
+        self.tmp.clone()
+    }
+
+    pub fn get_tmp_dir_ref(&self) -> &PathBuf {
+        &self.tmp
     }
     
     pub fn get_audio_file_path<E>(&self, user_id: &i32, entry_id: &i32, audio_id: &i32, extension: E) -> PathBuf
