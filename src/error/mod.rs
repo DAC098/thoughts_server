@@ -1,7 +1,9 @@
-use std::{fmt};
-use std::convert::{From};
+use std::fmt;
+use std::convert::From;
 
-use tlib::{cli, config};
+use tlib::cli;
+
+use crate::config;
 
 pub type Result<T> = std::result::Result<T, AppError>;
 
@@ -9,7 +11,6 @@ pub type Result<T> = std::result::Result<T, AppError>;
 pub enum AppError {
     General(String),
     CliError(cli::error::Error),
-    SslError(String),
     ConfigError(config::error::Error),
 
     IoError(std::io::Error),
@@ -25,7 +26,6 @@ impl AppError {
         match &*self {
             AppError::General(_) |
             AppError::CliError(_) |
-            AppError::SslError(_) |
             AppError::ConfigError(_) |
             AppError::IoError(_) |
             AppError::DatabaseError(_) |
@@ -37,7 +37,6 @@ impl AppError {
         match &*self {
             AppError::General(msg) => format!("AppError::General: {}", msg),
             AppError::CliError(cli_error) => format!("AppError::CliError: {}", cli_error.get_msg()),
-            AppError::SslError(msg) => format!("AppError::SslError: {}", msg),
             AppError::ConfigError(msg) => format!("AppError::ConfigError: {}", msg),
             AppError::IoError(io_error) => format!("AppError::IoError: {:?}", io_error),
             AppError::DatabaseError(db_error) => format!("AppError::DatabaseError: {:?}", db_error),

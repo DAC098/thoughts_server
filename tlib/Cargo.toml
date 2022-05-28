@@ -9,7 +9,9 @@ edition = "2018"
 [dependencies]
 env_logger = { version = "0" }
 
-serde = { version = "1.0" }
+shape-rs = { git = "https://github.com/dac098/shape-rs" }
+
+serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
 serde_yaml = { version = "0.8" }
 

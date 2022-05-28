@@ -40,7 +40,6 @@ pub enum ResponseError {
     CustomFieldExists(String),
     GlobalCustomFieldExists(String),
 
-    General(String),
     GeneralWithInternal(String, String),
 
     // specific module errors
@@ -133,7 +132,6 @@ impl ResponseError {
             ResponseError::CustomFieldExists(name) => format!("given custom field already exists. name: {}", name),
             ResponseError::GlobalCustomFieldExists(name) => format!("given global custom field already exists. name: {}", name),
 
-            ResponseError::General(s) => s.clone(),
             ResponseError::GeneralWithInternal(s, _) => s.clone(),
 
             ResponseError::PostgresError(_) |

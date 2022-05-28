@@ -1,9 +1,8 @@
-use lettre::message::{Mailbox};
-use lettre::transport::smtp::{SmtpTransport};
-use lettre::transport::smtp::authentication::{Credentials};
+use lettre::message::Mailbox;
+use lettre::transport::smtp::SmtpTransport;
+use lettre::transport::smtp::authentication::Credentials;
 
-use tlib::config::{EmailConfig};
-
+use crate::config::EmailConfig;
 use crate::email;
 use crate::response::error;
 

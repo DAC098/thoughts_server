@@ -1,8 +1,8 @@
-use std::path::{PathBuf};
-use std::ffi::{OsStr};
-use std::fs::{self};
+use std::path::PathBuf;
+use std::ffi::OsStr;
+use std::fs;
 
-use tlib::config::{StorageConfig};
+use crate::config::StorageConfig;
 
 use crate::error;
 
@@ -39,13 +39,13 @@ impl StorageState {
         Ok(StorageState { audio, tmp })
     }
 
-    pub fn get_audio_dir(&self) -> PathBuf {
-        self.audio.clone()
-    }
+    // pub fn get_audio_dir(&self) -> PathBuf {
+    //     self.audio.clone()
+    // }
 
-    pub fn get_tmp_dir(&self) -> PathBuf {
-        self.tmp.clone()
-    }
+    // pub fn get_tmp_dir(&self) -> PathBuf {
+    //     self.tmp.clone()
+    // }
 
     pub fn get_tmp_dir_ref(&self) -> &PathBuf {
         &self.tmp

@@ -1,11 +1,11 @@
 use std::pin::Pin;
 
 use actix_web::{web, dev::Payload, FromRequest, HttpRequest};
-use actix_session::{UserSession, Session};
-use tokio_postgres::{Client};
-use futures::{Future};
+use actix_session::{Session, SessionExt};
+use tokio_postgres::Client;
+use futures::Future;
 
-use tlib::db::{users};
+use tlib::db::users;
 
 use crate::state;
 use crate::response::error;
@@ -15,11 +15,9 @@ pub struct Initiator {
 }
 
 impl Initiator {
-
     pub fn into_inner(self) -> users::User {
         self.user
     }
-    
 }
 
 pub fn get_session_token(session: &Session) -> error::Result<Option<uuid::Uuid>> {
@@ -46,13 +44,12 @@ pub async fn get_initiator(
 }
 
 impl FromRequest for Initiator {
-    type Config = ();
     type Error = error::ResponseError;
     type Future = Pin<Box<dyn Future<Output = error::Result<Self>>>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
         let app = req.app_data::<web::Data<state::db::DBState>>().unwrap().clone();
-        let session = UserSession::get_session(req);
+        let session = req.get_session();
 
         Box::pin(async move {
             let app = app.into_inner();

@@ -8,12 +8,15 @@ edition = "2018"
 
 [workspace]
 members = [
-    "make_user",
-    "make_test_data",
     "tlib",
 ]
 
 [dependencies]
+shape-rs = { git = "https://github.com/dac098/shape-rs" }
+
+# local
+tlib = { path = "./tlib" }
+
 # core
 futures = { version = "0.3" }
 futures-util = { version = "0.3" }
@@ -43,24 +46,21 @@ lettre = { version = "0.10.0-rc.2", features = ["tokio1-native-tls", "native-tls
 urlencoding = { version = "2.1.0" }
 
 # web-server
-actix-web = { version = "4.0.0-beta.9", features = ["openssl"]}
-actix-session = { version = "0.5.0-beta.2" }
-actix-files = { version = "0.6.0-beta.7" }
-actix-web-actors = { version = "4.0.0-beta.7" }
-actix-service = { version = "2.0.0" }
-actix-multipart = { version = "0.4.0-beta.6" }
+actix-web = { version = "4.0.1", features = ["openssl"]}
+actix-session = { version = "0.6.2", features = ["cookie-session"] }
+actix-files = { version = "0.6.0" }
+actix-web-actors = { version = "4.1.0" }
+actix-service = { version = "2.0.2" }
+actix-multipart = { version = "0.4.0" }
 
 # templating
 handlebars = { version = "4.1.2" }
 
 # parsing
-serde = "1.0"
-serde_json = "1.0"
-serde_yaml = "0.8"
+serde = { version = "1.0", features = ["derive"]}
+serde_json = { version = "1.0" }
+serde_yaml = { version = "0.8" }
 
 # logging
-log = "0"
-env_logger = "0"
-
-# local
-tlib = { path = "./tlib" }
+log = { version = "0"}
+env_logger = { version = "0"}

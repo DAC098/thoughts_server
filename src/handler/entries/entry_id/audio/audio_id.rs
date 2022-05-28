@@ -1,16 +1,14 @@
 use actix_web::{web, http, HttpRequest, Responder};
-use actix_files::{NamedFile};
-use actix_session::{Session};
-use serde::{Deserialize};
+use actix_files::NamedFile;
+use actix_session::Session;
+use serde::Deserialize;
 
-use tlib::{db};
+use tlib::db;
 
 use crate::response;
 use crate::state;
 use crate::request::from;
 use crate::security;
-use crate::util;
-use crate::getters;
 
 #[derive(Deserialize)]
 pub struct EntryIdAudioIdPath {

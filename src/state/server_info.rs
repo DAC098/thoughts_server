@@ -1,4 +1,4 @@
-use tlib::config::{ServerInfoConfig};
+use crate::config::ServerInfoConfig;
 
 pub struct ServerInfoState {
     pub secure: bool,

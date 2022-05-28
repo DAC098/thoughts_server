@@ -1,5 +1,5 @@
 use actix_web::{http, HttpResponse};
-use actix_web::http::header::{IntoHeaderPair};
+use actix_web::http::header::TryIntoHeaderPair;
 use serde::{Serialize};
 
 use crate::util;
@@ -82,7 +82,7 @@ where
 pub fn respond_json_headers<T, H>(status: http::StatusCode, data: T, headers: Vec<H>) -> HttpResponse
 where
     T: Serialize,
-    H: IntoHeaderPair
+    H: TryIntoHeaderPair
 {
     let mut builder = HttpResponse::build(status);
 

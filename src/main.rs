@@ -1,15 +1,13 @@
-use std::path::Path;
-
 use actix_web::{web, App, HttpServer};
-use actix_web::middleware::{Logger};
-use actix_session::{CookieSession};
+use actix_web::middleware::Logger;
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use tokio_postgres::{Config as PGConfig, NoTls};
 use bb8_postgres::{PostgresConnectionManager, bb8};
 
-use tlib::{cli, config};
+use tlib::cli;
 
 mod error;
+mod config;
 mod security;
 mod state;
 mod handler;
@@ -22,7 +20,7 @@ mod email;
 mod getters;
 mod template;
 
-use error::{AppError, Result};
+use error::Result;
 
 fn main() {
     std::process::exit(match app_runner() {
@@ -120,13 +118,6 @@ async fn server_runner(config: config::ServerConfig) -> Result<i32> {
             .app_data(server_info_state_ref.clone())
             .app_data(storage_state_ref.clone())
             .wrap(Logger::new("%a XF-%{X-Forwarded-For}i:%{X-Forwarded-Port}i %t \"%r\" %s %b \"%{Referer}i\" %T"))
-            .wrap(
-                CookieSession::signed(&[0; 32])
-                    .secure(true)
-                    .domain(session_domain.clone())
-                    .name("thoughts_session")
-                    .path("/")
-            )
 
             .route("/ping", web::get().to(handler::ping::handle_get))
 
@@ -268,19 +259,8 @@ async fn server_runner(config: config::ServerConfig) -> Result<i32> {
     );
 
     if ssl_config.enable {
-        let cert_file = ssl_config.cert.ok_or(AppError::SslError(format!("cert file not given")))?;
-        let key_file = ssl_config.key.ok_or(AppError::SslError(format!("key file not given")))?;
-
-        let key_path = Path::new(&key_file);
-        let cert_path = Path::new(&cert_file);
-
-        if !key_path.exists() {
-            return Err(AppError::SslError(format!("key file given does not exist: {}", key_file)));
-        }
-
-        if !cert_path.exists() {
-            return Err(AppError::SslError(format!("cert file given does not exist: {}", cert_file)));
-        }
+        let cert_file = ssl_config.cert.unwrap();
+        let key_file = ssl_config.key.unwrap();
 
         for bind_value in bind_iter {
             let mut ssl_builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();

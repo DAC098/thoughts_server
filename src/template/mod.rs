@@ -1,16 +1,15 @@
-use std::{fs};
-use std::fmt::{Write};
-use std::path::{PathBuf};
-use std::ffi::{OsString};
+use std::fs;
+use std::fmt::Write;
+use std::path::PathBuf;
+use std::ffi::OsString;
 
-use handlebars::{Handlebars};
+use handlebars::Handlebars;
 use lazy_static::lazy_static;
 
-use tlib::config::{TemplateConfig};
+use crate::config::TemplateConfig;
+use crate::error;
 
 pub mod helpers;
-
-use crate::error;
 
 lazy_static! {
     static ref HBS_EXTENSION: OsString = OsString::from("hbs");

@@ -1,7 +1,7 @@
 use actix_web::{http, HttpRequest, HttpResponse, Responder};
-use serde_json::{json};
+use serde_json::json;
 
-use tlib::db::{users};
+use tlib::db::users;
 
 pub mod json;
 pub mod error;
@@ -22,7 +22,7 @@ pub fn respond_index_html(
 }
 
 pub fn check_if_html(
-    headers: &http::HeaderMap
+    headers: &http::header::HeaderMap
 ) -> Result<bool, http::header::ToStrError> {
     let accept_opt = headers.get("accept");
 
@@ -37,20 +37,13 @@ pub fn check_if_html(
 }
 
 pub fn try_check_if_html(
-    headers: &http::HeaderMap,
+    headers: &http::header::HeaderMap,
 ) -> bool {
     if let Ok(answer) = check_if_html(headers) {
         answer
     } else {
         false
     }
-}
-
-#[inline]
-pub fn check_if_html_req(
-    req: &HttpRequest
-) -> Result<bool, http::header::ToStrError> {
-    check_if_html(req.headers())
 }
 
 #[inline]
