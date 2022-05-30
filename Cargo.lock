@@ -1623,20 +1623,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "postgres"
-version = "0.19.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7871ee579860d8183f542e387b176a25f2656b9fb5211e045397f745a68d1c2"
-dependencies = [
- "bytes",
- "fallible-iterator",
- "futures",
- "log",
- "tokio",
- "tokio-postgres",
-]
-
-[[package]]
 name = "postgres-protocol"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2111,7 +2097,6 @@ dependencies = [
  "log",
  "num_cpus",
  "openssl",
- "postgres",
  "rand",
  "regex",
  "rust-argon2",

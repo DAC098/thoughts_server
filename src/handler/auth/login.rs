@@ -60,11 +60,14 @@ pub async fn handle_post(
     security::verify_password(row.get(1), &posted.password)?;
 
     let transaction = conn.transaction().await?;
-    let token = uuid::Uuid::new_v4();
+    let user_session = user_sessions::UserSession::new(
+        row.get(0),
+        chrono::Utc::now(),
+        chrono::Duration::days(7)
+    );
 
-    user_sessions::insert(&transaction, token, row.get(0)).await?;
-
-    session.insert("token", token)?;
+    user_session.insert(&transaction).await?;
+    session.insert("token", user_session.token.clone())?;
 
     transaction.commit().await?;
 
