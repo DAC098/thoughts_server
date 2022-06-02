@@ -1,17 +1,16 @@
-use std::fmt::{Write};
-use std::collections::{HashMap};
+use std::fmt::Write;
+use std::collections::HashMap;
 
 use actix_web::{web, http, HttpRequest, Responder};
-use actix_session::{Session};
-use serde::{Deserialize};
+use serde::Deserialize;
 use lettre::{Message, Transport};
-use lettre::message::{Mailbox};
+use lettre::message::Mailbox;
 
-use tlib::{db};
+use tlib::db;
 
 pub mod user_id;
 
-use crate::request::from;
+use crate::request::{initiator_from_request, Initiator};
 use crate::response;
 use crate::state;
 use crate::security;
@@ -29,14 +28,13 @@ pub struct UserSearchQuery {
 
 pub async fn handle_get(
     req: HttpRequest,
-    session: Session,
     db: state::WebDbState,
     template: state::WebTemplateState<'_>,
     info: web::Query<UserSearchQuery>,
 ) -> error::Result<impl Responder> {
     let accept_html = response::try_check_if_html_req(&req);
     let conn = &*db.get_conn().await?;
-    let initiator_opt = from::get_initiator(conn, &session).await?;
+    let initiator_opt = initiator_from_request(conn, &req).await?;
 
     if accept_html {
         if initiator_opt.is_some() {
@@ -126,7 +124,7 @@ pub struct PostUserJson {
 }
 
 pub async fn handle_post(
-    initiator: from::Initiator,
+    initiator: Initiator,
     db: state::WebDbState,
     email: state::WebEmailState,
     server_info: state::WebServerInfoState,
@@ -218,7 +216,18 @@ pub async fn handle_post(
         let first_name = util::string::trimmed_string(posted.data.first_name);
         let last_name = util::string::trimmed_string(posted.data.last_name);
         let middle_name = util::string::trimmed_optional_string(posted.data.middle_name);
-        let dob = util::time::now_naive_date_utc();
+        let dob: chrono::NaiveDate;
+
+        if let Ok(date) = posted.data.dob.parse() {
+            dob = date;
+        } else {
+            let mut message = String::from("invalid date format given. format: YYYY-MM-DD given: \"");
+            message.reserve(posted.data.dob.len() + 1);
+            message.push_str(&posted.data.dob);
+            message.push('"');
+
+            return Err(error::ResponseError::Validation(message))
+        }
 
         transaction.execute(
             "\

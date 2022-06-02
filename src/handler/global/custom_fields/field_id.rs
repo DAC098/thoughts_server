@@ -1,10 +1,9 @@
 use actix_web::{web, http, HttpRequest, Responder};
-use actix_session::{Session};
-use serde::{Deserialize};
+use serde::Deserialize;
 
-use tlib::{db};
+use tlib::db;
 
-use crate::request::from;
+use crate::request::{initiator_from_request, Initiator};
 use crate::response;
 use crate::state;
 use crate::security;
@@ -19,13 +18,12 @@ pub struct FieldPath {
 
 pub async fn handle_get(
     req: HttpRequest,
-    session: Session,
     db: state::WebDbState,
     template: state::WebTemplateState<'_>,
     path: web::Path<FieldPath>,
 ) -> Result<impl Responder> {
     let conn = &*db.get_conn().await?;
-    let initiator_opt = from::get_initiator(conn, &session).await?;
+    let initiator_opt = initiator_from_request(conn, &req).await?;
     let accept_html = response::try_check_if_html_req(&req);
 
     if accept_html {
@@ -55,7 +53,7 @@ pub struct PutGlobalCustomFieldJson {
 }
 
 pub async fn handle_put(
-    initiator: from::Initiator,
+    initiator: Initiator,
     db: state::WebDbState,
     posted: web::Json<PutGlobalCustomFieldJson>,
     path: web::Path<FieldPath>,
@@ -101,7 +99,7 @@ pub async fn handle_put(
 }
 
 pub async fn handle_delete(
-    initiator: from::Initiator,
+    initiator: Initiator,
     db: state::WebDbState,
     path: web::Path<FieldPath>,
 ) -> Result<impl Responder> {

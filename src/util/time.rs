@@ -12,8 +12,3 @@ pub fn now() -> chrono::DateTime<chrono::Local> {
 pub fn now_utc() -> chrono::DateTime<chrono::Utc> {
     chrono::Utc::now()
 }
-
-#[inline]
-pub fn now_naive_date_utc() -> chrono::NaiveDate {
-    now_utc().naive_utc().date()
-}

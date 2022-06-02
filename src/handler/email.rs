@@ -1,15 +1,15 @@
-use actix_web::{Responder};
+use actix_web::Responder;
 use lettre::{Message, Transport};
-use lettre::message::{Mailbox};
+use lettre::message::Mailbox;
 
-use crate::request::from;
+use crate::request::Initiator;
 use crate::response;
 use crate::state;
 
 use response::error;
 
 pub async fn handle_get(
-    initiator: from::Initiator,
+    initiator: Initiator,
     email: state::WebEmailState,
 ) -> error::Result<impl Responder> {
     if email.is_enabled() {

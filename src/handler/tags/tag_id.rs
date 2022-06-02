@@ -1,10 +1,9 @@
 use actix_web::{web, http, HttpRequest, Responder};
-use actix_session::{Session};
-use serde::{Deserialize};
+use serde::Deserialize;
 
-use tlib::{db};
+use tlib::db;
 
-use crate::request::from;
+use crate::request::{initiator_from_request, Initiator};
 use crate::response;
 use crate::state;
 use crate::security;
@@ -18,14 +17,13 @@ pub struct TagIdPath {
 
 pub async fn handle_get(
     req: HttpRequest,
-    session: Session,
     db: state::WebDbState,
     template: state::WebTemplateState<'_>,
     path: web::Path<TagIdPath>,
 ) -> error::Result<impl Responder> {
     let accept_html = response::try_check_if_html_req(&req);
     let conn = &*db.get_conn().await?;
-    let initiator_opt = from::get_initiator(conn, &session).await?;
+    let initiator_opt = initiator_from_request(conn, &req).await?;
 
     if accept_html {
         if initiator_opt.is_some() {
@@ -67,7 +65,7 @@ pub struct PutTagJson {
 }
 
 pub async fn handle_put(
-    initiator: from::Initiator,
+    initiator: Initiator,
     db: state::WebDbState,
     path: web::Path<TagIdPath>,
     posted: web::Json<PutTagJson>,
@@ -99,7 +97,7 @@ pub async fn handle_put(
 }
 
 pub async fn handle_delete(
-    initiator: from::Initiator,
+    initiator: Initiator,
     db: state::WebDbState,
     path: web::Path<TagIdPath>,
 ) -> error::Result<impl Responder> {

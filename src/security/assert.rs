@@ -2,8 +2,7 @@ use tokio_postgres::{GenericClient};
 
 use tlib::{db};
 
-use crate::response::error;
-use crate::request::{from};
+use crate::{response::error, request::Initiator};
 
 pub async fn is_owner_for_entry(
     conn: &impl GenericClient,
@@ -104,7 +103,7 @@ pub async fn permission_to_read(
     }
 }
 
-pub fn is_admin(initiator: &from::Initiator) -> error::Result<()> {
+pub fn is_admin(initiator: &Initiator) -> error::Result<()> {
     if initiator.user.level != (db::users::Level::Admin as i32) {
         Err(error::ResponseError::PermissionDenied(
             format!("you are not an administrator")

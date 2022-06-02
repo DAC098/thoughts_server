@@ -62,9 +62,6 @@ fn app_runner() -> Result<i32> {
     env_logger::init();
 
     let conf = config::load_server_config(conf_files)?;
-
-    config::validate_server_config(&conf)?;
-    
     let result = actix_web::rt::System::new().block_on(server_runner(conf));
 
     log::info!("server shutdown");
@@ -120,7 +117,6 @@ async fn server_runner(config: config::ServerConfig) -> Result<i32> {
             .wrap(Logger::new("%a XF-%{X-Forwarded-For}i:%{X-Forwarded-Port}i %t \"%r\" %s %b \"%{Referer}i\" %T"))
 
             .route("/ping", web::get().to(handler::ping::handle_get))
-
             .route("/", web::get().to(handler::handle_get))
             .route("/account", web::get().to(handler::account::handle_get))
             .route("/account", web::put().to(handler::account::handle_put))
@@ -134,9 +130,12 @@ async fn server_runner(config: config::ServerConfig) -> Result<i32> {
             )
             .service(
                 web::scope("/auth")
-                    .route("/login", web::get().to(handler::auth::login::handle_get))
-                    .route("/login", web::post().to(handler::auth::login::handle_post))
-                    .route("/logout", web::post().to(handler::auth::logout::handle_post))
+                    .route("/login", web::get().to(handler::auth::session::handle_get))
+                    .route("/login", web::post().to(handler::auth::session::handle_post))
+                    .route("/logout", web::post().to(handler::auth::session::handle_delete))
+                    .route("/session", web::get().to(handler::auth::session::handle_get))
+                    .route("/session", web::post().to(handler::auth::session::handle_post))
+                    .route("/session", web::delete().to(handler::auth::session::handle_delete))
                     .route("/change", web::post().to(handler::auth::change::handle_post))
                     .route("/verify_email", web::get().to(handler::auth::verify_email::handle_get))
             )

@@ -1,13 +1,12 @@
 use actix_web::{web, http, Responder, HttpRequest};
-use actix_session::{Session};
-use serde::{Deserialize};
+use serde::Deserialize;
 use lettre::{Message, Transport};
-use lettre::message::{Mailbox};
+use lettre::message::Mailbox;
 
-use tlib::{db};
+use tlib::db;
 
 use crate::state;
-use crate::request::from;
+use crate::request::{initiator_from_request, Initiator};
 use crate::response;
 use crate::email;
 use crate::util;
@@ -16,13 +15,12 @@ use response::error;
 
 pub async fn handle_get(
     req: HttpRequest,
-    session: Session,
     db: state::WebDbState,
     template: state::WebTemplateState<'_>,
 ) -> error::Result<impl Responder> {
     let accept_html = response::try_check_if_html_req(&req);
     let conn = &*db.get_conn().await?;
-    let initiator_opt = from::get_initiator(conn, &session).await?;
+    let initiator_opt = initiator_from_request(conn, &req).await?;
 
     if accept_html {
         if initiator_opt.is_some() {
@@ -53,7 +51,7 @@ pub struct PutAccountJson {
 }
 
 pub async fn handle_put(
-    initiator: from::Initiator,
+    initiator: Initiator,
     db: state::WebDbState,
     email: state::WebEmailState,
     server_info: state::WebServerInfoState,

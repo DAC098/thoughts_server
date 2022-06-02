@@ -1,18 +1,17 @@
-use std::collections::{HashMap};
+use std::collections::HashMap;
 
 use actix_web::{web, http, HttpRequest, Responder};
-use actix_session::{Session};
-use serde::{Deserialize};
-use chrono::serde::{ts_seconds};
+use serde::Deserialize;
+use chrono::serde::ts_seconds;
 
-use tlib::{db};
+use tlib::db;
 
 pub mod comments;
 pub mod audio;
 
 use crate::response;
 use crate::state;
-use crate::request::from;
+use crate::request::{initiator_from_request, Initiator};
 use crate::security;
 use crate::util;
 use crate::getters;
@@ -68,14 +67,13 @@ pub struct EntryPath {
  */
 pub async fn handle_get(
     req: HttpRequest,
-    session: Session,
     db: state::WebDbState,
     template: state::WebTemplateState<'_>,
     path: web::Path<EntryPath>
 ) -> app_error::Result<impl Responder> {
     let conn = &*db.get_conn().await?;
     let accept_html = response::try_check_if_html_req(&req);
-    let initiator_opt = from::get_initiator(conn, &session).await?;
+    let initiator_opt = initiator_from_request(conn, &req).await?;
 
     if accept_html {
         if initiator_opt.is_some() {
@@ -125,7 +123,7 @@ pub async fn handle_get(
  * user
  */
 pub async fn handle_put(
-    initiator: from::Initiator,
+    initiator: Initiator,
     db: state::WebDbState,
     path: web::Path<EntryPath>,
     posted: web::Json<PutComposedEntry>
@@ -391,7 +389,7 @@ pub async fn handle_put(
  * DELETE /entries/{id}
  */
 pub async fn handle_delete(
-    initiator: from::Initiator,
+    initiator: Initiator,
     db: state::WebDbState,
     path: web::Path<EntryPath>
 ) -> app_error::Result<impl Responder> {

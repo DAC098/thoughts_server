@@ -1,13 +1,12 @@
 use actix_web::{web, http, HttpRequest, Responder};
 use actix_files::NamedFile;
-use actix_session::Session;
 use serde::Deserialize;
 
 use tlib::db;
 
 use crate::response;
 use crate::state;
-use crate::request::from;
+use crate::request::{initiator_from_request, Initiator};
 use crate::security;
 
 #[derive(Deserialize)]
@@ -24,7 +23,6 @@ pub struct EntryIdAudioIdquery {
 
 pub async fn handle_get(
     req: HttpRequest,
-    session: Session,
     db: state::WebDbState,
     storage: state::WebStorageState,
     path: web::Path<EntryIdAudioIdPath>,
@@ -34,7 +32,7 @@ pub async fn handle_get(
     let query = query.into_inner();
     let conn = db.get_conn().await?;
     let accept_html = response::try_check_if_html_req(&req);
-    let initiator = from::get_initiator(&conn, &session).await?;
+    let initiator = initiator_from_request(&*conn, &req).await?;
 
     if accept_html {
         let redirect_to = format!("/entries/{}", path.entry_id);
@@ -109,7 +107,7 @@ pub struct PutAudioEntry {
 }
 
 pub async fn handle_put(
-    initiator: from::Initiator,
+    initiator: Initiator,
     db: state::WebDbState,
     path: web::Path<EntryIdAudioIdPath>,
     posted: web::Json<PutAudioEntry>

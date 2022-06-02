@@ -1,4 +1,3 @@
-pub mod login;
-pub mod logout;
+pub mod session;
 pub mod change;
 pub mod verify_email;

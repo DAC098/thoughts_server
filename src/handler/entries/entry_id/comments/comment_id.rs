@@ -1,11 +1,11 @@
 use actix_web::{web, http, Responder};
-use serde::{Deserialize};
+use serde::Deserialize;
 
-use tlib::{db};
+use tlib::db;
 
 use crate::state;
 use crate::response;
-use crate::request;
+use crate::request::Initiator;
 use crate::security;
 use crate::util;
 
@@ -22,12 +22,12 @@ pub struct PutEntryComment {
 }
 
 pub async fn handle_put(
-    initiator: request::from::Initiator,
+    initiator: Initiator,
     db: state::WebDbState,
     path: web::Path<EntryCommentPath>,
     posted: web::Json<PutEntryComment>,
 ) -> response::error::Result<impl Responder> {
-    let initiator = initiator.into_inner();
+    let initiator = initiator.into_user();
     let posted = posted.into_inner();
     let path = path.into_inner();
     let conn = &mut *db.get_conn().await?;

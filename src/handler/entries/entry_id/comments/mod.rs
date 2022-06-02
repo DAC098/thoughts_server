@@ -1,14 +1,13 @@
 use actix_web::{web, http, HttpRequest, Responder};
-use actix_session::{Session};
-use serde::{Deserialize};
+use serde::Deserialize;
 
-use tlib::{db};
+use tlib::db;
 
 pub mod comment_id;
 
 use crate::state;
 use crate::response;
-use crate::request;
+use crate::request::{initiator_from_request, Initiator};
 use crate::security;
 use crate::util;
 
@@ -20,7 +19,6 @@ pub struct EntryPath {
 
 pub async fn handle_get(
     req: HttpRequest,
-    session: Session,
     db: state::WebDbState,
     template: state::WebTemplateState<'_>,
     path: web::Path<EntryPath>,
@@ -28,7 +26,7 @@ pub async fn handle_get(
     let path = path.into_inner();
     let conn = &*db.get_conn().await?;
     let accept_html = response::try_check_if_html_req(&req);
-    let initiator = request::from::get_initiator(conn, &session).await?;
+    let initiator = initiator_from_request(conn, &req).await?;
 
     if accept_html {
         if initiator.is_some() {
@@ -70,12 +68,12 @@ pub struct PostEntryComment {
 }
 
 pub async fn handle_post(
-    initiator: request::from::Initiator,
+    initiator: Initiator,
     db: state::WebDbState,
     path: web::Path<EntryPath>,
     posted: web::Json<PostEntryComment>,
 ) -> response::error::Result<impl Responder> {
-    let initiator = initiator.into_inner();
+    let initiator = initiator.into_user();
     let posted = posted.into_inner();
     let path = path.into_inner();
     let conn = &mut *db.get_conn().await?;

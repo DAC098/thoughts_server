@@ -1,8 +1,7 @@
 use actix_web::{http, HttpRequest, Responder, error};
-use actix_session::{Session};
 
+use crate::request::initiator_from_request;
 use crate::response;
-use crate::request::from;
 use crate::state;
 
 use response::error as app_error;
@@ -20,12 +19,12 @@ pub mod email;
 pub mod global;
 
 pub async fn handle_get(
-    session: Session,
+    req: HttpRequest,
     db: state::WebDbState,
 ) -> app_error::Result<impl Responder> {
     let conn = &*db.get_conn().await?;
 
-    match from::get_initiator(conn, &session).await? {
+    match initiator_from_request(conn, &req).await? {
         Some(_) => Ok(response::redirect_to_path("/entries")),
         None => Ok(response::redirect_to_path("/auth/login"))
     }
@@ -131,13 +130,12 @@ pub fn handle_json_error(
 
 pub async fn handle_not_found(
     req: HttpRequest,
-    session: Session,
     db: state::WebDbState,
     template: state::WebTemplateState<'_>,
 ) -> app_error::Result<impl Responder> {
     let accept_html = response::try_check_if_html_req(&req);
     let conn = &*db.get_conn().await?;
-    let initiator_opt = from::get_initiator(conn, &session).await?;
+    let initiator_opt = initiator_from_request(conn, &req).await?;
 
     if accept_html {
         if initiator_opt.is_some() {

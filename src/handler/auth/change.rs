@@ -1,9 +1,9 @@
 use actix_web::{web, http, Responder};
-use serde::{Deserialize};
+use serde::Deserialize;
 
 use crate::response;
 use crate::state;
-use crate::request::from;
+use crate::request::Initiator;
 use crate::security;
 
 use response::error;
@@ -15,7 +15,7 @@ pub struct ChangePasswordJson {
 }
 
 pub async fn handle_post(
-    initiator: from::Initiator,
+    initiator: Initiator,
     db: state::WebDbState,
     posted: web::Json<ChangePasswordJson>,
 ) -> error::Result<impl Responder> {

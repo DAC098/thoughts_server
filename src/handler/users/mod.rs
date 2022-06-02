@@ -1,10 +1,9 @@
 use actix_web::{http, HttpRequest, Responder};
-use actix_session::{Session};
-use serde::{Serialize};
+use serde::Serialize;
 
 pub mod user_id;
 
-use crate::request::from;
+use crate::request::initiator_from_request;
 use crate::response;
 use crate::state;
 
@@ -26,13 +25,12 @@ pub struct UserListJson {
 
 pub async fn handle_get(
     req: HttpRequest,
-    session: Session,
     db: state::WebDbState,
     template: state::WebTemplateState<'_>,
 ) -> error::Result<impl Responder> {
     let accept_html = response::try_check_if_html_req(&req);
     let conn = &*db.get_conn().await?;
-    let initiator_opt = from::get_initiator(conn, &session).await?;
+    let initiator_opt = initiator_from_request(conn, &req).await?;
 
     if accept_html {
         if initiator_opt.is_some() {

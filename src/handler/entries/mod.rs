@@ -1,13 +1,12 @@
-use std::fmt::{Write};
-use std::collections::{HashMap};
+use std::fmt::Write;
+use std::collections::HashMap;
 //use std::pin::{Pin};
 //use std::task::{Context, Poll};
 
 use actix_web::{web, http, HttpRequest, Responder};
-use actix_session::{Session};
-use serde::{Deserialize};
+use serde::Deserialize;
 use chrono::{DateTime, Utc};
-use chrono::serde::{ts_seconds};
+use chrono::serde::ts_seconds;
 //use tokio_postgres::{Client, RowStream};
 //use futures::{pin_mut, Stream, TryStreamExt, future};
 use futures::{future};
@@ -27,7 +26,7 @@ pub mod entry_id;
 
 use crate::response;
 use crate::state;
-use crate::request::{from};
+use crate::request::{initiator_from_request, Initiator};
 use crate::json;
 use crate::getters;
 use crate::security;
@@ -91,7 +90,6 @@ pub struct EntriesQuery {
  */
 pub async fn handle_get(
     req: HttpRequest,
-    session: Session,
     db: state::WebDbState,
     template: state::WebTemplateState<'_>,
     info: web::Query<EntriesQuery>,
@@ -100,7 +98,7 @@ pub async fn handle_get(
     let info = info.into_inner();
     let pool_conn = db.get_pool().get().await?;
     let accept_html = response::try_check_if_html_req(&req);
-    let initiator_opt = from::get_initiator(&*pool_conn, &session).await?;
+    let initiator_opt = initiator_from_request(&*pool_conn, &req).await?;
 
     if accept_html {
         if initiator_opt.is_some() {
@@ -439,7 +437,7 @@ pub async fn handle_get(
  * will also create text and mood entries if given as well
  */
 pub async fn handle_post(
-    initiator: from::Initiator,
+    initiator: Initiator,
     db: state::WebDbState,
     posted: web::Json<PostEntryJson>
 ) -> app_error::Result<impl Responder> {

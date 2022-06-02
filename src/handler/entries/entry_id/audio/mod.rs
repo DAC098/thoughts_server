@@ -5,7 +5,6 @@ use std::path::PathBuf;
 use futures_util::stream::StreamExt;
 use actix_web::{web, http, HttpRequest, Responder};
 use actix_web::web::Buf;
-use actix_session::Session;
 use serde::Deserialize;
 
 use tlib::db;
@@ -14,7 +13,7 @@ pub mod audio_id;
 
 use crate::response;
 use crate::state;
-use crate::request::from;
+use crate::request::{initiator_from_request, Initiator};
 use crate::security;
 use crate::util;
 
@@ -26,14 +25,13 @@ pub struct EntryIdAudioPath {
 
 pub async fn handle_get(
     req: HttpRequest,
-    session: Session,
     db: state::WebDbState,
     path: web::Path<EntryIdAudioPath>
 ) -> response::error::Result<impl Responder> {
     let path = path.into_inner();
     let conn = db.get_conn().await?;
     let accept_html = response::try_check_if_html_req(&req);
-    let initiator = from::get_initiator(&conn, &session).await?;
+    let initiator = initiator_from_request(&*conn, &req).await?;
 
     if accept_html {
         let redirect_to = format!("/entries/{}", path.entry_id);
@@ -208,7 +206,7 @@ async fn handle_audio_webm(
 
 pub async fn handle_post(
     req: HttpRequest,
-    initiator: from::Initiator,
+    initiator: Initiator,
     db: state::WebDbState,
     storage: state::WebStorageState,
     path: web::Path<EntryIdAudioPath>,

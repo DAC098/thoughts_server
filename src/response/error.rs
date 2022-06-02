@@ -7,9 +7,9 @@ use actix_web::{
     HttpResponse
 };
 
-use tlib::{db};
+use tlib::db;
 
-use crate::response;
+use super::json::JsonBuilder;
 
 pub type Result<R> = std::result::Result<R, ResponseError>;
 
@@ -223,13 +223,13 @@ impl ActixResponseError for ResponseError {
             _ => ()
         };
 
-        response::json::respond_json(
-            self.status_code(),
-            response::json::ErrorJSON::build(
-                self.get_msg(), 
-                self.error_type()
-            )
-        )
+        let err_msg = self.error_type().to_owned();
+
+        JsonBuilder::new(self.status_code())
+            .set_message(self.get_msg())
+            .set_error(Some(err_msg))
+            .build(None::<()>)
+            .unwrap()
     }
     
     fn status_code(&self) -> StatusCode {

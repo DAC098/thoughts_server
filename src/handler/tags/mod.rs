@@ -1,13 +1,13 @@
 use actix_web::{web, http, HttpRequest, Responder};
-use actix_session::{Session};
-use serde::{Deserialize};
+use serde::Deserialize;
 
-use tlib::{db};
+use tlib::db;
 
 pub mod tag_id;
 
-use crate::request::from;
+use crate::request::{initiator_from_request, Initiator};
 use crate::response;
+use crate::response::json::JsonBuilder;
 use crate::state;
 use crate::security;
 
@@ -20,14 +20,13 @@ pub struct TagsPath {
 
 pub async fn handle_get(
     req: HttpRequest,
-    session: Session,
     db: state::WebDbState,
     template: state::WebTemplateState<'_>,
     path: web::Path<TagsPath>,
 ) -> error::Result<impl Responder> {
     let accept_html = response::try_check_if_html_req(&req);
     let conn = &*db.get_conn().await?;
-    let initiator_opt = from::get_initiator(conn, &session).await?;
+    let initiator_opt = initiator_from_request(conn, &req).await?;
 
     if accept_html {
         if initiator_opt.is_some() {
@@ -48,13 +47,8 @@ pub async fn handle_get(
             owner = initiator.user.id;
         }
 
-        Ok(response::json::respond_json(
-            http::StatusCode::OK,
-            response::json::MessageDataJSON::build(
-                "successful",
-                db::tags::find_from_owner(conn, owner).await?
-            )
-        ))
+        JsonBuilder::new(http::StatusCode::OK)
+            .build(Some(db::tags::find_from_owner(conn, owner).await?))
     }
 }
 
@@ -66,7 +60,7 @@ pub struct PostTagJson {
 }
 
 pub async fn handle_post(
-    initiator: from::Initiator,
+    initiator: Initiator,
     db: state::WebDbState,
     posted: web::Json<PostTagJson>
 ) -> error::Result<impl Responder> {
@@ -80,17 +74,12 @@ pub async fn handle_post(
 
     transaction.commit().await?;
 
-    Ok(response::json::respond_json(
-        http::StatusCode::OK,
-        response::json::MessageDataJSON::build(
-            "successful",
-            db::tags::Tag {
-                id: result.get(0),
-                title: posted.title.clone(),
-                color: posted.color.clone(),
-                comment: posted.comment.clone(),
-                owner: initiator.user.id
-            }
-        )
-    ))
+    JsonBuilder::new(http::StatusCode::OK)
+        .build(Some(db::tags::Tag {
+            id: result.get(0),
+            title: posted.title.clone(),
+            color: posted.color.clone(),
+            comment: posted.comment.clone(),
+            owner: initiator.user.id
+        }))
 }

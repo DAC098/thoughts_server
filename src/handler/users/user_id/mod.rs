@@ -1,9 +1,8 @@
 use actix_web::{web, http, HttpRequest, Responder};
-use actix_session::{Session};
 
-use tlib::{db};
+use tlib::db;
 
-use crate::request::from;
+use crate::request::initiator_from_request;
 use crate::response;
 use crate::state;
 use crate::parsing::url_paths;
@@ -13,14 +12,13 @@ use response::error;
 
 pub async fn handle_get(
     req: HttpRequest,
-    session: Session,
     db: state::WebDbState,
     template: state::WebTemplateState<'_>,
     path: web::Path<url_paths::UserPath>,
 ) -> error::Result<impl Responder> {
     let accept_html = response::try_check_if_html_req(&req);
     let conn = &*db.get_conn().await?;
-    let initiator_opt = from::get_initiator(conn, &session).await?;
+    let initiator_opt = initiator_from_request(conn, &req).await?;
 
     if accept_html {
         if initiator_opt.is_some() {

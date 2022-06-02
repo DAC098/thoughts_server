@@ -1,13 +1,14 @@
 use std::collections::HashMap;
 
 use actix_web::{web, http, HttpRequest, Responder};
-use actix_session::{Session};
 use serde::{Serialize, Deserialize};
 
-use tlib::{db};
+use tlib::db;
 
+use crate::request::Initiator;
+use crate::request::initiator_from_request;
 use crate::response;
-use crate::request::{from, url_query};
+use crate::request::url_query;
 use crate::state;
 use crate::json;
 
@@ -29,7 +30,6 @@ pub struct BackupJson {
 
 pub async fn handle_get(
     req: HttpRequest,
-    session: Session,
     db: state::WebDbState,
     template: state::WebTemplateState<'_>,
     info: web::Query<url_query::QueryEntries>,
@@ -37,7 +37,7 @@ pub async fn handle_get(
     let info = info.into_inner();
     let accept_html = response::try_check_if_html_req(&req);
     let conn = &*db.get_conn().await?;
-    let initiator_opt = from::get_initiator(conn, &session).await?;
+    let initiator_opt = initiator_from_request(conn, &req).await?;
 
     if accept_html {
         if initiator_opt.is_some() {
@@ -73,7 +73,7 @@ pub async fn handle_get(
 }
 
 pub async fn handle_post(
-    initiator: from::Initiator,
+    initiator: Initiator,
     db: state::WebDbState,
     posted: web::Json<BackupJson>,
 ) -> error::Result<impl Responder> {
