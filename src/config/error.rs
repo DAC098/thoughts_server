@@ -41,11 +41,7 @@ impl Error {
                 }
             },
             Error::YamlError(err) => {
-                if let Some(location) = err.location() {
-                    format!("yaml error {}:{}", location.line(), location.column())
-                } else {
-                    format!("yaml error")
-                }
+                format!("yaml error {:?}", err)
             },
             Error::IOError(err) => format!("{:?}", err)
         }

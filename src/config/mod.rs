@@ -1,7 +1,7 @@
 use std::{
     path::PathBuf, 
     convert::{TryFrom, TryInto}, 
-    collections::HashMap
+    collections::HashMap, net::{SocketAddr, IpAddr}
 };
 
 use lettre::address::Address;
@@ -145,9 +145,15 @@ impl TryFrom<Option<shapes::ServerInfoConfigShape>> for ServerInfoConfig {
 // ----------------------------------------------------------------------------
 
 #[derive(Debug, Clone)]
+pub struct BindInterfaceSsl {
+    pub key: PathBuf,
+    pub cert: PathBuf
+}
+
+#[derive(Debug, Clone)]
 pub struct BindInterface {
-    pub host: String,
-    pub port: u16
+    pub addr: SocketAddr,
+    pub ssl: Option<BindInterfaceSsl>
 }
 
 // ----------------------------------------------------------------------------
@@ -249,7 +255,6 @@ impl TryFrom<Option<shapes::StorageConfigShape>> for StorageConfig {
 
 #[derive(Debug, Clone)]
 pub struct SslConfig {
-    pub enable: bool,
     pub key: Option<PathBuf>,
     pub cert: Option<PathBuf>
 }
@@ -260,13 +265,11 @@ impl TryFrom<Option<shapes::SslConfigShape>> for SslConfig {
     fn try_from(value: Option<shapes::SslConfigShape>) -> Result<Self, Self::Error> {
         if let Some(ssl) = value {
             Ok(SslConfig {
-                enable: ssl.enable.unwrap_or(false),
                 key: ssl.key,
                 cert: ssl.cert
             })
         } else {
             Ok(SslConfig {
-                enable: false,
                 key: None,
                 cert: None
             })
@@ -280,7 +283,7 @@ impl TryFrom<Option<shapes::SslConfigShape>> for SslConfig {
 
 #[derive(Debug, Clone)]
 pub struct ServerConfig {
-    pub bind: Vec<BindInterface>,
+    pub bind: HashMap<String, BindInterface>,
 
     pub threads: usize,
     pub backlog: u32,
@@ -291,7 +294,6 @@ pub struct ServerConfig {
     pub session: SessionConfig,
     pub email: EmailConfig,
     pub info: ServerInfoConfig,
-    pub ssl: SslConfig,
     pub template: TemplateConfig,
     pub file_serving: FileServingConfig,
     pub storage: StorageConfig,
@@ -302,19 +304,119 @@ impl TryFrom<shapes::ServerConfigShape> for ServerConfig {
 
     fn try_from(value: shapes::ServerConfigShape) -> Result<Self, Self::Error> {
         let mut bind_list;
-        let port = value.port.unwrap_or(8080);
+        let top_level_port = value.port.unwrap_or(8080);
+        let top_level_ssl_key;
+        let top_level_ssl_cert;
+
+        if let Some(ssl) = value.ssl {
+            top_level_ssl_key = ssl.key;
+            top_level_ssl_cert = ssl.cert;
+        } else {
+            top_level_ssl_key = None;
+            top_level_ssl_cert = None;
+        }
 
         if let Some(bind) = value.bind {
-            bind_list = Vec::with_capacity(bind.len());
-    
-            for interface in bind {
-                bind_list.push(BindInterface {
-                    host: interface.host,
-                    port: interface.port.unwrap_or(port)
+            bind_list = HashMap::with_capacity(bind.len());
+
+            for (bind_key, bind_value) in bind {
+                if bind_value.is_none() {
+                    continue;
+                }
+
+                let bind_value = bind_value.unwrap();
+                let host: IpAddr;
+
+                if let Some(h) = bind_value.host {
+                    if let Ok(ip) = h.parse() {
+                        host = ip;
+                    } else {
+                        let mut msg = String::from("invalid ip from host value. key: \"");
+                        msg.push_str(&bind_key);
+                        msg.push_str("\" given: \"");
+                        msg.push_str(&h);
+                        msg.push('"');
+
+                        return Err(error::Error::InvalidConfig(msg))
+                    }
+                } else {
+                    let mut msg = String::from("no ip value for host. key: \"");
+                    msg.push_str(&bind_key);
+                    msg.push('"');
+
+                    return Err(error::Error::InvalidConfig(msg))
+                }
+
+                let sock_addr = SocketAddr::new(host, bind_value.port.unwrap_or(top_level_port));
+                let mut ssl: Option<BindInterfaceSsl> = None;
+
+                if let Some(bind_ssl) = bind_value.ssl {
+                    match bind_ssl {
+                        shapes::BindInterfaceSslShape::Bool(enable) => {
+                            if enable {
+                                if top_level_ssl_key.is_some() && top_level_ssl_cert.is_some() {
+                                    ssl = Some(BindInterfaceSsl {
+                                        key: top_level_ssl_key.clone().unwrap(),
+                                        cert: top_level_ssl_cert.clone().unwrap()
+                                    });
+                                } else if top_level_ssl_key.is_some() {
+                                    let msg = String::from("missing top level ssl cert");
+
+                                    return Err(error::Error::InvalidConfig(msg));
+                                } else {
+                                    let msg = String::from("missing top level ssl key");
+
+                                    return Err(error::Error::InvalidConfig(msg))
+                                }
+                            }
+                        },
+                        shapes::BindInterfaceSslShape::Struct {key: ssl_key_opt, cert: ssl_cert_opt} => {
+                            let ssl_key;
+                            let ssl_cert;
+
+                            if let Some(unwrapped) = ssl_key_opt {
+                                ssl_key = unwrapped
+                            } else {
+                                if let Some(unwrapped) = top_level_ssl_key.clone() {
+                                    ssl_key = unwrapped;
+                                } else {
+                                    let mut msg = String::from("missing ssl key for bind interface \"");
+                                    msg.push_str(&bind_key);
+                                    msg.push('"');
+
+                                    return Err(error::Error::InvalidConfig(msg));
+                                }
+                            }
+
+                            if let Some(unwrapped) = ssl_cert_opt {
+                                ssl_cert = unwrapped;
+                            } else {
+                                if let Some(unwrapped) = top_level_ssl_cert.clone() {
+                                    ssl_cert = unwrapped;
+                                } else {
+                                    let mut msg = String::from("missing ssl cert for bind interface \"");
+                                    msg.push_str(&bind_key);
+                                    msg.push('"');
+
+                                    return Err(error::Error::InvalidConfig(msg));
+                                }
+                            }
+
+                            ssl = Some(BindInterfaceSsl {
+                                key: ssl_key,
+                                cert: ssl_cert
+                            });
+                        }
+                    }
+                }
+
+                bind_list.insert(bind_key, BindInterface {
+                    addr: sock_addr,
+                    ssl
                 });
             }
         } else {
-            bind_list = Vec::new();
+            bind_list = HashMap::new();
         }
 
         Ok(ServerConfig {
@@ -329,7 +431,6 @@ impl TryFrom<shapes::ServerConfigShape> for ServerConfig {
             session: value.session.try_into()?,
             email: value.email.try_into()?,
             info: value.info.try_into()?,
-            ssl: value.ssl.try_into()?,
             template: value.template.try_into()?,
             file_serving: value.file_serving.try_into()?,
             storage: value.storage.try_into()?
@@ -359,9 +460,9 @@ pub fn load_server_config(files: Vec<std::path::PathBuf>) -> error::Result<Serve
 
 pub fn validate_server_config(config: &ServerConfig) -> error::Result<()> {
     if config.bind.len() == 0 {
-        return Err(error::Error::InvalidConfig(
-            format!("no bind interfaces specified")
-        ));
+        let msg = String::from("no bind interface specified");
+
+        return Err(error::Error::InvalidConfig(msg));
     }
 
     if config.email.enable {
@@ -384,22 +485,6 @@ pub fn validate_server_config(config: &ServerConfig) -> error::Result<()> {
         if config.email.relay.is_none() {
             return Err(error::Error::InvalidConfig(
                 "relay must be given if email is emabled".to_owned()
-            ));
-        }
-    }
-
-    if config.ssl.enable {
-        if config.ssl.cert.is_none() || config.ssl.key.is_none() {
-            return Err(error::Error::InvalidConfig(
-                "cert and key are not given but ssl is enabled".into()
-            ));
-        } else if config.ssl.cert.is_none() {
-            return Err(error::Error::InvalidConfig(
-                "cert is not given but ssl is enabled".into()
-            ));
-        } else if config.ssl.key.is_none() {
-            return Err(error::Error::InvalidConfig(
-                "key is not given but ssl is enabled".into()
             ));
         }
     }

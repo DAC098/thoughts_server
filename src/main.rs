@@ -62,7 +62,11 @@ fn app_runner() -> Result<i32> {
     env_logger::init();
 
     let conf = config::load_server_config(conf_files)?;
-    let result = actix_web::rt::System::new().block_on(server_runner(conf));
+
+    log::debug!("conf: {:#?}", conf);
+
+    let result = actix_web::rt::System::new()
+        .block_on(server_runner(conf));
 
     log::info!("server shutdown");
 
@@ -81,7 +85,6 @@ async fn server_runner(config: config::ServerConfig) -> Result<i32> {
     };
 
     let session_domain = config.session.domain;
-    let ssl_config = config.ssl;
     let bind_config = config.bind;
     let file_serving_config = config.file_serving;
 
@@ -253,23 +256,17 @@ async fn server_runner(config: config::ServerConfig) -> Result<i32> {
         .max_connections(config.max_connections)
         .max_connection_rate(config.max_connection_rate);
 
-    let bind_iter = bind_config.iter().map(
-        |interface| format!("{}:{}", interface.host, interface.port)
-    );
-
-    if ssl_config.enable {
-        let cert_file = ssl_config.cert.unwrap();
-        let key_file = ssl_config.key.unwrap();
-
-        for bind_value in bind_iter {
+    for (_key, info) in bind_config {
+        if let Some(ssl) = info.ssl {
             let mut ssl_builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
-            ssl_builder.set_private_key_file(key_file.clone(), SslFiletype::PEM).unwrap();
-            ssl_builder.set_certificate_chain_file(cert_file.clone()).unwrap();
-            server = server.bind_openssl(bind_value, ssl_builder)?;
-        }
-    } else {
-        for bind_value in bind_iter {
-            server = server.bind(bind_value)?;
+            ssl_builder.set_private_key_file(ssl.key, SslFiletype::PEM).unwrap();
+            ssl_builder.set_certificate_chain_file(ssl.cert).unwrap();
+
+            log::info!("attaching secure listener to: {}", info.addr);
+            server = server.bind_openssl(info.addr, ssl_builder)?;
+        } else {
+            log::info!("attaching listener to: {}", info.addr);
+            server = server.bind(info.addr)?;
         }
     }
 

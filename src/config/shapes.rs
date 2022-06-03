@@ -31,9 +31,59 @@ impl MapShape for DBConfigShape {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub enum BindInterfaceSslShape {
+    Bool(bool),
+    Struct {
+        key: Option<PathBuf>,
+        cert: Option<PathBuf>,
+    }
+}
+
+#[derive(Debug, Deserialize)]
 pub struct BindInterfaceShape {
-    pub host: String,
-    pub port: Option<u16>
+    pub host: Option<String>,
+    pub port: Option<u16>,
+    pub ssl: Option<BindInterfaceSslShape>
+}
+
+impl MapShape for BindInterfaceShape {
+    fn map_shape(&mut self, rhs: Self) {
+        self.host.map_shape(rhs.host);
+        self.port.map_shape(rhs.port);
+
+        if let Some(rhs_ssl) = rhs.ssl {
+            let mv = match rhs_ssl {
+                BindInterfaceSslShape::Bool(value) => {
+                    Some(BindInterfaceSslShape::Bool(value))
+                },
+                BindInterfaceSslShape::Struct{key: rhs_key, cert: rhs_cert} => {
+                    if let Some(lhs_ssl) = self.ssl.as_ref() {
+                        match lhs_ssl {
+                            BindInterfaceSslShape::Bool(_) => {
+                                Some(BindInterfaceSslShape::Struct { key: rhs_key, cert: rhs_cert })
+                            },
+                            BindInterfaceSslShape::Struct {key: lhs_key, cert: lhs_cert} => {
+                                let mut mv_key = lhs_key.clone();
+                                mv_key.map_shape(rhs_key);
+                                let mut mv_cert = lhs_cert.clone();
+                                mv_cert.map_shape(rhs_cert);
+
+                                Some(BindInterfaceSslShape::Struct {
+                                    key: mv_key,
+                                    cert: mv_cert
+                                })
+                            }
+                        }
+                    } else {
+                        Some(BindInterfaceSslShape::Struct { key: rhs_key, cert: rhs_cert })
+                    }
+                }
+            };
+
+            self.ssl = mv;
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -153,7 +203,7 @@ impl MapShape for StorageConfigShape {
 
 #[derive(Debug, Deserialize)]
 pub struct ServerConfigShape {
-    pub bind: Option<Vec<BindInterfaceShape>>,
+    pub bind: Option<HashMap<String, Option<BindInterfaceShape>>>,
     pub port: Option<u16>,
 
     pub threads: Option<usize>,
@@ -173,7 +223,20 @@ pub struct ServerConfigShape {
 
 impl MapShape for ServerConfigShape {
     fn map_shape(&mut self, rhs: Self) {
-        self.bind.map_shape(rhs.bind);
+        if let Some(lhs_map) = self.bind.as_mut() {
+            if let Some(rhs_map) = rhs.bind {
+                for (rhs_key, rhs_value) in rhs_map {
+                    if let Some(lhs_value) = lhs_map.get_mut(&rhs_key) {
+                        assign_map_struct(lhs_value, rhs_value);
+                    } else {
+                        lhs_map.insert(rhs_key, rhs_value);
+                    }
+                }
+            }
+        } else {
+            self.bind = rhs.bind;
+        }
+
         self.port.map_shape(rhs.port);
         self.threads.map_shape(rhs.threads);
         self.backlog.map_shape(rhs.backlog);
@@ -355,6 +418,60 @@ pub fn validate_server_config_shape(conf_dir: &Path, mut conf: ServerConfigShape
         };
 
         Some(storage)
+    } else {
+        None
+    };
+
+    conf.bind = if let Some(bind) = conf.bind {
+        let mut verified_map = HashMap::with_capacity(bind.len());
+
+        for (bind_key, mut bind_value) in bind {
+            bind_value = if let Some(mut bind_value) = bind_value {
+                bind_value.ssl = if let Some(ssl) = bind_value.ssl {
+                    Some(match ssl {
+                        BindInterfaceSslShape::Bool(v) => {
+                            BindInterfaceSslShape::Bool(v)
+                        },
+                        BindInterfaceSslShape::Struct { key: mut ssl_key, cert: mut ssl_cert } => {
+                            ssl_key = if let Some(ssl_key) = ssl_key {
+                        
+                                let mut name = String::from("bind ssl key (conf.bind.\"");
+                                name.reserve(bind_key.len() + 10);
+                                name.push_str(&bind_key);
+                                name.push_str("\".ssl.key)");
+            
+                                Some(validate_path_buf(conf_dir, &name, false, ssl_key)?)
+                            } else {
+                                None
+                            };
+    
+                            ssl_cert = if let Some(ssl_cert) = ssl_cert {
+                                let mut name = String::from("bind ssl key (conf.bind.\"");
+                                name.reserve(bind_key.len() + 11);
+                                name.push_str(&bind_key);
+                                name.push_str("\".ssl.cert)");
+            
+                                Some(validate_path_buf(conf_dir, &name, false, ssl_cert)?)
+                            } else {
+                                None
+                            };
+    
+                            BindInterfaceSslShape::Struct { key: ssl_key, cert: ssl_cert }
+                        }
+                    })
+                } else {
+                    None
+                };
+
+                Some(bind_value)
+            } else {
+                None
+            };
+
+            verified_map.insert(bind_key, bind_value);
+        }
+
+        Some(verified_map)
     } else {
         None
     };
