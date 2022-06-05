@@ -12,6 +12,7 @@ pub mod user_id;
 
 use crate::request::{initiator_from_request, Initiator};
 use crate::response;
+use crate::response::json::JsonBuilder;
 use crate::state;
 use crate::security;
 use crate::util;
@@ -87,12 +88,8 @@ pub async fn handle_get(
                 });
             }
 
-            Ok(response::json::respond_json(
-                http::StatusCode::OK,
-                response::json::MessageDataJSON::build(
-                    "successful", rtn
-                )
-            ))
+            JsonBuilder::new(http::StatusCode::OK)
+                .build(Some(rtn))
         }
     }
 }
@@ -200,12 +197,12 @@ pub async fn handle_post(
         ).await?;
 
         let email_message = Message::builder()
-        .from(email.get_from().unwrap())
-        .to(to_mailbox.unwrap())
-        .subject("Verify Changed Email")
-        .multipart(email::message_body::verify_email_body(
-            server_info.url_origin(), hex_str
-        ))?;
+            .from(email.get_from().unwrap())
+            .to(to_mailbox.unwrap())
+            .subject("Verify Changed Email")
+            .multipart(email::message_body::verify_email_body(
+                server_info.url_origin(), hex_str
+            ))?;
 
         email.get_transport()?.send(&email_message)?;
     }
@@ -338,22 +335,18 @@ pub async fn handle_post(
 
     transaction.commit().await?;
 
-    Ok(response::json::respond_json(
-        http::StatusCode::OK,
-        response::json::MessageDataJSON::build(
-            "created account",
-            db::composed::ComposedFullUser {
-                user: db::users::User {
-                    id: user_result.get(0),
-                    username: posted.user.username.clone(),
-                    full_name: posted.user.full_name.clone(),
-                    email: email_value,
-                    email_verified: false,
-                    level: posted.user.level
-                },
-                data: user_data,
-                access: user_access
-            }
-        )
-    ))
+    JsonBuilder::new(http::StatusCode::OK)
+        .set_message("created account")
+        .build(Some(db::composed::ComposedFullUser {
+            user: db::users::User {
+                id: user_result.get(0),
+                username: posted.user.username.clone(),
+                full_name: posted.user.full_name.clone(),
+                email: email_value,
+                email_verified: false,
+                level: posted.user.level
+            },
+            data: user_data,
+            access: user_access
+        }))
 }

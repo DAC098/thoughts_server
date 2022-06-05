@@ -9,6 +9,7 @@ use tlib::db;
 
 use crate::request::{initiator_from_request, Initiator};
 use crate::response;
+use crate::response::json::JsonBuilder;
 use crate::state;
 use crate::security::assert;
 use crate::util;
@@ -50,17 +51,12 @@ pub async fn handle_get(
                 user_record.user.level == (db::users::Level::Manager as i32)
             ).await?;
 
-            Ok(response::json::respond_json(
-                http::StatusCode::OK,
-                response::json::MessageDataJSON::build(
-                    "successful",
-                    db::composed::ComposedFullUser {
-                        user: user_record.user,
-                        data: user_record.data,
-                        access
-                    }
-                )
-            ))
+            JsonBuilder::new(http::StatusCode::OK)
+                .build(Some(db::composed::ComposedFullUser {
+                    user: user_record.user,
+                    data: user_record.data,
+                    access
+                }))
         } else {
             Err(error::ResponseError::UserIDNotFound(path.user_id))
         }
@@ -186,12 +182,12 @@ pub async fn handle_put(
         ).await?;
 
         let email_message = Message::builder()
-        .from(email.get_from().unwrap())
-        .to(to_mailbox.unwrap())
-        .subject("Verify Changed Email")
-        .multipart(email::message_body::verify_email_body(
-            server_info.url_origin(), hex_str
-        ))?;
+            .from(email.get_from().unwrap())
+            .to(to_mailbox.unwrap())
+            .subject("Verify Changed Email")
+            .multipart(email::message_body::verify_email_body(
+                server_info.url_origin(), hex_str
+            ))?;
 
         email.get_transport()?.send(&email_message)?;
     }
@@ -349,24 +345,19 @@ pub async fn handle_put(
 
     transaction.commit().await?;
 
-    Ok(response::json::respond_json(
-        http::StatusCode::OK,
-        response::json::MessageDataJSON::build(
-            "successful",
-            db::composed::ComposedFullUser {
-                user: db::users::User {
-                    id: path.user_id,
-                    username: result.get(1),
-                    level: result.get(2),
-                    full_name: result.get(3),
-                    email: result.get(4),
-                    email_verified
-                },
-                data: user_data,
-                access: user_access
-            }
-        )
-    ))
+    JsonBuilder::new(http::StatusCode::OK)
+        .build(Some(db::composed::ComposedFullUser {
+            user: db::users::User {
+                id: path.user_id,
+                username: result.get(1),
+                level: result.get(2),
+                full_name: result.get(3),
+                email: result.get(4),
+                email_verified
+            },
+            data: user_data,
+            access: user_access
+        }))
 }
 
 pub async fn handle_delete(
@@ -443,8 +434,6 @@ pub async fn handle_delete(
 
     transaction.commit().await?;
 
-    Ok(response::json::respond_json(
-        http::StatusCode::OK,
-        response::json::only_message("successful")
-    ))
+    JsonBuilder::new(http::StatusCode::OK)
+        .build(None::<()>)
 }

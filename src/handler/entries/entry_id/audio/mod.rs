@@ -12,6 +12,7 @@ use tlib::db;
 pub mod audio_id;
 
 use crate::response;
+use crate::response::json::JsonBuilder;
 use crate::state;
 use crate::request::{initiator_from_request, Initiator};
 use crate::security;
@@ -59,13 +60,14 @@ pub async fn handle_get(
 
         security::assert::is_owner_of_entry(&*conn, &owner, &path.entry_id).await?;
 
-        Ok(response::json::respond_json(
-            http::StatusCode::OK,
-            response::json::MessageDataJSON::build(
-                "successful",
-                db::audio_entries::find_from_entry(&*conn, &path.entry_id, &is_private).await?
-            )
-        ))
+        let entry = db::audio_entries::find_from_entry(
+            &*conn, 
+            &path.entry_id, 
+            &is_private
+        ).await?;
+
+        JsonBuilder::new(http::StatusCode::OK)
+            .build(Some(entry))
     }
 }
 
@@ -274,16 +276,11 @@ pub async fn handle_post(
 
     transaction.commit().await?;
 
-    Ok(response::json::respond_json(
-        http::StatusCode::OK, 
-        response::json::MessageDataJSON::build(
-            "successful",
-            db::audio_entries::AudioEntry {
-                id,
-                private: audio_entry.private,
-                comment: audio_entry.comment,
-                entry: path.entry_id
-            }
-        )
-    ))
+    JsonBuilder::new(http::StatusCode::OK)
+        .build(Some(db::audio_entries::AudioEntry {
+            id,
+            private: audio_entry.private,
+            comment: audio_entry.comment,
+            entry: path.entry_id
+        }))
 }

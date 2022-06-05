@@ -5,6 +5,7 @@ use serde::Deserialize;
 use tlib::db;
 
 use crate::response;
+use crate::response::json::JsonBuilder;
 use crate::state;
 use crate::request::{initiator_from_request, Initiator};
 use crate::security;
@@ -81,13 +82,8 @@ pub async fn handle_get(
             }
 
             if return_json {
-                Ok(response::json::respond_json(
-                    http::StatusCode::OK,
-                    response::json::MessageDataJSON::build(
-                        "successful",
-                        audio_entry
-                    )
-                ))
+                JsonBuilder::new(http::StatusCode::OK)
+                    .build(Some(audio_entry))
             } else {
                 Ok(NamedFile::open(
                     storage.get_audio_file_path(&owner, &path.entry_id, &audio_entry.id, "webm")
@@ -130,13 +126,11 @@ pub async fn handle_put(
 
     transaction.commit().await?;
 
-    Ok(response::json::respond_json(
-        http::StatusCode::OK,
-        db::audio_entries::AudioEntry {
+    JsonBuilder::new(http::StatusCode::OK)
+        .build(Some(db::audio_entries::AudioEntry {
             id: path.audio_id,
             private: posted.private,
             comment: posted.comment,
             entry: path.entry_id
-        }
-    ))
+        }))
 }

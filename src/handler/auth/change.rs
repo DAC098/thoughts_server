@@ -2,6 +2,7 @@ use actix_web::{web, http, Responder};
 use serde::Deserialize;
 
 use crate::response;
+use crate::response::json::JsonBuilder;
 use crate::state;
 use crate::request::Initiator;
 use crate::security;
@@ -36,8 +37,7 @@ pub async fn handle_post(
 
     transaction.commit().await?;
 
-    Ok(response::json::respond_json(
-        http::StatusCode::OK,
-        response::json::MessageDataJSON::<Option<()>>::build("password changed", None)
-    ))
+    JsonBuilder::new(http::StatusCode::OK)
+        .set_message("password changed")
+        .build(None::<()>)
 }

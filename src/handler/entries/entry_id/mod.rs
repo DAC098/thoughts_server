@@ -10,6 +10,7 @@ pub mod comments;
 pub mod audio;
 
 use crate::response;
+use crate::response::json::JsonBuilder;
 use crate::state;
 use crate::request::{initiator_from_request, Initiator};
 use crate::security;
@@ -99,13 +100,8 @@ pub async fn handle_get(
 
         if let Some(record) = db::composed::ComposedEntry::find_from_entry(conn, &path.entry_id, &is_private).await? {
             if record.entry.owner == owner {
-                Ok(response::json::respond_json(
-                    http::StatusCode::OK, 
-                    response::json::MessageDataJSON::build(
-                        "successful",
-                        record
-                    )
-                ))
+                JsonBuilder::new(http::StatusCode::OK)
+                    .build(Some(record))
             } else {
                 Err(app_error::ResponseError::PermissionDenied(
                     format!("entry owner mis-match. requested entry is not owned by {}", owner)
@@ -376,13 +372,8 @@ pub async fn handle_put(
 
     transaction.commit().await?;
     
-    Ok(response::json::respond_json(
-        http::StatusCode::OK,
-        response::json::MessageDataJSON::build(
-            "successful",
-            rtn
-        )
-    ))
+    JsonBuilder::new(http::StatusCode::OK)
+        .build(Some(rtn))
 }
 
 /**
@@ -431,5 +422,6 @@ pub async fn handle_delete(
 
     transaction.commit().await?;
 
-    Ok(response::json::respond_okay())
+    JsonBuilder::new(http::StatusCode::OK)
+        .build(None::<()>)
 }

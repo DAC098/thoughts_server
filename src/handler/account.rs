@@ -5,6 +5,7 @@ use lettre::message::Mailbox;
 
 use tlib::db;
 
+use crate::response::json::JsonBuilder;
 use crate::state;
 use crate::request::{initiator_from_request, Initiator};
 use crate::response;
@@ -33,13 +34,8 @@ pub async fn handle_get(
     } else {
         let initiator = initiator_opt.unwrap();
 
-        Ok(response::json::respond_json(
-            http::StatusCode::OK,
-            response::json::MessageDataJSON::build(
-                "successful",
-                initiator.user
-            )
-        ))
+        JsonBuilder::new(http::StatusCode::OK)
+            .build(Some(initiator.user))
     }
 }
 
@@ -130,30 +126,25 @@ pub async fn handle_put(
         ).await?;
 
         let email_message = Message::builder()
-        .from(email.get_from().unwrap())
-        .to(to_mailbox.unwrap())
-        .subject("Verify Changed Email")
-        .multipart(email::message_body::verify_email_body(
-            server_info.url_origin(), hex_str
-        ))?;
+            .from(email.get_from().unwrap())
+            .to(to_mailbox.unwrap())
+            .subject("Verify Changed Email")
+            .multipart(email::message_body::verify_email_body(
+                server_info.url_origin(), hex_str
+            ))?;
 
         email.get_transport()?.send(&email_message)?;
     }
 
     transaction.commit().await?;
     
-    Ok(response::json::respond_json(
-        http::StatusCode::OK,
-        response::json::MessageDataJSON::build(
-            "successful",
-            db::users::User {
-                id: initiator.user.id,
-                username: posted.username,
-                full_name: posted.full_name,
-                level: initiator.user.level,
-                email: email_value,
-                email_verified: email_verified
-            }
-        )
-    ))
+    JsonBuilder::new(http::StatusCode::OK)
+        .build(Some(db::users::User {
+            id: initiator.user.id,
+            username: posted.username,
+            full_name: posted.full_name,
+            level: initiator.user.level,
+            email: email_value,
+            email_verified
+        }))
 }

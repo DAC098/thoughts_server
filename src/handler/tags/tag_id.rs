@@ -5,6 +5,7 @@ use tlib::db;
 
 use crate::request::{initiator_from_request, Initiator};
 use crate::response;
+use crate::response::json::JsonBuilder;
 use crate::state;
 use crate::security;
 
@@ -43,13 +44,8 @@ pub async fn handle_get(
                     format!("you do not have permission to view this tag. id: {}", tag.id)
                 ))
             } else {
-                Ok(response::json::respond_json(
-                    http::StatusCode::OK,
-                    response::json::MessageDataJSON::build(
-                        "successful",
-                        tag
-                    )
-                ))
+                JsonBuilder::new(http::StatusCode::OK)
+                    .build(Some(tag))
             }
         } else {
             Err(error::ResponseError::TagNotFound(path.tag_id))
@@ -81,19 +77,14 @@ pub async fn handle_put(
 
     transaction.commit().await?;
 
-    Ok(response::json::respond_json(
-        http::StatusCode::OK,
-        response::json::MessageDataJSON::build(
-            "successful", 
-            db::tags::Tag {
-                id: path.tag_id,
-                title: posted.title.clone(),
-                color: posted.color.clone(),
-                comment: posted.comment.clone(),
-                owner: initiator.user.id
-            }
-        )
-    ))
+    JsonBuilder::new(http::StatusCode::OK)
+        .build(Some(db::tags::Tag {
+            id: path.tag_id,
+            title: posted.title.clone(),
+            color: posted.color.clone(),
+            comment: posted.comment.clone(),
+            owner: initiator.user.id
+        }))
 }
 
 pub async fn handle_delete(
@@ -118,5 +109,6 @@ pub async fn handle_delete(
 
     transaction.commit().await?;
 
-    Ok(response::json::respond_okay())
+    JsonBuilder::new(http::StatusCode::OK)
+        .build(None::<()>)
 }

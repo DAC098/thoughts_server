@@ -5,6 +5,7 @@ use tlib::db;
 
 pub mod comment_id;
 
+use crate::response::json::JsonBuilder;
 use crate::state;
 use crate::response;
 use crate::request::{initiator_from_request, Initiator};
@@ -49,16 +50,11 @@ pub async fn handle_get(
 
         security::assert::is_owner_of_entry(conn, &owner, &path.entry_id).await?;
 
-        Ok(response::json::respond_json(
-            http::StatusCode::OK,
-            response::json::MessageDataJSON::build(
-                "successful",
-                db::composed::ComposedEntryComment::find_from_entry(
-                    conn,
-                    &path.entry_id
-                ).await?
-            )
-        ))
+        JsonBuilder::new(http::StatusCode::OK)
+            .build(Some(db::composed::ComposedEntryComment::find_from_entry(
+                conn,
+                &path.entry_id
+            ).await?))
     }
 }
 
@@ -105,21 +101,16 @@ pub async fn handle_post(
 
     transaction.commit().await?;
 
-    Ok(response::json::respond_json(
-        http::StatusCode::OK, 
-        response::json::MessageDataJSON::build(
-            "successful",
-            db::composed::ComposedEntryComment {
-                user: initiator.into(),
-                comment: db::entry_comments::EntryComment {
-                    id: record.get(0),
-                    entry: path.entry_id,
-                    owner: owner,
-                    comment: posted.comment,
-                    created: now,
-                    updated: None
-                }
+    JsonBuilder::new(http::StatusCode::OK)
+        .build(Some(db::composed::ComposedEntryComment {
+            user: initiator.into(),
+            comment: db::entry_comments::EntryComment {
+                id: record.get(0),
+                entry: path.entry_id,
+                owner: owner,
+                comment: posted.comment,
+                created: now,
+                updated: None
             }
-        )
-    ))
+        }))
 }

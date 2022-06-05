@@ -9,9 +9,9 @@ use chrono::{DateTime, Utc};
 use chrono::serde::ts_seconds;
 //use tokio_postgres::{Client, RowStream};
 //use futures::{pin_mut, Stream, TryStreamExt, future};
-use futures::{future};
+use futures::future;
 
-use tlib::{db};
+use tlib::db;
 use tlib::db::{
     custom_field_entries,
     entries,
@@ -25,9 +25,9 @@ use db::composed::ComposedEntry;
 pub mod entry_id;
 
 use crate::response;
+use crate::response::json::JsonBuilder;
 use crate::state;
 use crate::request::{initiator_from_request, Initiator};
-use crate::json;
 use crate::getters;
 use crate::security;
 use crate::parsing;
@@ -78,7 +78,6 @@ pub struct EntriesQuery {
     from: Option<String>,
     to: Option<String>,
     tags: Option<String>,
-    version: Option<i32>,
     from_marker: Option<i32>,
     to_marker: Option<i32>,
 }
@@ -120,27 +119,6 @@ pub async fn handle_get(
         } else {
             is_private = None;
             owner = initiator.user.id;
-        }
-
-        if let Some(version) = info.version {
-            if version == 1 {
-                return Ok(response::json::respond_json(
-                    http::StatusCode::OK, 
-                    response::json::MessageDataJSON::build(
-                        "successful", 
-                        json::search_entries(
-                            &*pool_conn, 
-                            json::SearchEntriesOptions {
-                                owner,
-                                from: parsing::url_query::get_date(&info.from)?,
-                                to: parsing::url_query::get_date(&info.to)?,
-                                tags: parsing::url_query::get_tags(&info.tags),
-                                is_private
-                            }
-                        ).await?
-                    )
-                ));
-            }
         }
 
         let mut results = {
@@ -422,12 +400,8 @@ pub async fn handle_get(
             });
         }
 
-        Ok(response::json::respond_json(
-            http::StatusCode::OK, 
-            response::json::MessageDataJSON::build(
-                "successful", rtn
-            )
-        ))
+        JsonBuilder::new(http::StatusCode::OK)
+            .build(Some(rtn))
     }
 }
 
@@ -541,21 +515,16 @@ pub async fn handle_post(
 
     transaction.commit().await?;
 
-    Ok(response::json::respond_json(
-        http::StatusCode::OK,
-        response::json::MessageDataJSON::build(
-            "successful", 
-            composed::ComposedEntry {
-                entry: entries::Entry {
-                    id: result.get(0),
-                    day: result.get(1),
-                    owner: initiator.user.id,
-                },
-                tags: entry_tags,
-                markers: entry_markers,
-                custom_field_entries,
-                text_entries
-            }
-        )
-    ))
+    JsonBuilder::new(http::StatusCode::OK)
+        .build(Some(composed::ComposedEntry {
+            entry: entries::Entry {
+                id: result.get(0),
+                day: result.get(1),
+                owner: initiator.user.id,
+            },
+            tags: entry_tags,
+            markers: entry_markers,
+            custom_field_entries,
+            text_entries
+        }))
 }

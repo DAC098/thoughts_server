@@ -2,6 +2,7 @@ use actix_web::{http, HttpRequest, Responder, error};
 
 use crate::request::initiator_from_request;
 use crate::response;
+use crate::response::json::JsonBuilder;
 use crate::state;
 
 use response::error as app_error;
@@ -146,9 +147,8 @@ pub async fn handle_not_found(
     } else if initiator_opt.is_none() {
         Err(app_error::ResponseError::Session)
     } else {
-        Ok(response::json::respond_json(
-            http::StatusCode::NOT_FOUND,
-            response::json::only_message("not found")
-        ))
+        JsonBuilder::new(http::StatusCode::NOT_FOUND)
+            .set_message("not found")
+            .build(None::<()>)
     }
 }

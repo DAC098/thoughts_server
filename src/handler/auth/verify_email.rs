@@ -1,6 +1,8 @@
+use actix_web::http;
 use actix_web::{web, Responder};
 use serde::{Deserialize};
 
+use crate::response::json::JsonBuilder;
 use crate::state;
 use crate::response;
 use crate::util;
@@ -18,7 +20,9 @@ pub async fn handle_get(
     info: web::Query<QueryOptions>,
 ) -> error::Result<impl Responder> {
     if !email.is_enabled() {
-        return Ok(response::json::respond_message("email disabled for server"));
+        return JsonBuilder::new(http::StatusCode::OK)
+            .set_message("email disabled for server")
+            .build(None::<()>);
     }
 
     let conn = &mut *db.get_conn().await?;
@@ -29,7 +33,9 @@ pub async fn handle_get(
     ).await?;
 
     if record.is_empty() {
-        return Ok(response::json::respond_message("verification id not found"));
+        return JsonBuilder::new(http::StatusCode::OK)
+            .set_message("verification id not found")
+            .build(None::<()>);
     }
 
     let owner: i32 = record[0].get(0);
@@ -44,7 +50,9 @@ pub async fn handle_get(
     ).await?;
 
     if issued + chrono::Duration::days(3) < now {
-        return Ok(response::json::respond_message("verification id has expired"));
+        return JsonBuilder::new(http::StatusCode::OK)
+            .set_message("verification id has expired")
+            .build(None::<()>);
     }
 
     transaction.execute(
@@ -54,5 +62,7 @@ pub async fn handle_get(
 
     transaction.commit().await?;
 
-    Ok(response::json::respond_message("email verified"))
+    JsonBuilder::new(http::StatusCode::OK)
+        .set_message("email verified")
+        .build(None::<()>)
 }

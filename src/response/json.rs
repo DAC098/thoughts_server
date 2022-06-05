@@ -42,34 +42,6 @@ impl ErrorJSON {
     }
 }
 
-#[derive(Serialize)]
-pub struct MessageDataJSON<T: Serialize> {
-    message: String,
-    date: String,
-    data: T
-}
-
-impl<T: Serialize> MessageDataJSON<T> {
-
-    pub fn build<M>(m: M, d: T) -> MessageDataJSON<T>
-    where
-        M: Into<String>
-    {
-        MessageDataJSON {
-            message: m.into(),
-            date: util::time::now_rfc3339(),
-            data: d
-        }
-    }
-}
-
-pub fn only_message<M>(m: M) -> MessageDataJSON<Option<()>>
-where
-    M: Into<String> 
-{
-    MessageDataJSON::build(m, None)
-}
-
 pub fn respond_json<T>(status: http::StatusCode, data: T) -> HttpResponse
 where
     T: Serialize 
@@ -77,39 +49,6 @@ where
     let mut builder = HttpResponse::build(status);
     builder.insert_header((http::header::CONTENT_TYPE, "application/json"));
     builder.json(data)
-}
-
-#[allow(dead_code)]
-pub fn respond_json_headers<T, H>(status: http::StatusCode, data: T, headers: Vec<H>) -> HttpResponse
-where
-    T: Serialize,
-    H: TryIntoHeaderPair
-{
-    let mut builder = HttpResponse::build(status);
-
-    for header in headers {
-        builder.insert_header(header);
-    }
-
-    builder.insert_header((http::header::CONTENT_TYPE, "application/json"));
-    builder.json(data)
-}
-
-pub fn respond_okay() -> HttpResponse {
-    respond_json(
-        http::StatusCode::OK,
-        only_message("okay")
-    )
-}
-
-pub fn respond_message<T>(msg: T) -> HttpResponse 
-where
-    T: Into<String>
-{
-    respond_json(
-        http::StatusCode::OK,
-        only_message(msg)
-    )
 }
 
 pub struct JsonBuilder {

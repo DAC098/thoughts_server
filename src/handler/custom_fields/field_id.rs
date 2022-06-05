@@ -5,6 +5,7 @@ use tlib::db;
 
 use crate::request::{initiator_from_request, Initiator};
 use crate::response;
+use crate::response::json::JsonBuilder;
 use crate::state;
 use crate::security;
 
@@ -48,13 +49,8 @@ pub async fn handle_get(
 
         if let Some(field) = db::custom_fields::find_from_id(conn, &path.field_id).await? {
             if field.owner == owner {
-                Ok(response::json::respond_json(
-                    http::StatusCode::OK,
-                    response::json::MessageDataJSON::build(
-                        "successful",
-                        field
-                    )
-                ))
+                JsonBuilder::new(http::StatusCode::OK)
+                    .build(Some(field))
             } else {
                 Err(ResponseError::PermissionDenied(
                     format!("custom field owner mis-match. requested custom field is not owned by {}", owner)
@@ -102,21 +98,16 @@ pub async fn handle_put(
         ]
     ).await?;
 
-    Ok(response::json::respond_json(
-        http::StatusCode::OK,
-        response::json::MessageDataJSON::build(
-            "successful",
-            db::custom_fields::CustomField {
-                id: path.field_id,
-                name: result.get(0),
-                config: posted.config.clone(),
-                comment: result.get(1),
-                owner: initiator.user.id,
-                order: posted.order,
-                issued_by: None
-            }
-        )
-    ))
+    JsonBuilder::new(http::StatusCode::OK)
+        .build(Some(db::custom_fields::CustomField {
+            id: path.field_id,
+            name: result.get(0),
+            config: posted.config.clone(),
+            comment: result.get(1),
+            owner: initiator.user.id,
+            order: posted.order,
+            issued_by: None
+        }))
 }
 
 pub async fn handle_delete(
@@ -137,5 +128,6 @@ pub async fn handle_delete(
         &[&path.field_id]
     ).await?;
 
-    Ok(response::json::respond_okay())
+    JsonBuilder::new(http::StatusCode::OK)
+        .build(None::<()>)
 }

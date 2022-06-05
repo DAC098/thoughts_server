@@ -3,6 +3,7 @@ use serde::Deserialize;
 
 use tlib::db;
 
+use crate::response::json::JsonBuilder;
 use crate::state;
 use crate::response;
 use crate::request::Initiator;
@@ -64,23 +65,18 @@ pub async fn handle_put(
 
         transaction.commit().await?;
 
-        Ok(response::json::respond_json(
-            http::StatusCode::OK,
-            response::json::MessageDataJSON::build(
-                "successful",
-                db::composed::ComposedEntryComment {
-                    user: initiator.into(),
-                    comment: db::entry_comments::EntryComment {
-                        id: original.id,
-                        entry: original.entry,
-                        owner: original.owner,
-                        comment: posted.comment,
-                        created: original.created,
-                        updated: Some(now)
-                    }
+        JsonBuilder::new(http::StatusCode::OK)
+            .build(Some(db::composed::ComposedEntryComment {
+                user: initiator.into(),
+                comment: db::entry_comments::EntryComment {
+                    id: original.id,
+                    entry: original.entry,
+                    owner: original.owner,
+                    comment: posted.comment,
+                    created: original.created,
+                    updated: Some(now)
                 }
-            )
-        ))
+            }))
     } else {
         Err(response::error::ResponseError::EntryCommentNotFound(path.comment_id))
     }

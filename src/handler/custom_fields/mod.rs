@@ -7,6 +7,7 @@ pub mod field_id;
 
 use crate::request::{initiator_from_request, Initiator};
 use crate::response;
+use crate::response::json::JsonBuilder;
 use crate::state;
 use crate::security;
 
@@ -46,13 +47,8 @@ pub async fn handle_get(
             owner = initiator.user.id;
         }
 
-        Ok(response::json::respond_json(
-            http::StatusCode::OK,
-            response::json::MessageDataJSON::build(
-                "successful",
-                db::custom_fields::find_from_owner(conn, &owner).await?
-            )
-        ))
+        JsonBuilder::new(http::StatusCode::OK)
+            .build(Some(db::custom_fields::find_from_owner(conn, &owner).await?))
     }
     
 }
@@ -96,19 +92,14 @@ pub async fn handle_post(
         ]
     ).await?;
 
-    Ok(response::json::respond_json(
-        http::StatusCode::OK,
-        response::json::MessageDataJSON::build(
-            "successful",
-            db::custom_fields::CustomField {
-                id: result.get(0),
-                name: result.get(1),
-                config: serde_json::from_value(result.get(2))?,
-                comment: result.get(3),
-                owner: initiator.user.id,
-                order: posted.order,
-                issued_by: None
-            }
-        )
-    ))
+    JsonBuilder::new(http::StatusCode::OK)
+        .build(Some(db::custom_fields::CustomField {
+            id: result.get(0),
+            name: result.get(1),
+            config: serde_json::from_value(result.get(2))?,
+            comment: result.get(3),
+            owner: initiator.user.id,
+            order: posted.order,
+            issued_by: None
+        }))
 }

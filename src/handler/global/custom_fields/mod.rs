@@ -7,6 +7,7 @@ pub mod field_id;
 
 use crate::request::{initiator_from_request, Initiator};
 use crate::response;
+use crate::response::json::JsonBuilder;
 use crate::state;
 use crate::security;
 
@@ -30,13 +31,8 @@ pub async fn handle_get(
     } else if initiator_opt.is_none() {
         Err(ResponseError::Session)
     } else {
-        Ok(response::json::respond_json(
-            http::StatusCode::OK,
-            response::json::MessageDataJSON::build(
-                "successful",
-                db::global_custom_fields::find_all(conn).await?
-            )
-        ))
+        JsonBuilder::new(http::StatusCode::OK)
+            .build(Some(db::global_custom_fields::find_all(conn).await?))
     }
 }
 
@@ -82,16 +78,11 @@ pub async fn handle_post(
 
     transaction.commit().await?;
 
-    Ok(response::json::respond_json(
-        http::StatusCode::OK,
-        response::json::MessageDataJSON::build(
-            "successful",
-            db::global_custom_fields::GlobalCustomField {
-                id: result.get(0),
-                name: posted.name,
-                comment: posted.comment,
-                config: posted.config
-            }
-        )
-    ))
+    JsonBuilder::new(http::StatusCode::OK)
+        .build(Some(db::global_custom_fields::GlobalCustomField {
+            id: result.get(0),
+            name: posted.name,
+            comment: posted.comment,
+            config: posted.config
+        }))
 }

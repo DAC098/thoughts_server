@@ -9,6 +9,7 @@ use crate::request::Initiator;
 use crate::request::initiator_from_request;
 use crate::response;
 use crate::request::url_query;
+use crate::response::json::JsonBuilder;
 use crate::state;
 use crate::json;
 
@@ -177,5 +178,7 @@ pub async fn handle_post(
 
     transaction.commit().await?;
 
-    Ok(response::json::respond_okay())
+    JsonBuilder::new(http::StatusCode::OK)
+        .set_message("okay")
+        .build(None::<()>)
 }

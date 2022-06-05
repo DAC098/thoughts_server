@@ -5,6 +5,7 @@ pub mod user_id;
 
 use crate::request::initiator_from_request;
 use crate::response;
+use crate::response::json::JsonBuilder;
 use crate::state;
 
 use response::error;
@@ -88,12 +89,7 @@ pub async fn handle_get(
             });
         }
 
-        Ok(response::json::respond_json(
-            http::StatusCode::OK,
-            response::json::MessageDataJSON::build(
-                "successful",
-                UserListJson {given, allowed}
-            )
-        ))
+        JsonBuilder::new(http::StatusCode::OK)
+            .build(Some(UserListJson {given, allowed}))
     }
 }
