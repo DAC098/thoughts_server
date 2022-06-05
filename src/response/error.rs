@@ -227,8 +227,8 @@ impl ActixResponseError for ResponseError {
 
         JsonBuilder::new(self.status_code())
             .set_message(self.get_msg())
-            .set_error(Some(err_msg))
-            .build(None::<()>)
+            .set_error(err_msg)
+            .build_empty()
             .unwrap()
     }
     

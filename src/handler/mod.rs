@@ -44,91 +44,62 @@ pub fn handle_json_error(
     err: error::JsonPayloadError,
     _req: &HttpRequest
 ) -> error::Error {
-    let err_str = err.to_string();
-
     let response = match &err {
         error::JsonPayloadError::OverflowKnownLength {
             length, limit
         } => {
-            response::json::respond_json(
-                http::StatusCode::INTERNAL_SERVER_ERROR, 
-                response::json::ErrorJSON::build(
-                    format!("given json payload is too large. length: {} max size: {}", length, limit),
-                    "JsonPayloadTooLarge"
-                )
-            )
+            JsonBuilder::new(http::StatusCode::INTERNAL_SERVER_ERROR)
+                .set_message(format!("given json payload is too large. length: {} max size: {}", length, limit))
+                .set_error("JsonPayloadTooLarge")
+                .build_empty()
         },
         error::JsonPayloadError::Overflow { limit } => {
-            response::json::respond_json(
-                http::StatusCode::INTERNAL_SERVER_ERROR,
-                response::json::ErrorJSON::build(
-                    format!("given json payload is too large. max size: {}", limit),
-                    "JsonPayloadTooLarge"
-                )
-            )
+            JsonBuilder::new(http::StatusCode::INTERNAL_SERVER_ERROR)
+                .set_message(format!("given json payload is too large. max size: {}", limit))
+                .set_error("JsonPayloadTooLarge")
+                .build_empty()
         },
         error::JsonPayloadError::ContentType => {
-            response::json::respond_json(
-                http::StatusCode::CONFLICT,
-                response::json::ErrorJSON::build(
-                    "json content type error",
-                    "JsonInvalidContentType"
-                )
-            )
+            JsonBuilder::new(http::StatusCode::CONFLICT)
+                .set_message("json content type error")
+                .set_error("JsonInvalidContentType")
+                .build_empty()
         },
         error::JsonPayloadError::Serialize(err) |
         error::JsonPayloadError::Deserialize(err) => {
             if err.is_io() {
-                response::json::respond_json(
-                    http::StatusCode::INTERNAL_SERVER_ERROR,
-                    response::json::ErrorJSON::build(
-                        "json io error",
-                        "JsonIOError"
-                    )
-                )
+                JsonBuilder::new(http::StatusCode::INTERNAL_SERVER_ERROR)
+                    .set_message("json io error")
+                    .set_error("JsonIOError")
+                    .build_empty()
             } else if err.is_syntax() {
-                response::json::respond_json(
-                    http::StatusCode::BAD_REQUEST,
-                    response::json::ErrorJSON::build(
-                        format!("json syntax error. line: {} column: {}", err.line(), err.column()),
-                        "JsonSyntaxError"
-                    )
-                )
+                JsonBuilder::new(http::StatusCode::BAD_REQUEST)
+                    .set_message(format!("json syntax error. line: {} column: {}", err.line(), err.column()))
+                    .set_error("JsonSyntaxError")
+                    .build_empty()
             } else if err.is_data() {
-                response::json::respond_json(
-                    http::StatusCode::INTERNAL_SERVER_ERROR,
-                    response::json::ErrorJSON::build(
-                        "json data error",
-                        "JsonDataError"
-                    )
-                )
+                JsonBuilder::new(http::StatusCode::INTERNAL_SERVER_ERROR)
+                    .set_message("json data error")
+                    .set_error("JsonDataError")
+                    .build_empty()
             } else if err.is_eof() {
-                response::json::respond_json(
-                    http::StatusCode::INTERNAL_SERVER_ERROR,
-                    response::json::ErrorJSON::build(
-                        "json unexpected end of input",
-                        "JsonEof"
-                    )
-                )
+                JsonBuilder::new(http::StatusCode::INTERNAL_SERVER_ERROR)
+                    .set_message("json unexpected end of input")
+                    .set_error("JsonEof")
+                    .build_empty()
             } else {
-                response::json::respond_json(
-                    http::StatusCode::INTERNAL_SERVER_ERROR,
-                    response::json::ErrorJSON::build(
-                        "given json is not valid",
-                        "JsonInvalid"
-                    )
-                )
+                JsonBuilder::new(http::StatusCode::INTERNAL_SERVER_ERROR)
+                    .set_message("given json is not valid")
+                    .set_error("JsonInvalid")
+                    .build_empty()
             }
         },
-        _ => response::json::respond_json(
-            http::StatusCode::CONFLICT,
-            response::json::ErrorJSON::build_with_err(
-                "given json is not valid",
-                "JsonInvalid",
-                err_str
-            )
-        )
-    };
+        _ => JsonBuilder::new(http::StatusCode::CONFLICT)
+            .set_message("given json is not valid")
+            .set_error("JsonInvalid")
+            .set_reason(err.to_string())
+            .build_empty()
+    }.unwrap();
 
     error::InternalError::from_response(err, response).into()
 }
@@ -139,9 +110,9 @@ pub async fn handle_file_serving(
 ) -> response_error::Result<impl Responder> {
     if req.method() != Method::GET {
         return JsonBuilder::new(http::StatusCode::METHOD_NOT_ALLOWED)
-            .set_error(Some("MethodNotAllowed".into()))
+            .set_error("MethodNotAllowed")
             .set_message("requested method is not accepted by this resource")
-            .build(None::<()>)
+            .build_empty()
     }
 
     let lookup = req.uri().path();
@@ -158,9 +129,9 @@ pub async fn handle_file_serving(
                 for value in stripped.split("/") {
                     if value == ".." || value == "." || value.len() == 0 {
                         return JsonBuilder::new(http::StatusCode::BAD_REQUEST)
-                            .set_error(Some("MalformedResourcePath".into()))
+                            .set_error("MalformedResourcePath")
                             .set_message("resource path given contains invalid segments. \"..\", \".\", and \"\" are not allowed in the path")
-                            .build(None::<()>)
+                            .build_empty()
                     }
 
                     if first {
@@ -187,8 +158,8 @@ pub async fn handle_file_serving(
             .into_response(&req))
     } else {
         JsonBuilder::new(http::StatusCode::NOT_FOUND)
-            .set_error(Some("NotFound".into()))
+            .set_error("NotFound")
             .set_message("the requested resource was not found")
-            .build(None::<()>)
+            .build_empty()
     }
 }

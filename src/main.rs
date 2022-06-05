@@ -76,11 +76,11 @@ fn app_runner() -> Result<i32> {
 async fn server_runner(config: config::ServerConfig) -> Result<i32> {
     let db_config = {
         let mut rtn = PGConfig::new();
-        rtn.user(config.db.username.as_ref());
+        rtn.user(&config.db.username);
         rtn.password(config.db.password);
-        rtn.host(config.db.hostname.as_ref());
+        rtn.host(&config.db.hostname);
         rtn.port(config.db.port);
-        rtn.dbname(config.db.database.as_ref());
+        rtn.dbname(&config.db.database);
         rtn
     };
 
@@ -112,6 +112,8 @@ async fn server_runner(config: config::ServerConfig) -> Result<i32> {
         App::new()
             .app_data(
                 web::JsonConfig::default()
+                    .content_type_required(true)
+                    .content_type(request::is_json_mime)
                     .error_handler(handler::handle_json_error)
             )
             .app_data(db_state_ref.clone())

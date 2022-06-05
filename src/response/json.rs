@@ -1,46 +1,9 @@
 use actix_web::{http, HttpResponse, HttpResponseBuilder};
 use actix_web::http::header::TryIntoHeaderPair;
 use serde::Serialize;
+use serde_json::json;
 
 use super::error;
-use crate::util;
-
-#[derive(Serialize)]
-pub struct ErrorJSON {
-    r#type: String,
-    message: String,
-    date: String,
-    error: Option<String>
-}
-
-impl ErrorJSON {
-    pub fn build<M, T>(m: M, t: T) -> ErrorJSON
-    where
-        M: Into<String>,
-        T: Into<String>
-    {
-        ErrorJSON {
-            r#type: t.into(),
-            message: m.into(),
-            date: util::time::now_rfc3339(),
-            error: None
-        }
-    }
-
-    pub fn build_with_err<M, T, E>(m: M, t: T, e: E) -> ErrorJSON
-    where
-        M: Into<String>,
-        T: Into<String>,
-        E: ToString
-    {
-        ErrorJSON {
-            r#type: t.into(),
-            message: m.into(),
-            date: util::time::now_rfc3339(),
-            error: Some(e.to_string())
-        }
-    }
-}
 
 pub fn respond_json<T>(status: http::StatusCode, data: T) -> HttpResponse
 where
@@ -55,16 +18,18 @@ pub struct JsonBuilder {
     builder: HttpResponseBuilder,
     message: String,
     error: Option<String>,
+    reason: Option<String>,
     time: Option<chrono::DateTime<chrono::Utc>>
 }
 
 impl JsonBuilder {
     pub fn new(status: http::StatusCode) -> JsonBuilder {
-        JsonBuilder { 
-            builder: HttpResponse::build(status), 
-            message: "successful".into(), 
-            error: None, 
-            time: Some(chrono::Utc::now())
+        JsonBuilder {
+            builder: HttpResponse::build(status),
+            message: "successful".into(),
+            error: None,
+            reason: None,
+            time: None,
         }
     }
 
@@ -76,13 +41,29 @@ impl JsonBuilder {
         self
     }
 
-    pub fn set_error(mut self, error: Option<String>) -> JsonBuilder {
-        self.error = error;
+    pub fn set_error<E>(mut self, error: E) -> JsonBuilder
+    where
+        E: Into<String>
+    {
+        self.error = Some(error.into());
         self
     }
 
-    // pub fn set_time(mut self, time: Option<chrono::DateTime<chrono::Utc>>) -> JsonBuilder {
-    //     self.time = time;
+    pub fn set_reason<R>(mut self, reason: R) -> JsonBuilder
+    where
+        R: Into<String>
+    {
+        self.error = Some(reason.into());
+        self
+    }
+
+    // pub fn set_time(mut self, time: chrono::DateTime<chrono::Utc>) -> JsonBuilder {
+    //     self.time = Some(time);
+    //     self
+    // }
+
+    // pub fn set_time_now(mut self) -> JsonBuilder {
+    //     self.time = Some(chrono::Utc::now());
     //     self
     // }
 
@@ -95,22 +76,33 @@ impl JsonBuilder {
     where
         T: Serialize
     {
-        let mut map = serde_json::Map::new();
+        let mut json = if let Some(data) = data {
+            json!({"data": data})
+        } else {
+            serde_json::Value::Object(serde_json::Map::<String, serde_json::Value>::new())
+        };
+
+        let map = json.as_object_mut().unwrap();
         map.insert("message".into(), serde_json::Value::String(self.message));
 
         if let Some(error) = self.error {
             map.insert("error".into(), serde_json::Value::String(error));
         }
 
+        if let Some(reason) = self.reason {
+            map.insert("reason".into(), serde_json::Value::String(reason));
+        }
+
         if let Some(time) = self.time {
             map.insert("timestamp".into(), serde_json::Value::Number(serde_json::Number::from(time.timestamp())));
         }
 
-        if let Some(data) = data {
-            map.insert("data".into(), serde_json::to_value(data)?);
-        }
-
         self.builder.insert_header((http::header::CONTENT_TYPE, "application/json"));
         Ok(self.builder.json(map))
+    }
+
+    #[inline]
+    pub fn build_empty(self) -> error::Result<HttpResponse> {
+        self.build(None::<()>)
     }
 }
