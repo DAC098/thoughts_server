@@ -86,7 +86,6 @@ async fn server_runner(config: config::ServerConfig) -> Result<i32> {
 
     let session_domain = config.session.domain;
     let bind_config = config.bind;
-    let file_serving_config = config.file_serving;
 
     let db_state_ref = web::Data::new(state::db::DBState::new(
         bb8::Pool::builder().build(
@@ -105,6 +104,9 @@ async fn server_runner(config: config::ServerConfig) -> Result<i32> {
     let storage_state_ref = web::Data::new(state::storage::StorageState::new(
         config.storage
     )?);
+    let file_serving_ref = web::Data::new(state::file_serving::FileServingState::from(
+        config.file_serving
+    ));
 
     let mut server = HttpServer::new(move || {
         App::new()
@@ -117,6 +119,7 @@ async fn server_runner(config: config::ServerConfig) -> Result<i32> {
             .app_data(email_state_ref.clone())
             .app_data(server_info_state_ref.clone())
             .app_data(storage_state_ref.clone())
+            .app_data(file_serving_ref.clone())
             .wrap(Logger::new("%a XF-%{X-Forwarded-For}i:%{X-Forwarded-Port}i %t \"%r\" %s %b \"%{Referer}i\" %T"))
 
             .route("/ping", web::get().to(handler::ping::handle_get))
@@ -243,13 +246,8 @@ async fn server_runner(config: config::ServerConfig) -> Result<i32> {
                             .route("/tags", web::get().to(handler::tags::handle_get))
                     )
             )
-            .service(
-                actix_files::Files::new("/static", &file_serving_config.directory)
-                    .show_files_listing()
-                    .redirect_to_slash_directory()
-            )
             .default_service(
-                web::route().to(handler::handle_not_found)
+                web::route().to(handler::handle_file_serving)
             )
     })
         .backlog(config.backlog)

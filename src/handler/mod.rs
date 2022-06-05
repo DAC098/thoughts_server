@@ -1,3 +1,7 @@
+use std::path::PathBuf;
+
+use actix_files::NamedFile;
+use actix_web::http::Method;
 use actix_web::{http, HttpRequest, Responder, error};
 
 use crate::request::initiator_from_request;
@@ -5,7 +9,7 @@ use crate::response;
 use crate::response::json::JsonBuilder;
 use crate::state;
 
-use response::error as app_error;
+use response::error as response_error;
 
 pub mod ping;
 pub mod auth;
@@ -22,7 +26,7 @@ pub mod global;
 pub async fn handle_get(
     req: HttpRequest,
     db: state::WebDbState,
-) -> app_error::Result<impl Responder> {
+) -> response_error::Result<impl Responder> {
     let conn = &*db.get_conn().await?;
 
     match initiator_from_request(conn, &req).await? {
@@ -129,26 +133,62 @@ pub fn handle_json_error(
     error::InternalError::from_response(err, response).into()
 }
 
-pub async fn handle_not_found(
+pub async fn handle_file_serving(
     req: HttpRequest,
-    db: state::WebDbState,
-    template: state::WebTemplateState<'_>,
-) -> app_error::Result<impl Responder> {
-    let accept_html = response::try_check_if_html_req(&req);
-    let conn = &*db.get_conn().await?;
-    let initiator_opt = initiator_from_request(conn, &req).await?;
+    file_serving: state::WebFileServingState
+) -> response_error::Result<impl Responder> {
+    if req.method() != Method::GET {
+        return JsonBuilder::new(http::StatusCode::METHOD_NOT_ALLOWED)
+            .set_error(Some("MethodNotAllowed".into()))
+            .set_message("requested method is not accepted by this resource")
+            .build(None::<()>)
+    }
 
-    if accept_html {
-        if initiator_opt.is_some() {
-            Ok(response::respond_index_html(&template.into_inner(), Some(initiator_opt.unwrap().user))?)
-        } else {
-            Ok(response::redirect_to_path("/auth/login"))
+    let lookup = req.uri().path();
+    let mut to_send: Option<PathBuf> = None;
+
+    if let Some(file_path) = file_serving.files.get(lookup) {
+        to_send = Some(file_path.clone())
+    } else {
+        for (key, path) in file_serving.directories.iter() {
+            if let Some(stripped) = lookup.strip_prefix(key.as_str()) {
+                let mut sanitize = String::with_capacity(stripped.len());
+                let mut first = true;
+
+                for value in stripped.split("/") {
+                    if value == ".." || value == "." || value.len() == 0 {
+                        return JsonBuilder::new(http::StatusCode::BAD_REQUEST)
+                            .set_error(Some("MalformedResourcePath".into()))
+                            .set_message("resource path given contains invalid segments. \"..\", \".\", and \"\" are not allowed in the path")
+                            .build(None::<()>)
+                    }
+
+                    if first {
+                        first = false;
+                    } else {
+                        sanitize.push('/');
+                    }
+
+                    sanitize.push_str(value);
+                }
+
+                let mut file_path = path.clone();
+                file_path.push(sanitize);
+
+                to_send = Some(file_path);
+                break;
+            }
         }
-    } else if initiator_opt.is_none() {
-        Err(app_error::ResponseError::Session)
+    }
+
+    if let Some(file_path) = to_send {
+        Ok(NamedFile::open_async(file_path)
+            .await?
+            .into_response(&req))
     } else {
         JsonBuilder::new(http::StatusCode::NOT_FOUND)
-            .set_message("not found")
+            .set_error(Some("NotFound".into()))
+            .set_message("the requested resource was not found")
             .build(None::<()>)
     }
 }
