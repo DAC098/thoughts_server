@@ -1,9 +1,4 @@
 target/
-static/main.*
-static/runtime.*
-static/vendor.*
-static/fabric_ui.*
-static/manifest.json
 storage/
 node_modules/
 
