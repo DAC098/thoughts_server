@@ -1,5 +1,5 @@
 create table user_sessions (
-    token uuid primary key not null,
+    token varchar primary key not null,
     owner integer not null,
     
     dropped boolean not null default false,

@@ -9,12 +9,6 @@ pub struct QueryParams<'a> {
 
 impl<'a> QueryParams<'a> {
 
-    pub fn new() -> QueryParams<'a> {
-        QueryParams {
-            params: vec!()
-        }
-    }
-
     pub fn with_capacity(size: usize) -> QueryParams<'a> {
         QueryParams {
             params: Vec::with_capacity(size)
@@ -29,9 +23,9 @@ impl<'a> QueryParams<'a> {
         self.params.len()
     }
 
-    pub fn next(&self) -> usize {
-        self.params.len() + 1
-    }
+    // pub fn next(&self) -> usize {
+    //     self.params.len() + 1
+    // }
 
     pub fn slice(&self) -> &[&'a(dyn ToSql + Sync)] {
         &self.params[..]

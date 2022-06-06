@@ -1,6 +1,6 @@
 use lazy_static::lazy_static;
-use regex::{Regex};
-use serde::{Deserialize};
+use regex::Regex;
+use serde::Deserialize;
 use chrono::{DateTime, Utc, ParseResult, NaiveDateTime};
 
 lazy_static! {

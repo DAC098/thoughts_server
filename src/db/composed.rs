@@ -224,22 +224,22 @@ pub struct ComposedFullUser {
 
 impl ComposedFullUser {
 
-    pub async fn find_from_id(
-        conn: &impl GenericClient,
-        id: &i32,
-        access_as_owner: bool
-    ) -> error::Result<Option<ComposedFullUser>> {
-        if let Some(user_data) = ComposedUser::find_from_id(conn, id).await? {
-            let access = ComposedUserAccess::find(conn, id, access_as_owner).await?;
+    // pub async fn find_from_id(
+    //     conn: &impl GenericClient,
+    //     id: &i32,
+    //     access_as_owner: bool
+    // ) -> error::Result<Option<ComposedFullUser>> {
+    //     if let Some(user_data) = ComposedUser::find_from_id(conn, id).await? {
+    //         let access = ComposedUserAccess::find(conn, id, access_as_owner).await?;
 
-            Ok(Some(ComposedFullUser {
-                user: user_data.user,
-                data: user_data.data,
-                access
-            }))
-        } else {
-            Ok(None)
-        }
-    }
+    //         Ok(Some(ComposedFullUser {
+    //             user: user_data.user,
+    //             data: user_data.data,
+    //             access
+    //         }))
+    //     } else {
+    //         Ok(None)
+    //     }
+    // }
     
 }

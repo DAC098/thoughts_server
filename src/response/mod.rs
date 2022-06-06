@@ -1,7 +1,7 @@
 use actix_web::{http, HttpRequest, HttpResponse, Responder};
 use serde_json::json;
 
-use tlib::db::users;
+use crate::db::users;
 
 pub mod json;
 pub mod error;

@@ -1,12 +1,11 @@
 use std::pin::Pin;
 
 use actix_web::{web, dev::Payload, FromRequest, HttpRequest};
-use tlib::db::user_sessions::UserSession;
+use crate::db::user_sessions::UserSession;
 use tokio_postgres::GenericClient;
 use futures::Future;
 
-use tlib::db::users;
-
+use crate::db::users;
 use crate::state;
 use crate::response::error;
 
@@ -28,22 +27,18 @@ impl Initiator {
 }
 
 pub async fn initiator_from_cookie_map(conn: &impl GenericClient, cookies: &CookieMap) -> error::Result<Option<Initiator>> {
-    if let Some(session_id) = cookies.get_value_ref("session_id") {
-        if let Ok(token) = session_id.parse() {
-            if let Some(session_record) =  UserSession::find_from_token(conn, token).await? {
-                if let Some(user_record) = users::find_from_id(conn, &session_record.owner).await? {
-                    Ok(Some(Initiator {
-                        user: user_record,
-                        session: session_record
-                    }))
-                } else {
-                    Err(error::ResponseError::UserIDNotFound(session_record.owner))
-                }
+    if let Some(token) = cookies.get_value_ref("session_id") {
+        if let Some(session_record) =  UserSession::find_from_token(conn, token).await? {
+            if let Some(user_record) = users::find_from_id(conn, &session_record.owner).await? {
+                Ok(Some(Initiator {
+                    user: user_record,
+                    session: session_record
+                }))
             } else {
-                Ok(None)
+                Err(error::ResponseError::UserIDNotFound(session_record.owner))
             }
         } else {
-            Err(error::ResponseError::Session)
+            Ok(None)
         }
     } else {
         Ok(None)

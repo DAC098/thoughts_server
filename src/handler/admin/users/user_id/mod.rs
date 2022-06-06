@@ -5,7 +5,7 @@ use serde::Deserialize;
 use lettre::{Message, Transport};
 use lettre::message::Mailbox;
 
-use tlib::db;
+use crate::db;
 
 use crate::request::{initiator_from_request, Initiator};
 use crate::response;

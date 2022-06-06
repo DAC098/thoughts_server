@@ -1,8 +1,8 @@
-use tokio_postgres::{GenericClient};
+use tokio_postgres::GenericClient;
 
-use tlib::{db};
+use crate::db;
 
-use crate::response::{error};
+use crate::response::error;
 
 pub async fn get_via_id(
     conn: &impl GenericClient,

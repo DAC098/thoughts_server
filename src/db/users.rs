@@ -113,35 +113,35 @@ pub async fn find_from_id(
     }
 }
 
-pub async fn find_from_session_token(
-    conn: &impl GenericClient,
-    token: uuid::Uuid
-) -> Result<Option<User>> {
-    if let Some(row) = conn.query_opt(
-        "\
-        select id, \
-               username, \
-               full_name, \
-               email, \
-               email_verified, \
-               level \
-        from users \
-        where id = (\
-            select owner \
-            from user_sessions \
-            where token = $1\
-        )",
-        &[&token]
-    ).await? {
-        Ok(Some(User {
-            id: row.get(0),
-            username: row.get(1),
-            full_name: row.get(2),
-            email: row.get(3),
-            email_verified: row.get(4),
-            level: row.get(5)
-        }))
-    } else {
-        Ok(None)
-    }
-}
+// pub async fn find_from_session_token(
+//     conn: &impl GenericClient,
+//     token: uuid::Uuid
+// ) -> Result<Option<User>> {
+//     if let Some(row) = conn.query_opt(
+//         "\
+//         select id, \
+//                username, \
+//                full_name, \
+//                email, \
+//                email_verified, \
+//                level \
+//         from users \
+//         where id = (\
+//             select owner \
+//             from user_sessions \
+//             where token = $1\
+//         )",
+//         &[&token]
+//     ).await? {
+//         Ok(Some(User {
+//             id: row.get(0),
+//             username: row.get(1),
+//             full_name: row.get(2),
+//             email: row.get(3),
+//             email_verified: row.get(4),
+//             level: row.get(5)
+//         }))
+//     } else {
+//         Ok(None)
+//     }
+// }

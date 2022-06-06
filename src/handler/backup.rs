@@ -3,15 +3,13 @@ use std::collections::HashMap;
 use actix_web::{web, http, HttpRequest, Responder};
 use serde::{Serialize, Deserialize};
 
-use tlib::db;
+use crate::db;
 
 use crate::request::Initiator;
 use crate::request::initiator_from_request;
 use crate::response;
-use crate::request::url_query;
 use crate::response::json::JsonBuilder;
 use crate::state;
-use crate::json;
 
 use response::error;
 
@@ -33,9 +31,7 @@ pub async fn handle_get(
     req: HttpRequest,
     db: state::WebDbState,
     template: state::WebTemplateState<'_>,
-    info: web::Query<url_query::QueryEntries>,
 ) -> error::Result<impl Responder> {
-    let info = info.into_inner();
     let accept_html = response::try_check_if_html_req(&req);
     let conn = &*db.get_conn().await?;
     let initiator_opt = initiator_from_request(conn, &req).await?;
@@ -53,13 +49,7 @@ pub async fn handle_get(
         let data = BackupDataJson {
             custom_fields: db::custom_fields::find_from_owner(conn, &initiator.user.id).await?, 
             tags: db::tags::find_from_owner(conn, initiator.user.id).await?, 
-            entries: json::search_entries(conn, json::SearchEntriesOptions { 
-                from: info.get_from()?,
-                to: info.get_to()?,
-                tags: info.get_tags(),
-                owner: initiator.user.id,
-                is_private: None
-            }).await?
+            entries: Vec::new()
         };
 
         Ok(response::json::respond_json(

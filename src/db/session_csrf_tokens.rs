@@ -2,6 +2,7 @@ use tokio_postgres::GenericClient;
 
 use crate::db::error;
 
+#[allow(dead_code)]
 pub struct SessionCsrfToken {
     pub token: String,
     pub session_token: uuid::Uuid,
@@ -10,6 +11,8 @@ pub struct SessionCsrfToken {
 }
 
 impl SessionCsrfToken {
+
+    #[allow(dead_code)]
     pub async fn find_from_token(conn: &impl GenericClient, token: &String) -> error::Result<Option<SessionCsrfToken>> {
         if let Some(record) = conn.query_opt(
             "\

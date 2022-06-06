@@ -1,7 +1,7 @@
 use actix_web::{web, http, HttpRequest, Responder};
 use serde::Deserialize;
 
-use tlib::db;
+use crate::db;
 
 pub mod comment_id;
 
