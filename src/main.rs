@@ -257,9 +257,7 @@ async fn server_runner(config: config::ServerConfig) -> Result<i32> {
                             .route("/tags", web::get().to(handler::tags::handle_get))
                     )
             )
-            .default_service(
-                web::route().to(handler::handle_file_serving)
-            )
+            .default_service(web::route().to(handler::handle_file_serving))
     })
         .backlog(config.backlog)
         .max_connections(config.max_connections)

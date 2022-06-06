@@ -29,6 +29,12 @@ impl Initiator {
 pub async fn initiator_from_cookie_map(conn: &impl GenericClient, cookies: &CookieMap) -> error::Result<Option<Initiator>> {
     if let Some(token) = cookies.get_value_ref("session_id") {
         if let Some(session_record) =  UserSession::find_from_token(conn, token).await? {
+            let now = chrono::Utc::now();
+
+            if session_record.dropped || session_record.expires < now {
+                return Ok(None);
+            }
+
             if let Some(user_record) = users::find_from_id(conn, &session_record.owner).await? {
                 Ok(Some(Initiator {
                     user: user_record,
