@@ -62,7 +62,7 @@ impl FromRequest for Initiator {
     type Future = Pin<Box<dyn Future<Output = error::Result<Self>>>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
-        let app = req.app_data::<web::Data<state::db::DBState>>().unwrap().clone();
+        let app = req.app_data::<web::Data<state::DBState>>().unwrap().clone();
         let cookies = CookieMap::from(req.headers());
 
         Box::pin(async move {

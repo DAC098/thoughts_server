@@ -22,18 +22,7 @@ mod template;
 
 use error::Result;
 
-fn main() {
-    std::process::exit(match app_runner() {
-        Ok(code) => code,
-        Err(err) => {
-            println!("{}", err);
-
-            err.get_code()
-        }
-    });
-}
-
-fn app_runner() -> Result<i32> {
+fn main() -> error::Result<()> {
     let mut conf_files: Vec<std::path::PathBuf> = Vec::new();
     let mut args = std::env::args();
     args.next();
@@ -65,15 +54,15 @@ fn app_runner() -> Result<i32> {
 
     log::debug!("conf: {:#?}", conf);
 
-    let result = actix_web::rt::System::new()
-        .block_on(server_runner(conf));
+    actix_web::rt::System::new()
+        .block_on(server_runner(conf))?;
 
     log::info!("server shutdown");
 
-    result
+    Ok(())
 }
 
-async fn server_runner(config: config::ServerConfig) -> Result<i32> {
+async fn server_runner(config: config::ServerConfig) -> Result<()> {
     let db_config = {
         let mut rtn = PGConfig::new();
         rtn.user(&config.db.username);
@@ -87,24 +76,24 @@ async fn server_runner(config: config::ServerConfig) -> Result<i32> {
     let session_domain = config.session.domain;
     let bind_config = config.bind;
 
-    let db_state_ref = web::Data::new(state::db::DBState::new(
+    let db_state_ref = web::Data::new(state::DBState::new(
         bb8::Pool::builder().build(
             PostgresConnectionManager::new(db_config, NoTls)
         ).await?
     ));
-    let template_state_ref = web::Data::new(state::template::TemplateState::new(
+    let template_state_ref = web::Data::new(state::TemplateState::new(
         template::get_built_registry(config.template)?
     ));
-    let email_state_ref = web::Data::new(state::email::EmailState::new(
+    let email_state_ref = web::Data::new(state::EmailState::new(
         config.email
     ));
-    let server_info_state_ref = web::Data::new(state::server_info::ServerInfoState::new(
+    let server_info_state_ref = web::Data::new(state::ServerInfoState::new(
         config.info
     ));
-    let storage_state_ref = web::Data::new(state::storage::StorageState::new(
+    let storage_state_ref = web::Data::new(state::StorageState::new(
         config.storage
     )?);
-    let file_serving_ref = web::Data::new(state::file_serving::FileServingState::from(
+    let file_serving_ref = web::Data::new(state::FileServingState::from(
         config.file_serving
     ));
 
@@ -281,5 +270,5 @@ async fn server_runner(config: config::ServerConfig) -> Result<i32> {
 
     server.workers(config.threads).run().await?;
 
-    Ok(0)
+    Ok(())
 }

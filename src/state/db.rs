@@ -1,11 +1,14 @@
+use actix_web::web;
 use bb8_postgres::{PostgresConnectionManager, bb8::Pool, bb8::PooledConnection};
-use tokio_postgres::{NoTls};
+use tokio_postgres::NoTls;
 
 use crate::response::error;
 
 pub struct DBState {
     pool: Pool<PostgresConnectionManager<NoTls>>
 }
+
+pub type WebDbState = web::Data<DBState>;
 
 impl DBState {
 

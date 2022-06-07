@@ -1,3 +1,4 @@
+use actix_web::web;
 use lettre::message::Mailbox;
 use lettre::transport::smtp::SmtpTransport;
 use lettre::transport::smtp::authentication::Credentials;
@@ -12,6 +13,8 @@ pub struct EmailState {
     pub relay: Option<String>,
     pub from: Option<Mailbox>
 }
+
+pub type WebEmailState = web::Data<EmailState>;
 
 impl EmailState {
 

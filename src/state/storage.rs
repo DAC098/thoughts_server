@@ -2,6 +2,8 @@ use std::path::PathBuf;
 use std::ffi::OsStr;
 use std::fs;
 
+use actix_web::web;
+
 use crate::config::StorageConfig;
 
 use crate::error;
@@ -10,6 +12,8 @@ pub struct StorageState {
     audio: PathBuf,
     tmp: PathBuf
 }
+
+pub type WebStorageState = web::Data<StorageState>;
 
 impl StorageState {
 

@@ -1,3 +1,5 @@
+use actix_web::web;
+
 use crate::config::ServerInfoConfig;
 
 pub struct ServerInfoState {
@@ -5,6 +7,8 @@ pub struct ServerInfoState {
     pub origin: String,
     pub name: String
 }
+
+pub type WebServerInfoState = web::Data<ServerInfoState>;
 
 impl ServerInfoState {
 

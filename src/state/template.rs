@@ -1,9 +1,12 @@
+use actix_web::web;
 use handlebars::{Handlebars, RenderError};
-use serde::{Serialize};
+use serde::Serialize;
 
 pub struct TemplateState<'a> {
     hb: Handlebars<'a>
 }
+
+pub type WebTemplateState<'a> = web::Data<TemplateState<'a>>;
 
 impl<'a> TemplateState<'a> {
 

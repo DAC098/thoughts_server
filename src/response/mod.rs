@@ -6,7 +6,7 @@ use crate::db::users;
 pub mod json;
 pub mod error;
 
-use crate::state::template::{TemplateState};
+use crate::state::TemplateState;
 
 pub fn respond_index_html(
     template_state: &TemplateState,
