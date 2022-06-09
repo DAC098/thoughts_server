@@ -91,8 +91,8 @@ bind:
 
     # each bind interface can have a specified ssl configuration
     ssl:
-      key: "/path/to/cert"
-      cert: "/path/to/key"
+      key: "/path/to/key"
+      cert: "/path/to/cert"
 
   ipv6:
     host: "::1"
@@ -111,17 +111,23 @@ backlog: 2048
 max_connections: 25000
 max_connection_rate: 256
 
+# security options to specify for the server
+security:
+  # session specific information
+  session:
+    # used in cookie sessions to restrict cookies to a
+    # specific domain
+    domain: ""
+
+  #currently not used
+  secret: ""
+
 db:
   username: "postgres"
   password: "password"
   database: "thoughts"
   port: 5432
   hostname: "localhost"
-
-session:
-  # used in cookie sessions to restrict cookies to a
-  # specific domain
-  domain: ""
 
 email:
   enabled: false
@@ -180,7 +186,8 @@ $ docker-compose start
 
 No idea. If you are interested in helping out with this then sweet!
 
-## THIS IS A WORK IN PROGRESS
-## PLEASE DO NOT USE THIS FOR PRODUCTION PURPOSES YET
+**THIS IS A WORK IN PROGRESS**
+
+**PLEASE DO NOT USE THIS FOR PRODUCTION PURPOSES YET**
 
 First personal project like this so bear with me as I figure this stuff out.
