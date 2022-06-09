@@ -1,5 +1,5 @@
 use lazy_static::lazy_static;
-use regex::{Regex};
+use regex::Regex;
 use chrono::{DateTime, Utc, ParseResult, NaiveDateTime};
 
 lazy_static! {
@@ -24,8 +24,8 @@ pub fn get_tags(tags: &Option<String>) -> Option<Vec<i32>> {
     if let Some(ref_tags) = tags.as_ref() {
         let mut rtn: Vec<i32> = Vec::new();
 
-        for capture in TAGS_REG.captures_iter(ref_tags.as_str()) {
-            if let Ok(tag) = i32::from_str_radix(&capture[1], 10) {
+        for split in ref_tags.split(",") {
+            if let Ok(tag) = i32::from_str_radix(split, 10) {
                 rtn.push(tag);
             }
         }
