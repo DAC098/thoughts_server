@@ -95,7 +95,7 @@ pub async fn handle_get(
     path: web::Path<EntriesPath>,
 ) -> app_error::Result<impl Responder> {
     let info = info.into_inner();
-    let pool_conn = db.get_pool().get().await?;
+    let pool_conn = db.pool.get().await?;
     let accept_html = response::try_check_if_html_req(&req);
     let initiator_opt = initiator_from_request(&*pool_conn, &req).await?;
 

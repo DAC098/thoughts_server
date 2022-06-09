@@ -48,7 +48,7 @@ impl TryFrom<Option<shapes::DBConfigShape>> for DBConfig {
 }
 
 // ----------------------------------------------------------------------------
-// SessionConfig
+// SecurityConfig
 // ----------------------------------------------------------------------------
 
 #[derive(Debug, Clone)]
@@ -67,6 +67,30 @@ impl TryFrom<Option<shapes::SessionConfigShape>> for SessionConfig {
         } else {
             Ok(SessionConfig {
                 domain: "".into()
+            })
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SecurityConfig {
+    pub session: SessionConfig,
+    pub secret: String
+}
+
+impl TryFrom<Option<shapes::SecurityConfigShape>> for SecurityConfig {
+    type Error = error::Error;
+
+    fn try_from(value: Option<shapes::SecurityConfigShape>) -> Result<Self, Self::Error> {
+        if let Some(security) = value {
+            Ok(SecurityConfig {
+                session: security.session.try_into()?,
+                secret: security.secret.unwrap_or("secret".into())
+            })
+        } else {
+            Ok(SecurityConfig {
+                session: (None).try_into()?,
+                secret: "secret".into()
             })
         }
     }
@@ -290,8 +314,8 @@ pub struct ServerConfig {
     pub max_connections: usize,
     pub max_connection_rate: usize,
 
+    pub security: SecurityConfig,
     pub db: DBConfig,
-    pub session: SessionConfig,
     pub email: EmailConfig,
     pub info: ServerInfoConfig,
     pub template: TemplateConfig,
@@ -427,8 +451,8 @@ impl TryFrom<shapes::ServerConfigShape> for ServerConfig {
             max_connections: value.max_connections.unwrap_or(25000),
             max_connection_rate: value.max_connection_rate.unwrap_or(256),
 
+            security: value.security.try_into()?,
             db: value.db.try_into()?,
-            session: value.session.try_into()?,
             email: value.email.try_into()?,
             info: value.info.try_into()?,
             template: value.template.try_into()?,

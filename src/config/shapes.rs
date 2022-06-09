@@ -87,17 +87,6 @@ impl MapShape for BindInterfaceShape {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct SessionConfigShape {
-    pub domain: Option<String>
-}
-
-impl MapShape for SessionConfigShape {
-    fn map_shape(&mut self, rhs: Self) {
-        self.domain.map_shape(rhs.domain);
-    }
-}
-
-#[derive(Debug, Deserialize)]
 pub struct EmailConfigShape {
     pub enable: Option<bool>,
     pub from: Option<String>,
@@ -202,6 +191,31 @@ impl MapShape for StorageConfigShape {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct SessionConfigShape {
+    pub domain: Option<String>
+}
+
+impl MapShape for SessionConfigShape {
+    fn map_shape(&mut self, rhs: Self) {
+        self.domain.map_shape(rhs.domain);
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SecurityConfigShape {
+    pub session: Option<SessionConfigShape>,
+    pub secret: Option<String>,
+}
+
+impl MapShape for SecurityConfigShape {
+    fn map_shape(&mut self, rhs: Self) {
+        self.secret.map_shape(rhs.secret);
+
+        assign_map_struct(&mut self.session, rhs.session);
+    }
+}
+
+#[derive(Debug, Deserialize)]
 pub struct ServerConfigShape {
     pub bind: Option<HashMap<String, Option<BindInterfaceShape>>>,
     pub port: Option<u16>,
@@ -211,8 +225,8 @@ pub struct ServerConfigShape {
     pub max_connections: Option<usize>,
     pub max_connection_rate: Option<usize>,
 
+    pub security: Option<SecurityConfigShape>,
     pub db: Option<DBConfigShape>,
-    pub session: Option<SessionConfigShape>,
     pub email: Option<EmailConfigShape>,
     pub info: Option<ServerInfoConfigShape>,
     pub ssl: Option<SslConfigShape>,
@@ -242,8 +256,8 @@ impl MapShape for ServerConfigShape {
         self.backlog.map_shape(rhs.backlog);
         self.max_connections.map_shape(rhs.max_connections);
         self.max_connection_rate.map_shape(rhs.max_connection_rate);
-    
-        assign_map_struct(&mut self.session, rhs.session);
+
+        assign_map_struct(&mut self.security, rhs.security);
         assign_map_struct(&mut self.db, rhs.db);
         assign_map_struct(&mut self.email, rhs.email);
         assign_map_struct(&mut self.info, rhs.info);
@@ -265,8 +279,8 @@ impl Default for ServerConfigShape {
             max_connections: None,
             max_connection_rate: None,
 
+            security: None,
             db: None,
-            session: None,
             email: None,
             info: None,
             ssl: None,

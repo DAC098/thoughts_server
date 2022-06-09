@@ -22,17 +22,6 @@ pub enum AppError {
 
 impl AppError {
 
-    pub fn get_code(&self) -> i32 {
-        match &*self {
-            AppError::General(_) |
-            AppError::CliError(_) |
-            AppError::ConfigError(_) |
-            AppError::IoError(_) |
-            AppError::DatabaseError(_) |
-            AppError::TemplateError(_) => 1,
-        }
-    }
-
     pub fn get_msg(&self) -> String {
         match &*self {
             AppError::General(msg) => format!("AppError::General: {}", msg),

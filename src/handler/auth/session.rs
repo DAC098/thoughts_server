@@ -49,10 +49,11 @@ pub struct LoginBodyJSON {
  * send back a successful message with a login session
  */
 pub async fn handle_post(
+    security: state::WebSecurityState,
     db: state::WebDbState,
     posted: web::Json<LoginBodyJSON>
 ) -> error::Result<impl Responder> {
-    let conn = &mut *db.get_conn().await?;
+    let mut conn = db.pool.get().await?;
     let posted = posted.into_inner();
     let result = conn.query_opt(
         "select id, hash from users where username = $1 or email = $1",
@@ -68,7 +69,7 @@ pub async fn handle_post(
     security::verify_password(row.get(1), &posted.password)?;
 
     let transaction = conn.transaction().await?;
-    let bytes = security::get_rand_bytes(32)?;
+    let bytes = security::get_rand_bytes(64)?;
     let token = base64::encode_config(bytes.as_slice(), base64::URL_SAFE);
     let duration = chrono::Duration::days(7);
     let issued_on = chrono::Utc::now();
@@ -86,6 +87,7 @@ pub async fn handle_post(
     user_session.insert(&transaction).await?;
     
     let mut session_cookie = SetCookie::new("session_id", user_session.token.to_string());
+    session_cookie.set_domain(security.get_session().get_domain());
     session_cookie.set_path("/");
     session_cookie.set_max_age(duration);
     session_cookie.set_same_site(SameSite::Strict);
@@ -96,14 +98,15 @@ pub async fn handle_post(
     JsonBuilder::new(http::StatusCode::OK)
         .insert_header(session_cookie)
         .set_message("session created")
-        .build(Some(users::find_from_id(conn, &row.get(0)).await?))
+        .build(Some(users::find_from_id(&*conn, &row.get(0)).await?))
 }
 
 pub async fn handle_delete(
     req: HttpRequest,
+    security: state::WebSecurityState,
     db: state::WebDbState
 ) -> error::Result<impl Responder> {
-    let conn = &mut *db.get_conn().await?;
+    let mut conn = db.pool.get().await?;
     let cookies = CookieMap::from(&req);
 
     if let Some(token) = cookies.get_value_ref("session_id") {
@@ -114,11 +117,14 @@ pub async fn handle_delete(
     }
 
     let mut session_cookie = SetCookie::new("session_id", "");
-    session_cookie.max_age = Some(chrono::Duration::seconds(0));
-    session_cookie.same_site = Some(SameSite::Strict);
+    session_cookie.set_domain(security.get_session().get_domain());
+    session_cookie.set_path("/");
+    session_cookie.set_max_age(chrono::Duration::seconds(0));
+    session_cookie.set_same_site(SameSite::Strict);
+    session_cookie.set_http_only(true);
 
     JsonBuilder::new(http::StatusCode::OK)
         .insert_header(session_cookie)
         .set_message("session deleted")
-        .build(None::<()>)
+        .build_empty()
 }
