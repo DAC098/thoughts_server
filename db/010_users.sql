@@ -9,6 +9,6 @@ create table users (
     username varchar not null unique,
     hash varchar not null,
 
-    email varchar unique
+    email varchar unique,
     email_verified boolean not null default false
 );

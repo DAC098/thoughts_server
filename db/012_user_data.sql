@@ -10,4 +10,4 @@ create table user_data (
     dob date not null,
     
     constraint owner_fk foreign key (owner) references users (id)
-)
+);

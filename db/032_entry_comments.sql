@@ -10,4 +10,4 @@ create table entry_comments (
 
     constraint entry_fk foreign key (entry) references entries (id),
     constraint field_fk foreign key (owner) references users (id)
-)
+);

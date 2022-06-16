@@ -1,3 +1,5 @@
+use std::net::TcpListener;
+
 use actix_web::{web, App, HttpServer};
 use actix_web::middleware::Logger;
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
@@ -56,8 +58,6 @@ fn main() -> error::Result<()> {
 
     actix_web::rt::System::new()
         .block_on(server_runner(conf))?;
-
-    log::info!("server shutdown");
 
     Ok(())
 }
@@ -259,17 +259,53 @@ async fn server_runner(config: config::ServerConfig) -> Result<()> {
             ssl_builder.set_private_key_file(ssl.key, SslFiletype::PEM).unwrap();
             ssl_builder.set_certificate_chain_file(ssl.cert).unwrap();
 
-            log::info!("attaching secure listener to: {}", info.addr);
-            server = server.bind_openssl(info.addr, ssl_builder)?;
+            let listener = match TcpListener::bind(&info.addr) {
+                Ok(l) => l,
+                Err(err) => {
+                    let kind = err.kind();
+
+                    if kind == std::io::ErrorKind::AddrInUse {
+                        log::error!("address already in use. attempted: {}", info.addr);
+                    }
+
+                    return Err(err.into());
+                }
+            };
+            let local_addr = listener.local_addr()?;
+
+            log::info!("attaching secure listener to: {}", local_addr);
+
+            server = server.listen_openssl(listener, ssl_builder)?;
         } else {
-            log::info!("attaching listener to: {}", info.addr);
-            server = server.bind(info.addr)?;
+            let listener = match TcpListener::bind(&info.addr) {
+                Ok(l) => l,
+                Err(err) => {
+                    let kind = err.kind();
+
+                    if kind == std::io::ErrorKind::AddrInUse {
+                        log::error!("address already in use. attempted: {}", info.addr);
+                    }
+
+                    return Err(err.into());
+                }
+            };
+            let local_addr = listener.local_addr()?;
+
+            log::info!("attaching listener to: {}", local_addr);
+
+            server = server.listen(listener)?;
         }
     }
 
+    let fut = server.workers(config.threads).run();
+
     log::info!("server listening for requests");
 
-    server.workers(config.threads).run().await?;
+    if let Err(err) = fut.await {
+        log::error!("server error {}", err);
+    } else {
+        log::info!("server shutdown");
+    }
 
     Ok(())
 }

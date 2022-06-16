@@ -8,4 +8,4 @@ create table audio_entries (
     entry integer not null,
 
     constraint entry_fk foreign key (entry) references entries (id)
-)
+);
