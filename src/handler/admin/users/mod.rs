@@ -3,7 +3,6 @@ use std::collections::HashMap;
 
 use actix_web::{web, http, HttpRequest, Responder};
 use serde::Deserialize;
-use lettre::{Message, Transport};
 use lettre::message::Mailbox;
 
 use crate::db;
@@ -123,6 +122,7 @@ pub struct PostUserJson {
 pub async fn handle_post(
     initiator: Initiator,
     db: state::WebDbState,
+    template: state::WebTemplateState<'_>,
     email: state::WebEmailState,
     server_info: state::WebServerInfoState,
     posted: web::Json<PostUserJson>,
@@ -151,16 +151,7 @@ pub async fn handle_post(
     let mut to_mailbox: Option<Mailbox> = None;
 
     if email.is_enabled() {
-        let to_mailbox_result = posted.user.email.parse::<Mailbox>();
-
-        if to_mailbox_result.is_err() {
-            return Err(error::ResponseError::Validation(
-                format!("given email address is invalid. {}", posted.user.email)
-            ));
-        } else {
-            to_mailbox = Some(to_mailbox_result.unwrap());
-        }
-
+        to_mailbox = Some(Mailbox::new(None, email::parse_email_address(&posted.user.email)?));
         email_value = Some(posted.user.email);
     }
 
@@ -184,27 +175,15 @@ pub async fn handle_post(
 
     let user_id = user_result.get(0);
 
-    if email.is_enabled() && email.can_get_transport() && email.has_from() {
-        let rand_bytes = security::get_rand_bytes(32)?;
-        let hex_str = util::hex_string(rand_bytes)?;
-        let issued = util::time::now();
-
-        transaction.execute(
-            "\
-            insert into email_verification (owner, key_id, issued)\
-            values ($1, $2, $3)",
-            &[&user_id, &hex_str, &issued]
+    if email.is_enabled() {
+        email::send_verify_email(
+            &transaction, 
+            &server_info, 
+            &email, 
+            &template, 
+            &user_id, 
+            to_mailbox.unwrap()
         ).await?;
-
-        let email_message = Message::builder()
-            .from(email.get_from().unwrap())
-            .to(to_mailbox.unwrap())
-            .subject("Verify Changed Email")
-            .multipart(email::message_body::verify_email_body(
-                server_info.url_origin(), hex_str
-            ))?;
-
-        email.get_transport()?.send(&email_message)?;
     }
 
     let user_data = {
@@ -218,8 +197,8 @@ pub async fn handle_post(
         if let Ok(date) = posted.data.dob.parse() {
             dob = date;
         } else {
-            let mut message = String::from("invalid date format given. format: YYYY-MM-DD given: \"");
-            message.reserve(posted.data.dob.len() + 1);
+            let mut message = String::with_capacity(posted.data.dob.len() + 55);
+            message.push_str("invalid date format given. format: YYYY-MM-DD given: \"");
             message.push_str(&posted.data.dob);
             message.push('"');
 

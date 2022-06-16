@@ -1,50 +1,75 @@
-use std::fs;
+use std::fs::{self, ReadDir};
 use std::fmt::Write;
 use std::path::PathBuf;
-use std::ffi::OsString;
+use std::ffi::OsStr;
 
 use handlebars::Handlebars;
-use lazy_static::lazy_static;
 
 use crate::config::TemplateConfig;
 use crate::error;
 
 pub mod helpers;
 
-lazy_static! {
-    static ref HBS_EXTENSION: OsString = OsString::from("hbs");
+struct WorkingItem {
+    iter: ReadDir,
+    depth: usize
 }
 
-fn recursive_load_directory<'a>(
-    config: &TemplateConfig,
+fn load_directory<'a>(
+    conf: &TemplateConfig,
     hb: &mut Handlebars<'a>,
     directory: &PathBuf,
     template_errors: &mut Vec<handlebars::TemplateError>,
 ) -> error::Result<()> {
-    for item in fs::read_dir(directory)? {
-        let file = item?;
-        let path = file.path();
+    let hbs_extesion = OsStr::new("hbs");
+    let mut working_queue = Vec::with_capacity(3);
+    working_queue.push(WorkingItem {
+        iter: fs::read_dir(directory)?,
+        depth: 0
+    });
 
-        if path.is_dir() {
-            recursive_load_directory(config, hb, &path, template_errors)?;
-        } else if path.is_file() {
-            if let Some(ext) = path.extension() {
-                if ext == HBS_EXTENSION.as_os_str() {
-                    let name = path.strip_prefix(&config.directory).unwrap();
+    while let Some(mut working) = working_queue.pop() {
+        while let Some(entry) = working.iter.next() {
+            let entry = entry?;
+            let entry_path = entry.path();
 
-                    if let Some(name_str) = name.to_str() {
-                        if let Err(err) = hb.register_template_file(
-                            name_str.strip_suffix(".hbs").unwrap(),
-                            &path
-                        ) {
-                            template_errors.push(err);
-                        }
-                    } else {
-                        log::info!("path contains invalid unicode characters: {}", name.display());
+            if entry_path.is_dir() {
+                if working.depth < 10 {
+                    if working_queue.len() + 1 == working_queue.capacity() {
+                        working_queue.reserve(3);
                     }
+
+                    let depth = working.depth + 1;
+
+                    working_queue.push(working);
+                    working_queue.push(WorkingItem {
+                        iter: fs::read_dir(&entry_path)?,
+                        depth
+                    });
+
+                    break;
+                } else {
+                    log::info!("max load directory depth reached");
                 }
-            } else {
-                log::info!("failed to determine extension for file: {}", path.display());
+            } else if entry_path.is_file() {
+                if let Some(ext) = entry_path.extension() {
+                    if ext == hbs_extesion {
+                        let name = entry_path.strip_prefix(&conf.directory).unwrap();
+
+                        if let Some(name_str) = name.to_str() {
+                            if let Err(err) = hb.register_template_file(
+                                name_str.strip_suffix(".hbs").unwrap(),
+                                &entry_path
+                            ) {
+                                template_errors.push(err);
+                            }
+                        } else {
+                            log::info!("path contains invalid unicode characters: {}", name.display());
+                        }
+                    }
+                } else {
+                    log::info!("failed to determine extension for file: {}", entry_path.display());
+                }
             }
         }
     }
@@ -52,28 +77,20 @@ fn recursive_load_directory<'a>(
     Ok(())
 }
 
-fn register_helpers<'a>(
-    _config: &TemplateConfig,
-    hb: &mut Handlebars<'a>,
-) -> error::Result<()> {
-    hb.register_helper("js-json", Box::new(helpers::JsJson));
-
-    Ok(())
-}
-
 pub fn get_built_registry<'a>(config: TemplateConfig) -> error::Result<Handlebars<'a>> {
     let required_templates = [
-        "pages/index"
+        "pages/index",
+        "email/verify_email.text",
+        "email/verify_email.html"
     ];
 
     let mut hb = Handlebars::new();
     hb.set_dev_mode(config.dev_mode);
-
-    register_helpers(&config, &mut hb)?;
+    hb.register_helper("js-json", Box::new(helpers::JsJson));
 
     let mut template_errors: Vec<handlebars::TemplateError> = Vec::new();
 
-    recursive_load_directory(&config, &mut hb, &config.directory, &mut template_errors)?;
+    load_directory(&config, &mut hb, &config.directory, &mut template_errors)?;
 
     if template_errors.len() > 0 {
         let mut msg = "there were errors when attempting to load templates:\n".to_owned();
@@ -103,4 +120,3 @@ pub fn get_built_registry<'a>(config: TemplateConfig) -> error::Result<Handlebar
 
     Ok(hb)
 }
-

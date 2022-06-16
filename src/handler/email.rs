@@ -34,9 +34,9 @@ pub async fn handle_get(
                 .build(None::<()>);
         }
 
-        if email.can_get_transport() && email.has_from() {
+        if email.has_credentials() && email.has_relay() && email.has_from() {
             let email_message = Message::builder()
-                .from(email.get_from().unwrap())
+                .from(email.get_from())
                 .to(to_address_result.unwrap())
                 .subject("test email")
                 .body("test email being sent".to_owned())?;

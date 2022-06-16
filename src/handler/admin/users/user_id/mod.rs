@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use actix_web::{web, http, HttpRequest, Responder};
 use serde::Deserialize;
-use lettre::{Message, Transport};
 use lettre::message::Mailbox;
 
 use crate::db;
@@ -91,6 +90,7 @@ pub struct PutJson {
 pub async fn handle_put(
     initiator: Initiator,
     db: state::WebDbState,
+    template: state::WebTemplateState<'_>,
     email: state::WebEmailState,
     server_info: state::WebServerInfoState,
     posted: web::Json<PutJson>,
@@ -113,33 +113,15 @@ pub async fn handle_put(
     let mut to_mailbox: Option<Mailbox> = None;
 
     if email.is_enabled() {
-        let to_mailbox_result = posted.user.email.parse::<Mailbox>();
+        let check = email::validate_new_email(&*conn, &posted.user.email, &path.user_id).await?;
 
-        if to_mailbox_result.is_err() {
-            let mut message = String::from("given email address is invalid. given: \"");
-            message.reserve(posted.user.email.len() + 1);
-            message.push_str(&posted.user.email);
-            message.push('"');
-
-            return Err(error::ResponseError::Validation(message));
-        } else {
-            to_mailbox = Some(to_mailbox_result.unwrap());
-        }
-
-        if let Some(check) = conn.query_opt("select id from users where email = $1", &[&posted.user.email]).await? {
-            if check.get::<usize, i32>(0) != original.id {
-                return Err(error::ResponseError::EmailExists(posted.user.email))
+        if let Some(current_email) = original.email {
+            if current_email == posted.user.email {
+                email_verified = original.email_verified;
             }
         }
 
-        if let Some(current_email) = original.email {
-            email_verified = if current_email == posted.user.email {
-                original.email_verified
-            } else {
-                false
-            };
-        }
-
+        to_mailbox = Some(Mailbox::new(None, check));
         email_value = Some(posted.user.email);
     }
 
@@ -165,31 +147,15 @@ pub async fn handle_put(
         ]
     ).await?;
 
-    if email.is_enabled() && !email_verified && email.can_get_transport() && email.has_from() {
-        let mut rand_bytes: [u8; 32] = [0; 32];
-        openssl::rand::rand_bytes(&mut rand_bytes)?;
-        let hex_str = util::hex_string(&rand_bytes)?;
-        let issued = util::time::now();
-
-        transaction.execute(
-            "\
-            insert into email_verifications (owner, key_id, issued) \
-            values ($1, $2, $3) \
-            on conflict on constraint email_verifications_pkey do update \
-            set key_id = excluded.key_id, \
-                issued = excluded.issued",
-            &[&original.id, &hex_str, &issued]
+    if email.is_enabled() && !email_verified {
+        email::send_verify_email(
+            &transaction, 
+            &server_info, 
+            &email, 
+            &template, 
+            &path.user_id,
+            to_mailbox.unwrap()
         ).await?;
-
-        let email_message = Message::builder()
-            .from(email.get_from().unwrap())
-            .to(to_mailbox.unwrap())
-            .subject("Verify Changed Email")
-            .multipart(email::message_body::verify_email_body(
-                server_info.url_origin(), hex_str
-            ))?;
-
-        email.get_transport()?.send(&email_message)?;
     }
 
     let user_data = {

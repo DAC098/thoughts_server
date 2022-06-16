@@ -49,11 +49,14 @@ This is also a work in progress as well since most of the template rendering is 
 
 The clients are responsible for the UI not the server.
 
-the structure of the directory containing the templates must have:
+All files with the extension `.hbs` in the specified directory will be loaded into the template system for the server. Some files will be required as they are specifically called for by the server and are listed below:
 
 ```
 page/
     index.hbs
+email/
+    verify_email.text.hbs
+    verify_email.html.hbs
 ```
 
 ### File Storage
