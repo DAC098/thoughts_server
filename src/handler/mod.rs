@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::time::Instant;
 
 use actix_files::NamedFile;
 use actix_web::http::Method;
@@ -31,7 +32,7 @@ pub async fn handle_get(
 
     match initiator_from_request(conn, &req).await? {
         Some(_) => Ok(response::redirect_to_path("/entries")),
-        None => Ok(response::redirect_to_path("/auth/login"))
+        None => Ok(response::redirect_to_path("/auth/session"))
     }
 }
 
@@ -115,11 +116,17 @@ pub async fn handle_file_serving(
             .build_empty()
     }
 
+    let start_time = Instant::now();
+    let mut should_cache = false;
+    let mut from_cache = false;
     let lookup = req.uri().path();
     let mut to_send: Option<PathBuf> = None;
 
     if let Some(file_path) = file_serving.files.get(lookup) {
-        to_send = Some(file_path.clone())
+        to_send = Some(file_path.clone());
+    } else if let Some(cached) = file_serving.check_cache(lookup).await {
+        to_send = Some(cached);
+        from_cache = true;
     } else {
         for (key, path) in file_serving.directories.iter() {
             if let Some(stripped) = lookup.strip_prefix(key.as_str()) {
@@ -150,9 +157,28 @@ pub async fn handle_file_serving(
                 break;
             }
         }
+
+        should_cache = true;
     }
 
     if let Some(file_path) = to_send {
+        if log::log_enabled!(log::Level::Debug) {
+            let elapsed = start_time.elapsed();
+
+            log::debug!(
+                "static file serving lookup\nrequested path: {}\nfound: {:#?}\ntime: {}:{:06}\nfrom cache: {}",
+                lookup,
+                file_path,
+                elapsed.as_secs(),
+                elapsed.subsec_micros(),
+                from_cache
+            );
+        }
+
+        if file_path.exists() && should_cache {
+            file_serving.cache_file(lookup, file_path.clone()).await;
+        }
+
         Ok(NamedFile::open_async(file_path)
             .await?
             .into_response(&req))

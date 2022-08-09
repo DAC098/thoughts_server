@@ -9,6 +9,7 @@ edition = "2018"
 [workspace]
 members = [
     "tlib",
+    "primer"
 ]
 
 [dependencies]
@@ -20,6 +21,7 @@ tlib = { path = "./tlib" }
 # core
 futures = { version = "0.3" }
 futures-util = { version = "0.3" }
+tokio = { version = "1", features = ["sync"] }
 
 # util
 base64 = { version = "0.13.0" }

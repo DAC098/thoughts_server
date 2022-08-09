@@ -160,8 +160,8 @@ pub async fn handle_post(
 
     let user_result = transaction.query_one(
         "\
-        insert into users (level, username, full_name, hash, email) \
-        values ($1, $2, $3, $4, $5) \
+        insert into users (level, username, full_name, hash, email, email_verified) \
+        values ($1, $2, $3, $4, $5, $6) \
         returning id",
         &[
             &posted.user.level, 

@@ -54,7 +54,7 @@ impl UserSession {
                    dropped, \
                    issued_on, \
                    expires, \
-                   use_csrf
+                   use_csrf \
             from user_sessions \
             where token = $1",
             &[&token]
@@ -64,8 +64,8 @@ impl UserSession {
                 owner: record.get(1),
                 dropped: record.get(2),
                 issued_on: record.get(3),
-                expires: record.get(2),
-                use_csrf: record.get(4)
+                expires: record.get(4),
+                use_csrf: record.get(5)
             }))
         } else {
             Ok(None)

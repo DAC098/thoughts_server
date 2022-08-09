@@ -58,7 +58,7 @@ pub fn redirect_to_path(path: &str) -> HttpResponse {
 }
 
 pub fn redirect_to_login(req: &HttpRequest) -> HttpResponse {
-    let redirect_path = format!("/auth/login?jump_to={}", urlencoding::encode(
+    let redirect_path = format!("/auth/session?jump_to={}", urlencoding::encode(
         if let Some(path_and_query) = req.uri().path_and_query() {
             path_and_query.as_str()
         } else {
@@ -70,7 +70,7 @@ pub fn redirect_to_login(req: &HttpRequest) -> HttpResponse {
 }
 
 pub fn redirect_to_login_with(path: &str) -> HttpResponse {
-    let redirect_path = format!("/auth/login?jump_to={}", urlencoding::encode(path));
+    let redirect_path = format!("/auth/session?jump_to={}", urlencoding::encode(path));
 
     HttpResponse::Found().insert_header((http::header::LOCATION, redirect_path.as_str())).finish()
 }

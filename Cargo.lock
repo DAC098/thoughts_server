@@ -1662,6 +1662,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac74c624d6b2d21f425f752262f42188365d7b8ff1aff74c82e45136510a4857"
 
 [[package]]
+name = "primer"
+version = "0.1.0"
+dependencies = [
+ "openssl",
+ "rust-argon2",
+ "tokio",
+ "tokio-postgres",
+]
+
+[[package]]
 name = "proc-macro-hack"
 version = "0.5.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2107,6 +2117,7 @@ dependencies = [
  "sha-1 0.9.4",
  "shape-rs",
  "tlib",
+ "tokio",
  "tokio-postgres",
  "urlencoding",
  "uuid",
@@ -2181,11 +2192,24 @@ dependencies = [
  "libc",
  "memchr",
  "mio 0.7.11",
+ "num_cpus",
  "once_cell",
  "parking_lot",
  "pin-project-lite",
  "signal-hook-registry",
+ "tokio-macros",
  "winapi",
+]
+
+[[package]]
+name = "tokio-macros"
+version = "1.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b557f72f448c511a979e2564e55d74e6c4432fc96ff4f6241bc6bded342643b7"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
