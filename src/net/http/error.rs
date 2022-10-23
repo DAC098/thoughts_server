@@ -1,5 +1,4 @@
-use std::{fmt};
-use std::convert::{From};
+use std::{fmt, convert::From};
 
 use actix_web::{
     error::ResponseError as ActixResponseError, 
@@ -8,7 +7,7 @@ use actix_web::{
 };
 
 use crate::db;
-use super::json::JsonBuilder;
+use super::response::json::JsonBuilder;
 
 pub type Result<R> = std::result::Result<R, ResponseError>;
 
@@ -32,12 +31,14 @@ pub enum ResponseError {
     EntryMarkerNotFound(i32),
     EntryCommentNotFound(i32),
     AudioEntryNotFound(i32),
+    GroupNotFound(i32),
 
     UsernameExists(String),
     EmailExists(String),
     EntryExists(String),
     CustomFieldExists(String),
     GlobalCustomFieldExists(String),
+    GroupAlreadyExists(String),
 
     GeneralWithInternal(String, String),
 
@@ -56,9 +57,8 @@ pub enum ResponseError {
 
     Argon2Error(argon2::Error),
 
-    OpensslError(openssl::error::Error),
-    OpensslErrorStack(openssl::error::ErrorStack),
-    
+    RandError(rand::Error),
+
     UuidError(uuid::Error),
 
     EmailSmtpError(lettre::transport::smtp::Error),
@@ -91,12 +91,14 @@ impl ResponseError {
             ResponseError::EntryMarkerNotFound(_) => "EntryMarkerNotFound",
             ResponseError::EntryCommentNotFound(_) => "EntryCommentNotFound",
             ResponseError::AudioEntryNotFound(_) => "AudioEntryNotFound",
+            ResponseError::GroupNotFound(_) => "GroupNotFound",
 
             ResponseError::UsernameExists(_) => "UsernameExists",
             ResponseError::EmailExists(_) => "EmailExists",
             ResponseError::EntryExists(_) => "EntryExists",
             ResponseError::CustomFieldExists(_) => "CustomFieldExists",
             ResponseError::GlobalCustomFieldExists(_) => "GlobalCustomFieldExists",
+            ResponseError::GroupAlreadyExists(_) => "GroupAlreadyExists",
 
             ResponseError::PostgresError(_) |
             ResponseError::BB8Error(_) => "DatabaseError",
@@ -124,12 +126,14 @@ impl ResponseError {
             ResponseError::EntryMarkerNotFound(id) => format!("failed to find the requested marker id: {}", id),
             ResponseError::EntryCommentNotFound(id) => format!("failed to find the requested comment id: {}", id),
             ResponseError::AudioEntryNotFound(id) => format!("failed to find the requested audio entry id: {}", id),
+            ResponseError::GroupNotFound(id) => format!("failed to find the requested group id: {}", id),
 
             ResponseError::UsernameExists(_) => format!("given username already exist"),
             ResponseError::EmailExists(_) => format!("given email already exists"),
             ResponseError::EntryExists(created) => format!("given entry date already exists. date: {}", created),
             ResponseError::CustomFieldExists(name) => format!("given custom field already exists. name: {}", name),
             ResponseError::GlobalCustomFieldExists(name) => format!("given global custom field already exists. name: {}", name),
+            ResponseError::GroupAlreadyExists(name) => format!("given group name already exists. name: {}", name),
 
             ResponseError::GeneralWithInternal(s, _) => s.clone(),
 
@@ -194,12 +198,9 @@ impl ActixResponseError for ResponseError {
                 log::error!("{}", err);
             },
 
-            ResponseError::OpensslError(err) => {
+            ResponseError::RandError(err) => {
                 log::error!("{}", err);
-            },
-            ResponseError::OpensslErrorStack(err) => {
-                log::error!("{}", err);
-            },
+            }
             
             ResponseError::UuidError(err) => {
                 log::error!("{}", err);
@@ -246,7 +247,8 @@ impl ActixResponseError for ResponseError {
             ResponseError::GlobalCustomFieldNotFound(_) |
             ResponseError::TagNotFound(_) |
             ResponseError::EntryMarkerNotFound(_) |
-            ResponseError::AudioEntryNotFound(_) => StatusCode::NOT_FOUND,
+            ResponseError::AudioEntryNotFound(_) |
+            ResponseError::GroupNotFound(_) => StatusCode::NOT_FOUND,
 
             ResponseError::Validation(_) |
             ResponseError::BadRequest(_) |
@@ -254,7 +256,8 @@ impl ActixResponseError for ResponseError {
             ResponseError::EmailExists(_) |
             ResponseError::EntryExists(_) |
             ResponseError::CustomFieldExists(_) |
-            ResponseError::GlobalCustomFieldExists(_) => StatusCode::BAD_REQUEST,
+            ResponseError::GlobalCustomFieldExists(_) |
+            ResponseError::GroupAlreadyExists(_) => StatusCode::BAD_REQUEST,
 
             _ => StatusCode::INTERNAL_SERVER_ERROR
         }
@@ -303,20 +306,11 @@ impl From<argon2::Error> for ResponseError {
     
 }
 
-impl From<openssl::error::Error> for ResponseError {
+impl From<rand::Error> for ResponseError {
 
-    fn from(error: openssl::error::Error) -> Self {
-        ResponseError::OpensslError(error)
+    fn from(error: rand::Error) -> Self {
+        ResponseError::RandError(error)
     }
-    
-}
-
-impl From<openssl::error::ErrorStack> for ResponseError {
-    
-    fn from(error: openssl::error::ErrorStack) -> Self {
-        ResponseError::OpensslErrorStack(error)
-    }
-    
 }
 
 impl From<uuid::Error> for ResponseError {

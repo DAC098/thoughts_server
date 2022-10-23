@@ -1,5 +1,3 @@
-pub mod cookie;
-
 mod initiator;
 pub use initiator::*;
 

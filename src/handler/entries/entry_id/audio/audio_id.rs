@@ -4,8 +4,9 @@ use serde::Deserialize;
 
 use crate::db;
 
-use crate::response;
-use crate::response::json::JsonBuilder;
+use crate::net::http::error;
+use crate::net::http::response;
+use crate::net::http::response::json::JsonBuilder;
 use crate::state;
 use crate::request::{initiator_from_request, Initiator};
 use crate::security;
@@ -28,7 +29,7 @@ pub async fn handle_get(
     storage: state::WebStorageState,
     path: web::Path<EntryIdAudioIdPath>,
     query: web::Query<EntryIdAudioIdquery>,
-) -> response::error::Result<impl Responder> {
+) -> error::Result<impl Responder> {
     let path = path.into_inner();
     let query = query.into_inner();
     let conn = db.get_conn().await?;
@@ -44,7 +45,7 @@ pub async fn handle_get(
             Ok(response::redirect_to_login_with(redirect_to.as_str()))
         }
     } else if initiator.is_none() {
-        Err(response::error::ResponseError::Session)
+        Err(error::ResponseError::Session)
     } else {
         let initiator = initiator.unwrap();
         let check_private: bool;
@@ -71,12 +72,12 @@ pub async fn handle_get(
         if let Some(audio_entry) = db::audio_entries::find_from_id(&*conn, &path.audio_id).await? {
             if audio_entry.entry != path.entry_id {
                 // respond audio entry not found
-                return Err(response::error::ResponseError::AudioEntryNotFound(path.audio_id));
+                return Err(error::ResponseError::AudioEntryNotFound(path.audio_id));
             }
 
             if check_private && audio_entry.private {
                 // responed permission denied as audio entry is private
-                return Err(response::error::ResponseError::PermissionDenied(
+                return Err(error::ResponseError::PermissionDenied(
                     format!("you do not have permission to access this audio entry")
                 ));
             }
@@ -91,7 +92,7 @@ pub async fn handle_get(
             }
         } else {
             // responed audio entry not found
-            Err(response::error::ResponseError::AudioEntryNotFound(path.audio_id))
+            Err(error::ResponseError::AudioEntryNotFound(path.audio_id))
         }
     }
 }
@@ -107,10 +108,24 @@ pub async fn handle_put(
     db: state::WebDbState,
     path: web::Path<EntryIdAudioIdPath>,
     posted: web::Json<PutAudioEntry>
-) -> response::error::Result<impl Responder> {
+) -> error::Result<impl Responder> {
     let path = path.into_inner();
     let posted = posted.into_inner();
     let mut conn = db.get_conn().await?;
+
+    if !security::permissions::has_permission(
+        &*conn, 
+        &initiator.user.id, 
+        db::permissions::rolls::ENTRIES, 
+        &[
+            db::permissions::abilities::READ_WRITE
+        ],
+        None
+    ).await? {
+        return Err(error::ResponseError::PermissionDenied(
+            "you do not have permission to update audio entries".into()
+        ));
+    }
 
     security::assert::is_owner_for_entry(&*conn, &path.entry_id, &initiator.user.id).await?;
 

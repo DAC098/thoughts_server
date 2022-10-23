@@ -4,16 +4,14 @@ use serde::Serialize;
 pub mod user_id;
 
 use crate::request::initiator_from_request;
-use crate::response;
-use crate::response::json::JsonBuilder;
+use crate::net::http::error;
+use crate::net::http::response;
+use crate::net::http::response::json::JsonBuilder;
 use crate::state;
-
-use response::error;
 
 #[derive(Serialize)]
 pub struct UserJson {
     id: i32,
-    full_name: Option<String>,
     username: String,
     ability: String
 }
@@ -46,7 +44,6 @@ pub async fn handle_get(
         let allowed_result = conn.query(
             "\
             select user_access.owner as id, \
-                   users.full_name as full_name, \
                    users.username as username, \
                    user_access.ability as ability \
             from user_access \
@@ -60,7 +57,6 @@ pub async fn handle_get(
         for user in allowed_result {
             allowed.push(UserJson {
                 id: user.get(0),
-                full_name: user.get(1),
                 username: user.get(2),
                 ability: user.get(3)
             });
@@ -69,7 +65,6 @@ pub async fn handle_get(
         let given_result = conn.query(
             "\
             select user_access.allowed_for as id, \
-                   users.full_name as full_name, \
                    users.username as username, \
                    user_access.ability as ability \
             from user_access \
@@ -83,7 +78,6 @@ pub async fn handle_get(
         for user in given_result {
             given.push(UserJson {
                 id: user.get(0),
-                full_name: user.get(1),
                 username: user.get(2),
                 ability: user.get(3)
             });

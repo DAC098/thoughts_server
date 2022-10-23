@@ -3,11 +3,9 @@ use lettre::{Message, Transport};
 use lettre::message::Mailbox;
 
 use crate::request::Initiator;
-use crate::response;
-use crate::response::json::JsonBuilder;
+use crate::net::http::error;
+use crate::net::http::response::json::JsonBuilder;
 use crate::state;
-
-use response::error;
 
 pub async fn handle_get(
     initiator: Initiator,

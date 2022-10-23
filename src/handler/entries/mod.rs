@@ -24,15 +24,14 @@ use db::composed::ComposedEntry;
 
 pub mod entry_id;
 
-use crate::response;
-use crate::response::json::JsonBuilder;
+use crate::net::http::error;
+use crate::net::http::response;
+use crate::net::http::response::json::JsonBuilder;
 use crate::state;
 use crate::request::{initiator_from_request, Initiator};
 use crate::getters;
 use crate::security;
 use crate::parsing;
-
-use response::error as app_error;
 
 #[derive(Deserialize)]
 pub struct PostTextEntryJson {
@@ -93,7 +92,7 @@ pub async fn handle_get(
     template: state::WebTemplateState<'_>,
     info: web::Query<EntriesQuery>,
     path: web::Path<EntriesPath>,
-) -> app_error::Result<impl Responder> {
+) -> error::Result<impl Responder> {
     let info = info.into_inner();
     let pool_conn = db.pool.get().await?;
     let accept_html = response::try_check_if_html_req(&req);
@@ -106,17 +105,43 @@ pub async fn handle_get(
             Ok(response::redirect_to_login(&req))
         }
     } else if initiator_opt.is_none() {
-        Err(app_error::ResponseError::Session)
+        Err(error::ResponseError::Session)
     } else {
         let owner: i32;
         let is_private: Option<bool>;
         let initiator = initiator_opt.unwrap();
 
         if let Some(user_id) = path.user_id {
-            security::assert::permission_to_read(&*pool_conn, &initiator.user.id, &user_id).await?;
+            if !security::permissions::has_permission(
+                &*pool_conn, 
+                &initiator.user.id, 
+                db::permissions::rolls::USERS_ENTRIES, 
+                &[db::permissions::abilities::READ], 
+                Some(&user_id)
+            ).await? {
+                return Err(error::ResponseError::PermissionDenied(
+                    "you do not have permission to view this users entries".into()
+                ));
+            }
+
             is_private = Some(false);
             owner = user_id;
         } else {
+            if !security::permissions::has_permission(
+                &*pool_conn, 
+                &initiator.user.id, 
+                db::permissions::rolls::ENTRIES, 
+                &[
+                    db::permissions::abilities::READ,
+                    db::permissions::abilities::READ_WRITE
+                ],
+                None
+            ).await? {
+                return Err(error::ResponseError::PermissionDenied(
+                    "you do not have permission to read entries".into()
+                ));
+            }
+
             is_private = None;
             owner = initiator.user.id;
         }
@@ -137,7 +162,7 @@ pub async fn handle_get(
                 ).await?;
 
                 if marker_check.is_empty() {
-                    Err(app_error::ResponseError::BadRequest(
+                    Err(error::ResponseError::BadRequest(
                         format!("from maker id given does not exist: {}", from_marker)
                     ))?;
                 } else {
@@ -159,7 +184,7 @@ pub async fn handle_get(
                 ).await?;
 
                 if marker_check.is_empty() {
-                    Err(app_error::ResponseError::BadRequest(
+                    Err(error::ResponseError::BadRequest(
                         format!("to marker id given does not exist: {}", to_marker)
                     ))?;
                 } else {
@@ -414,9 +439,21 @@ pub async fn handle_post(
     initiator: Initiator,
     db: state::WebDbState,
     posted: web::Json<PostEntryJson>
-) -> app_error::Result<impl Responder> {
+) -> error::Result<impl Responder> {
     let posted = posted.into_inner();
     let conn = &mut *db.get_conn().await?;
+
+    if !security::permissions::has_permission(
+        &*conn, 
+        &initiator.user.id, 
+        db::permissions::rolls::ENTRIES, 
+        &[db::permissions::abilities::READ_WRITE], 
+        None
+    ).await? {
+        return Err(error::ResponseError::PermissionDenied(
+            "you do not have permission to create entries".into()
+        ));
+    }
 
     let entry_check = conn.query(
         "select id from entries where day = $1 and owner = $2",
@@ -424,7 +461,7 @@ pub async fn handle_post(
     ).await?;
 
     if entry_check.len() != 0 {
-        return Err(app_error::ResponseError::EntryExists(
+        return Err(error::ResponseError::EntryExists(
             format!("{}", posted.entry.day)
         ));
     }

@@ -1,0 +1,347 @@
+#!/usr/bin/env node
+
+const fs = require("node:fs");
+const path = require("node:path");
+
+function check_file_exists(file_path) {
+    try {
+        let stat = fs.statSync(file_path);
+
+        if (stat.isFile()) {
+            // does exist
+            return 0;
+        } else {
+            // is something other than a file
+            return 2;
+        }
+    } catch(err) {
+        if (err.code === "ENOENT") {
+            // does not exist
+            return 1;
+        } else {
+            throw err;
+        }
+    }
+}
+
+function parse_segment(seg) {
+    if (seg.endsWith(".rs")) {
+        return seg.substring(0, seg.length - 3);
+    } else {
+        return seg;
+    }
+}
+
+function get_mod_path(directory) {
+    return path.join(directory, "mod.rs");
+}
+
+function get_basename_path(directory) {
+    let parent = path.dirname(directory);
+    let basename = path.basename(directory);
+    basename += ".rs";
+
+    return path.join(parent, basename);
+}
+
+function get_handler_head() {
+    return `use actix_web::{web, http, HttpRequest, Responder};
+use serde::Deserialize;
+
+use crate::net::http::error;
+use crate::net::http::response;
+use crate::net::http::response::json::JsonBuilder;
+use crate::request;
+use crate::state;`;
+}
+
+function get_handler_body() {
+    return `pub async fn handle_get(
+    req: HttpRequest,
+    db: state::WebDbState,
+    template: state::WebTemplateState<'_>,
+) -> error::Result<impl Responder> {
+    let conn = &*db.pool.get().await?;
+    let accept_html = response::try_check_if_html_req(&req);
+    let initiator_opt = request::initiator_from_request(conn, &req).await?;
+
+    if accept_html {
+        if initiator_opt.is_some() {
+            Ok(response::respond_index_html(&template.into_inner(), Some(initiator_opt.unwrap().user))?)
+        } else {
+            Ok(response::redirect_to_login(&req))
+        }
+    } else if initiator_opt.is_none() {
+        Err(response::error::ResponseError::Session)
+    } else {
+        Ok(response::okay_response())
+    }
+}
+
+pub async fn handle_post(
+    initiator: request::Initiator,
+    db: state::WebDbState
+) -> error::Result<impl Responder> {
+    Ok(response::okay_response())
+}
+
+pub async fn handle_put(
+    initiator: request::Initiator,
+    db: state::WebDbState
+) -> error::Result<impl Responder> {
+    Ok(response::okay_response())
+}
+
+pub async fn handle_delete(
+    initiator: request::Initiator,
+    db: state::WebDbState
+) -> error::Result<impl Responder> {
+    Ok(response::okay_response())
+}`;
+}
+
+let help = false;
+let inter_handlers = false;
+
+let handler_path = null;
+let project_root = path.resolve(module.filename, "../../");
+let handler_directory = path.resolve(project_root, "./src/handler");
+
+for (let argc = 2; argc < process.argv.length; ++argc) {
+    let arg = process.argv[argc];
+
+    if (arg.startsWith("--")) {
+        let option = arg.substring(2);
+
+        switch (option) {
+            case "help":
+                help = true;
+                break;
+            case "inter-handlers":
+                inter_handlers = true;
+                break;
+            default:
+                console.log(`unknown option given \"${arg}\"`);
+                return;
+        }
+    } else {
+        if (handler_path != null) {
+            console.log("a handler path has already been specified");
+            return;
+        }
+
+        handler_path = arg;
+    }
+}
+
+if (help) {
+    console.log(`make_handler_file [OPTIONS] PATH
+
+this script will make a handler file for the server in the ./src/handler
+directory. it will be filled with some common "use" statements and a few
+common function calls for the router to use.
+
+the PATH specified will be relative to the handler directory. it will create
+the necessary files and directories to create the desired handler.
+
+options available:
+
+  --help  displays help information
+  --inter-handlers  will create handles for any intermediary files
+`);
+    return;
+}
+
+if (typeof handler_path !== "string") {
+    console.error("no path specified");
+    return;
+}
+
+let split = handler_path.split(path.sep);
+let segments = [];
+let to_make = [];
+
+for (let index = 0; index < split.length; ++index) {
+    let seg = parse_segment(split[index]);
+
+    if (seg === "") {
+        if (index === 0) {
+            continue;
+        } else {
+            console.log("encountered empty path segment");
+            return;
+        }
+    } else if (seg === "." || seg === "..") {
+        if (index === 0) {
+            continue;
+        } else {
+            console.log('encountered relative path segment');
+            return;
+        }
+    }
+
+    segments.push(seg);
+
+    let segment_path = path.resolve(handler_directory, path.join(...segments));
+
+    if (index === split.length -1) {
+        segment_path += ".rs";
+    }
+
+    console.log(segment_path);
+
+    try {
+        let stat = fs.statSync(segment_path);
+
+        // check if we are at the desired handle
+        if (index === split.length - 1) {
+            if (stat.isFile()) {
+                // do nothing?
+                // console.log(`\"${segment_path}\" already exists`);
+                // return;
+            } else {
+                console.error(`\"${segment_path}\" is not a file`);
+                return;
+            }
+        } else {
+            // we are checking the other path segments
+            if (stat.isDirectory()) {
+                let mod_path = get_mod_path(segment_path);
+                let mod_check = check_file_exists(mod_path);
+
+                switch (mod_check) {
+                    case 0:
+                        // do nothing
+                        break;
+                    case 1:
+                        to_make.push({
+                            type: "mod",
+                            segment: seg,
+                            next_segment: parse_segment(split[index + 1]),
+                            path: mod_path
+                        });
+                        break;
+                    case 2:
+                        console.error(`\"${mod_path}\" is not a file`);
+                        break;
+                }
+            } else if (stat.isFile()) {
+                // a handler already exists and will need to be moved into a
+                // directory
+                to_make.push({
+                    type: "dir",
+                    segment: seg,
+                    path: segment_path
+                });
+                to_make.push({
+                    type: "move",
+                    segment: seg,
+                    path: segment_path,
+                    move_to: get_mod_path(segment_path)
+                });
+            }
+        }
+    } catch(err) {
+        if (err.code === "ENOENT") {
+            // check if we are at the desired handle
+            if (index === split.length - 1) {
+                to_make.push({
+                    type: "handler",
+                    segment: seg,
+                    path: segment_path
+                });
+            } else {
+                to_make.push({
+                    type: "dir",
+                    segment: seg,
+                    path: segment_path
+                });
+
+                try {
+                    let basename_path = get_basename_path(segment_path);
+                    let basename_check = check_file_exists(basename_path);
+
+                    switch (basename_check) {
+                        case 0:
+                            to_make.push({
+                                type: "move",
+                                segment: seg,
+                                path: basename_path,
+                                move_to: get_mod_path(segment_path)
+                            });
+                            break;
+                        case 1:
+                            to_make.push({
+                                type: "mod",
+                                segment: seg,
+                                next_segment: parse_segment(split[index + 1]),
+                                path: get_mod_path(segment_path)
+                            });
+                            break;
+                        case 2:
+                            console.error(`\"${basename_path}\" is not a file`);
+                            return;
+                    }
+                } catch(err) {
+                    console.error(err);
+                    return;
+                }
+            }
+        } else {
+            console.error(err);
+            return;
+        }
+    }
+}
+
+console.log(to_make);
+
+try {
+    for (let index = 0; index < to_make.length; ++index) {
+        let making = to_make[index];
+    
+        switch (making.type) {
+            case "handler": {
+                let contents = get_handler_head() + "\n\n" + get_handler_body();
+    
+                console.log("creating handler");
+                console.log(contents);
+    
+                fs.writeFileSync(making.path, contents);
+                break;
+            }
+            case "mod": {
+                let contents = `pub mod ${making.next_segment};`;
+    
+                if (inter_handlers) {
+                    contents = get_handler_head() + "\n\n" + contents + "\n\n" + get_handler_body();
+                }
+    
+                console.log("creating mod");
+                console.log(contents);
+    
+                fs.writeFileSync(making.path, contents);
+                break;
+            }
+            case "dir": {
+                console.log("creating directory");
+    
+                fs.mkdirSync(making.path);
+                break;
+            }
+            case "move": {
+                let contents = fs.readFileSync(making.path);
+    
+                console.log("moving file");
+                console.log(contents);
+    
+                fs.writeFileSync(making.move_to, contents);
+                fs.rmSync(making.path);
+                break;
+            }
+        }
+    }
+} catch(err) {
+    console.error(err);
+    return;
+}

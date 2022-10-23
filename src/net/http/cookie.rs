@@ -17,7 +17,7 @@ use chrono::{
     Duration
 };
 
-use crate::response::error;
+use super::error;
 
 pub struct CookieMap(HashMap<String, Vec<String>>);
 

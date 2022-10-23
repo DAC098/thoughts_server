@@ -10,19 +10,17 @@ use crate::db;
 pub mod user_id;
 
 use crate::request::{initiator_from_request, Initiator};
-use crate::response;
-use crate::response::json::JsonBuilder;
+use crate::net::http::error;
+use crate::net::http::response;
+use crate::net::http::response::json::JsonBuilder;
 use crate::state;
 use crate::security;
 use crate::util;
 use crate::email;
 
-use response::error;
-
 #[derive(Deserialize)]
 pub struct UserSearchQuery {
     level: Option<i32>,
-    full_name: Option<String>,
     username: Option<String>
 }
 
@@ -53,18 +51,12 @@ pub async fn handle_get(
             ))
         } else {
             let mut arg_count: usize = 2;
-            let mut query_str = "select id, username, level, full_name, email, email_verified from users where id != $1".to_owned();
+            let mut query_str = "select id, username, level, email, email_verified from users where id != $1".to_owned();
             let mut query_slice: Vec<&(dyn tokio_postgres::types::ToSql + std::marker::Sync)> = vec![&initiator.user.id];
 
             if let Some(level) = info.level.as_ref() {
                 write!(&mut query_str, " and level = ${}", arg_count)?;
                 query_slice.push(level);
-                arg_count += 1;
-            }
-
-            if let Some(full_name) = info.full_name.as_ref() {
-                write!(&mut query_str, " and full_name ilike ${}", arg_count)?;
-                query_slice.push(full_name);
                 arg_count += 1;
             }
 
@@ -81,9 +73,8 @@ pub async fn handle_get(
                     id: row.get(0),
                     username: row.get(1),
                     level: row.get(2),
-                    full_name: row.get(3),
-                    email: row.get(4),
-                    email_verified: row.get(5)
+                    email: row.get(3),
+                    email_verified: row.get(4)
                 });
             }
 
@@ -108,7 +99,6 @@ pub struct PostUser {
     username: String,
     password: String,
     email: String,
-    full_name: Option<String>,
     level: i32
 }
 
@@ -160,13 +150,12 @@ pub async fn handle_post(
 
     let user_result = transaction.query_one(
         "\
-        insert into users (level, username, full_name, hash, email, email_verified) \
-        values ($1, $2, $3, $4, $5, $6) \
+        insert into users (level, username, hash, email, email_verified) \
+        values ($1, $2, $3, $4, $5) \
         returning id",
         &[
             &posted.user.level, 
             &posted.user.username, 
-            &posted.user.full_name, 
             &hash, 
             &email_value,
             &email_verified
@@ -242,7 +231,6 @@ pub async fn handle_post(
             select users.id, \
                    users.username, \
                    users.level, \
-                   users.full_name, \
                    users.email, \
                    users.email_verified \
             from users \
@@ -255,9 +243,8 @@ pub async fn handle_post(
                 id: check.get(0),
                 username: check.get(1),
                 level: check.get(2),
-                full_name: check.get(3),
-                email: check.get(4),
-                email_verified: check.get(5)
+                email: check.get(3),
+                email_verified: check.get(4)
             };
 
             if user.level != check_level {
@@ -320,7 +307,6 @@ pub async fn handle_post(
             user: db::users::User {
                 id: user_result.get(0),
                 username: posted.user.username.clone(),
-                full_name: posted.user.full_name.clone(),
                 email: email_value,
                 email_verified: false,
                 level: posted.user.level

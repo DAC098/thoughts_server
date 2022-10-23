@@ -2,8 +2,6 @@ create table users (
     id integer primary key generated always as identity,
     level integer not null,
 
-    full_name varchar,
-
     public boolean not null default false,
 
     username varchar not null unique,

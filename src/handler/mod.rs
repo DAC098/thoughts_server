@@ -3,14 +3,13 @@ use std::time::Instant;
 
 use actix_files::NamedFile;
 use actix_web::http::Method;
-use actix_web::{http, HttpRequest, Responder, error};
+use actix_web::{http, HttpRequest, Responder, error as actix_error};
 
 use crate::request::initiator_from_request;
-use crate::response;
-use crate::response::json::JsonBuilder;
+use crate::net::http::error;
+use crate::net::http::response;
+use crate::net::http::response::json::JsonBuilder;
 use crate::state;
-
-use response::error as response_error;
 
 pub mod ping;
 pub mod auth;
@@ -23,11 +22,12 @@ pub mod admin;
 pub mod tags;
 pub mod email;
 pub mod global;
+pub mod groups;
 
 pub async fn handle_get(
     req: HttpRequest,
     db: state::WebDbState,
-) -> response_error::Result<impl Responder> {
+) -> error::Result<impl Responder> {
     let conn = &*db.get_conn().await?;
 
     match initiator_from_request(conn, &req).await? {
@@ -42,11 +42,11 @@ pub async fn okay() -> impl Responder {
 }
 
 pub fn handle_json_error(
-    err: error::JsonPayloadError,
+    err: actix_error::JsonPayloadError,
     _req: &HttpRequest
-) -> error::Error {
+) -> actix_error::Error {
     let response = match &err {
-        error::JsonPayloadError::OverflowKnownLength {
+        actix_error::JsonPayloadError::OverflowKnownLength {
             length, limit
         } => {
             JsonBuilder::new(http::StatusCode::INTERNAL_SERVER_ERROR)
@@ -54,20 +54,20 @@ pub fn handle_json_error(
                 .set_error("JsonPayloadTooLarge")
                 .build_empty()
         },
-        error::JsonPayloadError::Overflow { limit } => {
+        actix_error::JsonPayloadError::Overflow { limit } => {
             JsonBuilder::new(http::StatusCode::INTERNAL_SERVER_ERROR)
                 .set_message(format!("given json payload is too large. max size: {}", limit))
                 .set_error("JsonPayloadTooLarge")
                 .build_empty()
         },
-        error::JsonPayloadError::ContentType => {
+        actix_error::JsonPayloadError::ContentType => {
             JsonBuilder::new(http::StatusCode::CONFLICT)
                 .set_message("json content type error")
                 .set_error("JsonInvalidContentType")
                 .build_empty()
         },
-        error::JsonPayloadError::Serialize(err) |
-        error::JsonPayloadError::Deserialize(err) => {
+        actix_error::JsonPayloadError::Serialize(err) |
+        actix_error::JsonPayloadError::Deserialize(err) => {
             if err.is_io() {
                 JsonBuilder::new(http::StatusCode::INTERNAL_SERVER_ERROR)
                     .set_message("json io error")
@@ -102,13 +102,13 @@ pub fn handle_json_error(
             .build_empty()
     }.unwrap();
 
-    error::InternalError::from_response(err, response).into()
+    actix_error::InternalError::from_response(err, response).into()
 }
 
 pub async fn handle_file_serving(
     req: HttpRequest,
     file_serving: state::WebFileServingState
-) -> response_error::Result<impl Responder> {
+) -> error::Result<impl Responder> {
     if req.method() != Method::GET {
         return JsonBuilder::new(http::StatusCode::METHOD_NOT_ALLOWED)
             .set_error("MethodNotAllowed")

@@ -5,14 +5,13 @@ use serde::Deserialize;
 use crate::db::user_sessions::UserSession;
 use crate::db::{users, user_sessions};
 
-use crate::request::cookie::{SetCookie, SameSite, CookieMap};
 use crate::request::initiator_from_request;
-use crate::response::json::JsonBuilder;
-use crate::response::{self, try_check_if_html_req};
+use crate::net::http::error;
+use crate::net::http::cookie;
+use crate::net::http::response;
+use crate::net::http::response::json::JsonBuilder;
 use crate::state;
 use crate::security;
-
-use response::error;
 
 /**
  * GET /auth/session
@@ -25,7 +24,7 @@ pub async fn handle_get(
 ) -> error::Result<impl Responder> {
     let conn = &*db.get_conn().await?;
 
-    if try_check_if_html_req(&req) {
+    if response::try_check_if_html_req(&req) {
         match initiator_from_request(conn, &req).await? {
             Some(_) => Ok(response::redirect_to_path("/entries")),
             None => Ok(response::respond_index_html(&template.into_inner(), None)?)
@@ -86,11 +85,11 @@ pub async fn handle_post(
 
     user_session.insert(&transaction).await?;
     
-    let mut session_cookie = SetCookie::new("session_id", user_session.token.to_string());
+    let mut session_cookie = cookie::SetCookie::new("session_id", user_session.token.to_string());
     session_cookie.set_domain(security.get_session().get_domain());
     session_cookie.set_path("/");
     session_cookie.set_max_age(duration);
-    session_cookie.set_same_site(SameSite::Strict);
+    session_cookie.set_same_site(cookie::SameSite::Strict);
     session_cookie.set_http_only(true);
 
     transaction.commit().await?;
@@ -107,7 +106,7 @@ pub async fn handle_delete(
     db: state::WebDbState
 ) -> error::Result<impl Responder> {
     let mut conn = db.pool.get().await?;
-    let cookies = CookieMap::from(&req);
+    let cookies = cookie::CookieMap::from(&req);
 
     if let Some(token) = cookies.get_value_ref("session_id") {
         let transaction = conn.transaction().await?;
@@ -116,11 +115,11 @@ pub async fn handle_delete(
         transaction.commit().await?;
     }
 
-    let mut session_cookie = SetCookie::new("session_id", "");
+    let mut session_cookie = cookie::SetCookie::new("session_id", "");
     session_cookie.set_domain(security.get_session().get_domain());
     session_cookie.set_path("/");
     session_cookie.set_max_age(chrono::Duration::seconds(0));
-    session_cookie.set_same_site(SameSite::Strict);
+    session_cookie.set_same_site(cookie::SameSite::Strict);
     session_cookie.set_http_only(true);
 
     JsonBuilder::new(http::StatusCode::OK)

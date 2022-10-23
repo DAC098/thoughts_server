@@ -1,7 +1,7 @@
-use std::convert::{From};
+use std::convert::From;
 
 use serde::{Serialize, Deserialize};
-use tokio_postgres::{GenericClient};
+use tokio_postgres::GenericClient;
 
 #[repr(i32)]
 pub enum Level {
@@ -19,7 +19,6 @@ pub struct User {
     pub id: i32,
     pub username: String,
     pub level: i32,
-    pub full_name: Option<String>,
     pub email: Option<String>,
     pub email_verified: bool
 }
@@ -27,8 +26,7 @@ pub struct User {
 #[derive(Serialize, Deserialize)]
 pub struct UserBare {
     pub id: i32,
-    pub username: String,
-    pub full_name: Option<String>
+    pub username: String
 }
 
 impl From<User> for UserBare {
@@ -36,8 +34,7 @@ impl From<User> for UserBare {
     fn from(user: User) -> Self {
         UserBare {
             id: user.id,
-            username: user.username,
-            full_name: user.full_name
+            username: user.username
         }
     }
 
@@ -48,8 +45,7 @@ impl From<&User> for UserBare {
     fn from(user: &User) -> Self {
         UserBare {
             id: user.id.clone(),
-            username: user.username.clone(),
-            full_name: user.full_name.clone()
+            username: user.username.clone()
         }
     }
 
@@ -92,7 +88,6 @@ pub async fn find_from_id(
         "\
         select id, \
                username, \
-               full_name, \
                email, \
                email_verified, \
                level \
@@ -103,45 +98,11 @@ pub async fn find_from_id(
         Ok(Some(User {
             id: row.get(0),
             username: row.get(1),
-            full_name: row.get(2),
-            email: row.get(3),
-            email_verified: row.get(4),
-            level: row.get(5)
+            email: row.get(2),
+            email_verified: row.get(3),
+            level: row.get(4)
         }))
     } else {
         Ok(None)
     }
 }
-
-// pub async fn find_from_session_token(
-//     conn: &impl GenericClient,
-//     token: uuid::Uuid
-// ) -> Result<Option<User>> {
-//     if let Some(row) = conn.query_opt(
-//         "\
-//         select id, \
-//                username, \
-//                full_name, \
-//                email, \
-//                email_verified, \
-//                level \
-//         from users \
-//         where id = (\
-//             select owner \
-//             from user_sessions \
-//             where token = $1\
-//         )",
-//         &[&token]
-//     ).await? {
-//         Ok(Some(User {
-//             id: row.get(0),
-//             username: row.get(1),
-//             full_name: row.get(2),
-//             email: row.get(3),
-//             email_verified: row.get(4),
-//             level: row.get(5)
-//         }))
-//     } else {
-//         Ok(None)
-//     }
-// }

@@ -4,9 +4,9 @@ use serde_json::json;
 use crate::db::users;
 
 pub mod json;
-pub mod error;
 
 use crate::state::TemplateState;
+use super::error;
 
 pub fn respond_index_html(
     template_state: &TemplateState,
@@ -78,8 +78,8 @@ pub fn redirect_to_login_with(path: &str) -> HttpResponse {
 #[inline]
 pub fn okay_response() -> HttpResponse {
     HttpResponse::Ok()
-    .insert_header((http::header::CONTENT_TYPE, "text/plain"))
-    .body("okay")
+        .insert_header((http::header::CONTENT_TYPE, "text/plain"))
+        .body("okay")
 }
 
 #[allow(dead_code)]

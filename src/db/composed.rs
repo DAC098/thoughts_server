@@ -75,8 +75,7 @@ impl ComposedEntryComment {
                    entry_comments.created, \
                    entry_comments.updated, \
                    users.id, \
-                   users.username, \
-                   users.full_name \
+                   users.username \
             from entry_comments \
             join users on entry_comments.owner = users.id \
             where entry_comments.entry = $1",
@@ -87,8 +86,7 @@ impl ComposedEntryComment {
         .map(|row| ComposedEntryComment {
             user: users::UserBare {
                 id: row.get(6),
-                username: row.get(7),
-                full_name: row.get(8)
+                username: row.get(7)
             },
             comment: entry_comments::EntryComment {
                 id: row.get(0),
@@ -120,7 +118,6 @@ impl ComposedUser {
             "\
             select users.id, \
                    users.username, \
-                   users.full_name, \
                    users.email, \
                    users.email_verified, \
                    users.level, \
@@ -139,19 +136,18 @@ impl ComposedUser {
                 user: users::User {
                     id: *id,
                     username: row.get(1),
-                    full_name: row.get(2),
-                    email: row.get(3),
-                    email_verified: row.get(4),
-                    level: row.get(5)
+                    email: row.get(2),
+                    email_verified: row.get(3),
+                    level: row.get(4)
                 },
                 data: user_data::UserData {
                     owner: *id,
-                    prefix: row.get(6),
-                    suffix: row.get(7),
-                    first_name: row.get(8),
-                    last_name: row.get(9),
-                    middle_name: row.get(10),
-                    dob: row.get(11)
+                    prefix: row.get(5),
+                    suffix: row.get(6),
+                    first_name: row.get(7),
+                    last_name: row.get(8),
+                    middle_name: row.get(9),
+                    dob: row.get(10)
                 }
             }))
         } else {
@@ -178,7 +174,6 @@ impl ComposedUserAccess {
             "\
             select users.id, \
                    users.username, \
-                   users.full_name, \
                    users.email, \
                    users.email_verified, \
                    users.level, \
@@ -199,15 +194,14 @@ impl ComposedUserAccess {
                 user: users::User {
                     id: row.get(0),
                     username: row.get(1),
-                    full_name: row.get(2),
-                    email: row.get(3),
-                    email_verified: row.get(4),
-                    level: row.get(5)
+                    email: row.get(2),
+                    email_verified: row.get(3),
+                    level: row.get(4)
                 },
                 access: user_access::UserAccess {
-                    owner: row.get(6),
-                    ability: row.get(7),
-                    allowed_for: row.get(8)
+                    owner: row.get(5),
+                    ability: row.get(6),
+                    allowed_for: row.get(7)
                 }
             })
             .collect()

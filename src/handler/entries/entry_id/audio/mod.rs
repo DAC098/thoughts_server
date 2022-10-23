@@ -11,8 +11,9 @@ use crate::db;
 
 pub mod audio_id;
 
-use crate::response;
-use crate::response::json::JsonBuilder;
+use crate::net::http::error;
+use crate::net::http::response;
+use crate::net::http::response::json::JsonBuilder;
 use crate::state;
 use crate::request::{initiator_from_request, Initiator};
 use crate::security;
@@ -28,7 +29,7 @@ pub async fn handle_get(
     req: HttpRequest,
     db: state::WebDbState,
     path: web::Path<EntryIdAudioPath>
-) -> response::error::Result<impl Responder> {
+) -> error::Result<impl Responder> {
     let path = path.into_inner();
     let conn = db.get_conn().await?;
     let accept_html = response::try_check_if_html_req(&req);
@@ -43,17 +44,45 @@ pub async fn handle_get(
             Ok(response::redirect_to_login_with(redirect_to.as_str()))
         }
     } else if initiator.is_none() {
-        Err(response::error::ResponseError::Session)
+        Err(error::ResponseError::Session)
     } else {
         let initiator = initiator.unwrap();
         let is_private: Option<bool>;
         let owner: i32;
 
         if let Some(user_id) = path.user_id {
-            security::assert::permission_to_read(&*conn, &initiator.user.id, &user_id).await?;
+            if !security::permissions::has_permission(
+                &*conn, 
+                &initiator.user.id, 
+                db::permissions::rolls::USERS_ENTRIES, 
+                &[
+                    db::permissions::abilities::READ
+                ],
+                Some(&user_id)
+            ).await? {
+                return Err(error::ResponseError::PermissionDenied(
+                    "you do not have permission to read this users audio entries".into()
+                ));
+            }
+
             owner = user_id;
             is_private = Some(false);
         } else {
+            if !security::permissions::has_permission(
+                &*conn, 
+                &initiator.user.id, 
+                db::permissions::rolls::ENTRIES, 
+                &[
+                    db::permissions::abilities::READ,
+                    db::permissions::abilities::READ_WRITE
+                ], 
+                None
+            ).await? {
+                return Err(error::ResponseError::PermissionDenied(
+                    "you do not have permission to read audio entries".into()
+                ));
+            }
+
             owner = initiator.user.id;
             is_private = None;
         }
@@ -86,14 +115,14 @@ struct MultipartResult {
 async fn handle_multipart_form(
     storage: &state::WebStorageState,
     mut body: actix_multipart::Multipart
-) -> response::error::Result<MultipartResult> {
+) -> error::Result<MultipartResult> {
     let mut audio_entry: Option<PostAudioEntry> = None;
     let mut audio_file: Option<File> = None;
     let mut audio_file_path: Option<PathBuf> = None;
 
     while let Some(item) = body.next().await {
         let mut field = item.map_err(
-            |e| response::error::ResponseError::GeneralWithInternal(
+            |e| error::ResponseError::GeneralWithInternal(
                 format!("error when parsing multipart form"),
                 format!("multipart form error: {:?}", e)
             )
@@ -110,7 +139,7 @@ async fn handle_multipart_form(
                             chunk.reader().read_to_string(&mut string_data)?;
                         },
                         Err(e) => {
-                            return Err(response::error::ResponseError::GeneralWithInternal(
+                            return Err(error::ResponseError::GeneralWithInternal(
                                 format!("problem when reading data from request body"),
                                 format!("failed to read json information from request. {:?}", e)
                             ));
@@ -120,7 +149,7 @@ async fn handle_multipart_form(
 
                 audio_entry = Some(serde_json::from_str(string_data.as_str())?);
             } else {
-                return Err(response::error::ResponseError::BadRequest(
+                return Err(error::ResponseError::BadRequest(
                     format!("invalid content-type given for application group. only accepts application/json")
                 ));
             }
@@ -144,7 +173,7 @@ async fn handle_multipart_form(
                             file.write(&chunk)?;
                         },
                         Err(e) => {
-                            return Err(response::error::ResponseError::GeneralWithInternal(
+                            return Err(error::ResponseError::GeneralWithInternal(
                                 format!("problem with reading file from request"),
                                 format!("failed to read audio file from request. {:?}", e)
                             ))
@@ -159,7 +188,7 @@ async fn handle_multipart_form(
     }
 
     if audio_file.is_none() {
-        return Err(response::error::ResponseError::BadRequest(
+        return Err(error::ResponseError::BadRequest(
             format!("missing required audio file in multipart form body.")
         ));
     }
@@ -182,7 +211,7 @@ struct AudioWebmResult {
 async fn handle_audio_webm(
     storage: &state::WebStorageState, 
     mut body: web::Payload
-) -> response::error::Result<AudioWebmResult> {
+) -> error::Result<AudioWebmResult> {
     let audio_file_path = util::file::get_tmp_path(storage.get_tmp_dir_ref(), "webm");
     let mut audio_file = File::create(&audio_file_path)?;
 
@@ -192,7 +221,7 @@ async fn handle_audio_webm(
                 audio_file.write(&chunk)?;
             },
             Err(e) => {
-                return Err(response::error::ResponseError::GeneralWithInternal(
+                return Err(error::ResponseError::GeneralWithInternal(
                     format!("problem with reading file from request"),
                     format!("failed to read audio file from request. {:?}", e)
                 ));
@@ -213,12 +242,26 @@ pub async fn handle_post(
     storage: state::WebStorageState,
     path: web::Path<EntryIdAudioPath>,
     body: web::Payload,
-) -> response::error::Result<impl Responder> {
+) -> error::Result<impl Responder> {
     let path = path.into_inner();
     let mut conn = db.get_conn().await?;
 
+    if !security::permissions::has_permission(
+        &*conn, 
+        &initiator.user.id, 
+        db::permissions::rolls::ENTRIES, 
+        &[
+            db::permissions::abilities::READ_WRITE
+        ],
+        None
+    ).await? {
+        return Err(error::ResponseError::PermissionDenied(
+            "you do not have permission to create audio entries".into()
+        ));
+    }
+
     security::assert::is_owner_for_entry(&*conn, &path.entry_id, &initiator.user.id).await?;
-    
+
     let audio_entry;
     let audio_file;
     let audio_file_path;
@@ -244,17 +287,17 @@ pub async fn handle_post(
             audio_file_path = results.audio_file_path;
         } else {
             if let Ok(header_value) = content_type_value.to_str() {
-                return Err(response::error::ResponseError::BadRequest(
+                return Err(error::ResponseError::BadRequest(
                     format!("invalid content-type given. expect: multipart/form-data | given: {}", header_value)
                 ));
             } else {
-                return Err(response::error::ResponseError::BadRequest(
+                return Err(error::ResponseError::BadRequest(
                     format!("header value contains invalid characters. cannot display value")
                 ))
             }
         }
     } else {
-        return Err(response::error::ResponseError::BadRequest(
+        return Err(error::ResponseError::BadRequest(
             format!("no content-type specified for request body")
         ));
     }

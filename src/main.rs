@@ -2,9 +2,14 @@ use std::net::TcpListener;
 
 use actix_web::{web, App, HttpServer};
 use actix_web::middleware::Logger;
-use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use tokio_postgres::{Config as PGConfig, NoTls};
 use bb8_postgres::{PostgresConnectionManager, bb8};
+
+#[cfg(feature = "openssl")]
+use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
+
+#[cfg(feature = "rustls")]
+use rustls::{NoClientAuth,server::{ServerConfig as RlsServerConfig}};
 
 use tlib::cli;
 
@@ -14,7 +19,8 @@ mod security;
 mod state;
 mod db;
 mod handler;
-mod response;
+mod net;
+mod routing;
 mod request;
 mod parsing;
 mod util;
@@ -215,6 +221,27 @@ async fn server_runner(config: config::ServerConfig) -> Result<()> {
                     )
             )
             .service(
+                web::scope("/groups")
+                    .route("", web::get().to(handler::groups::handle_get))
+                    .route("", web::post().to(handler::groups::handle_post))
+                    .service(
+                        web::scope("/{group_id}")
+                            .route("", web::get().to(handler::groups::group_id::handle_get))
+                            .route("", web::put().to(handler::groups::group_id::handle_put))
+                            .route("", web::delete().to(handler::groups::group_id::handle_delete))
+                            .service(
+                                web::scope("/permissions")
+                                    .route("", web::get().to(handler::groups::group_id::permissions::handle_get))
+                                    .route("", web::put().to(handler::groups::group_id::permissions::handle_put))
+                            )
+                            .service(
+                                web::scope("/users")
+                                    .route("", web::get().to(handler::groups::group_id::users::handle_get))
+                                    .route("", web::put().to(handler::groups::group_id::users::handle_put))
+                            )
+                    )
+            )
+            .service(
                 web::scope("/users")
                     .route("", web::get().to(handler::users::handle_get))
                     .service(
@@ -253,47 +280,55 @@ async fn server_runner(config: config::ServerConfig) -> Result<()> {
         .max_connections(config.max_connections)
         .max_connection_rate(config.max_connection_rate);
 
-    for (_key, info) in bind_config {
-        if let Some(ssl) = info.ssl {
-            let mut ssl_builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
-            ssl_builder.set_private_key_file(ssl.key, SslFiletype::PEM).unwrap();
-            ssl_builder.set_certificate_chain_file(ssl.cert).unwrap();
+    for (key, info) in bind_config {
+        let listener = match TcpListener::bind(&info.addr) {
+            Ok(l) => l,
+            Err(err) => {
+                let kind = err.kind();
 
-            let listener = match TcpListener::bind(&info.addr) {
-                Ok(l) => l,
-                Err(err) => {
-                    let kind = err.kind();
-
-                    if kind == std::io::ErrorKind::AddrInUse {
-                        log::error!("address already in use. attempted: {}", info.addr);
-                    }
-
-                    return Err(err.into());
+                if kind == std::io::ErrorKind::AddrInUse {
+                    log::error!("address: {} already in use. key: {}", info.addr, key);
                 }
-            };
-            let local_addr = listener.local_addr()?;
 
-            log::info!("attaching secure listener to: {}", local_addr);
+                return Err(err.into());
+            }
+        };
+        let local_addr = listener.local_addr()?;
 
-            server = server.listen_openssl(listener, ssl_builder)?;
-        } else {
-            let listener = match TcpListener::bind(&info.addr) {
-                Ok(l) => l,
-                Err(err) => {
-                    let kind = err.kind();
+        #[cfg(not(any(feature = "rustls", feature = "openssl")))] {
+            if info.ssl.is_some() {
+                log::info!("tls is disabled in this build. key: {}", key);
+            }
 
-                    if kind == std::io::ErrorKind::AddrInUse {
-                        log::error!("address already in use. attempted: {}", info.addr);
-                    }
-
-                    return Err(err.into());
-                }
-            };
-            let local_addr = listener.local_addr()?;
-
-            log::info!("attaching listener to: {}", local_addr);
+            log::info!("attaching listener to: {}. key: {}", local_addr, key);
 
             server = server.listen(listener)?;
+        }
+
+        #[cfg(any(feature = "rustls", feature = "openssl"))] {
+            if let Some(ssl) = info.ssl {
+                #[cfg(feature = "rustls")] {
+                    let mut ssl_builder = RlsServerConfig::builder();
+                }
+
+                #[cfg(feature = "openssl")] {
+                    let mut ssl_builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
+                    ssl_builder.set_private_key_file(ssl.key, SslFiletype::PEM).unwrap();
+                    ssl_builder.set_certificate_chain_file(ssl.cert).unwrap();
+                }
+
+                log::info!("attaching secure listener to: {}. key: {}", local_addr, key);
+
+                #[cfg(feature = "rustls")]
+                server = server.listen_rustls(listener, ssl_builder)?;
+
+                #[cfg(feature = "openssl")]
+                server = server.listen_openssl(listener, ssl_builder)?;
+            } else {
+                log::info!("attaching listener to: {}. key: {}", local_addr, key);
+
+                server = server.listen(listener)?;
+            }
         }
     }
 

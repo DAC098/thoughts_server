@@ -7,14 +7,13 @@ use lettre::message::Mailbox;
 use crate::db;
 
 use crate::request::{initiator_from_request, Initiator};
-use crate::response;
-use crate::response::json::JsonBuilder;
+use crate::net::http::error;
+use crate::net::http::response;
+use crate::net::http::response::json::JsonBuilder;
 use crate::state;
 use crate::security::assert;
 use crate::util;
 use crate::email;
-
-use response::error;
 
 #[derive(Deserialize)]
 pub struct UserIdPath {
@@ -76,7 +75,6 @@ pub struct PutUserData {
 pub struct PutUser {
     username: String,
     level: i32,
-    full_name: Option<String>,
     email: String
 }
 
@@ -132,16 +130,14 @@ pub async fn handle_put(
         update users \
         set username = $2, \
             level = $3, \
-            full_name = $4, \
-            email = $5, \
-            email_verified = $6 \
+            email = $4, \
+            email_verified = $5 \
         where id = $1 \
-        returning id, username, level, full_name, email",
+        returning id, username, level, email",
         &[
             &path.user_id,
             &posted.user.username,
             &posted.user.level,
-            &posted.user.full_name,
             &email_value,
             &email_verified
         ]
@@ -217,7 +213,6 @@ pub async fn handle_put(
             select users.id, \
                    users.username, \
                    users.level, \
-                   users.full_name, \
                    users.email, \
                    users.email_verified \
             from users \
@@ -230,9 +225,8 @@ pub async fn handle_put(
                 id: check.get(0),
                 username: check.get(1),
                 level: check.get(2),
-                full_name: check.get(3),
-                email: check.get(4),
-                email_verified: check.get(5)
+                email: check.get(3),
+                email_verified: check.get(4)
             };
 
             if user.level != check_level {
@@ -317,8 +311,7 @@ pub async fn handle_put(
                 id: path.user_id,
                 username: result.get(1),
                 level: result.get(2),
-                full_name: result.get(3),
-                email: result.get(4),
+                email: result.get(3),
                 email_verified
             },
             data: user_data,

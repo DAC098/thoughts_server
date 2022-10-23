@@ -4,7 +4,7 @@ use lettre::address::Address;
 use serde_json::json;
 use tokio_postgres::GenericClient;
 
-use crate::response::error;
+use crate::net::http::error;
 use crate::{security, util};
 use crate::state::{TemplateState, EmailState, ServerInfoState};
 

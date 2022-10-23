@@ -1,13 +1,11 @@
 use actix_web::http;
 use actix_web::{web, Responder};
-use serde::{Deserialize};
+use serde::Deserialize;
 
-use crate::response::json::JsonBuilder;
 use crate::state;
-use crate::response;
+use crate::net::http::error;
+use crate::net::http::response::json::JsonBuilder;
 use crate::util;
-
-use response::error;
 
 #[derive(Deserialize)]
 pub struct QueryOptions {

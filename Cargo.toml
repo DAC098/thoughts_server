@@ -8,9 +8,12 @@ edition = "2018"
 
 [workspace]
 members = [
-    "tlib",
-    "primer"
+    "tlib"
 ]
+
+[features]
+openssl = ["dep:openssl", "actix-web/openssl"]
+rustls = ["dep:rustls", "actix-web/rustls"]
 
 [dependencies]
 shape-rs = { git = "https://github.com/dac098/shape-rs" }
@@ -38,7 +41,8 @@ tokio-postgres = { version = "0.7", features = ["with-chrono-0_4", "with-uuid-0_
 bb8-postgres = { version = "0.7" }
 
 # security
-openssl = { version = "0.10", features = ["v110"]}
+openssl = { version = "0.10", optional = true, features = ["vendored"]}
+rustls = { version = "0.20", optional = true }
 rust-argon2 = { version = "0.8" }
 sha-1 = { version = "0.9" }
 
@@ -47,7 +51,7 @@ lettre = { version = "0.10.0-rc.2", features = ["tokio1-native-tls", "native-tls
 urlencoding = { version = "2.1.0" }
 
 # web-server
-actix-web = { version = "4.0.1", features = ["openssl"]}
+actix-web = { version = "4.0.1", features = []}
 actix-session = { version = "0.6.2", features = ["cookie-session"] }
 actix-files = { version = "0.6.0" }
 actix-web-actors = { version = "4.1.0" }

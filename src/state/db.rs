@@ -2,7 +2,7 @@ use actix_web::web;
 use bb8_postgres::{PostgresConnectionManager, bb8::Pool, bb8::PooledConnection};
 use tokio_postgres::NoTls;
 
-use crate::response::error;
+use crate::net::http::error;
 
 pub struct DBState {
     pub pool: Pool<PostgresConnectionManager<NoTls>>

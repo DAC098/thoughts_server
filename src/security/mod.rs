@@ -1,13 +1,14 @@
 use argon2::{Config, ThreadMode, Variant, Version};
+use rand::RngCore;
 
-use crate::response::error;
+use crate::net::http::error;
 
 pub mod assert;
-
+pub mod permissions;
 
 pub fn get_rand_bytes(size: usize) -> error::Result<Vec<u8>> {
     let mut rand_bytes = vec![0; size];
-    openssl::rand::rand_bytes(rand_bytes.as_mut_slice())?;
+    rand::thread_rng().try_fill_bytes(rand_bytes.as_mut_slice())?;
     Ok(rand_bytes)
 }
 

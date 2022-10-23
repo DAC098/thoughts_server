@@ -6,12 +6,11 @@ use crate::db;
 pub mod field_id;
 
 use crate::request::{initiator_from_request, Initiator};
-use crate::response;
-use crate::response::json::JsonBuilder;
+use crate::net::http::error;
+use crate::net::http::response;
+use crate::net::http::response::json::JsonBuilder;
 use crate::state;
 use crate::security;
-
-use response::error::{Result, ResponseError};
 
 #[derive(Deserialize)]
 pub struct CustomFieldsPath {
@@ -23,7 +22,7 @@ pub async fn handle_get(
     db: state::WebDbState,
     template: state::WebTemplateState<'_>,
     path: web::Path<CustomFieldsPath>,
-) -> Result<impl Responder> {
+) -> error::Result<impl Responder> {
     let accept_html = response::try_check_if_html_req(&req);
     let conn = &*db.get_conn().await?;
     let initiator_opt = initiator_from_request(conn, &req).await?;
@@ -35,7 +34,7 @@ pub async fn handle_get(
             Ok(response::redirect_to_path("/auth/login?jump_to=/custom_fields"))
         }
     } else if initiator_opt.is_none() {
-        Err(ResponseError::Session)
+        Err(error::ResponseError::Session)
     } else {
         let initiator = initiator_opt.unwrap();
         let owner: i32;
@@ -65,7 +64,7 @@ pub async fn handle_post(
     initiator: Initiator,
     db: state::WebDbState,
     posted: web::Json<PostCustomFieldJson>,
-) -> Result<impl Responder> {
+) -> error::Result<impl Responder> {
     let conn = &*db.get_conn().await?;
 
     let check = conn.query(
@@ -74,7 +73,7 @@ pub async fn handle_post(
     ).await?;
 
     if check.len() != 0 {
-        return Err(ResponseError::CustomFieldExists(posted.name.clone()));
+        return Err(error::ResponseError::CustomFieldExists(posted.name.clone()));
     }
 
     let config_json = serde_json::to_value(posted.config.clone())?;

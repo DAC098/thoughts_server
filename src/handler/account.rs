@@ -4,13 +4,12 @@ use lettre::message::Mailbox;
 
 use crate::db;
 
-use crate::response::json::JsonBuilder;
+use crate::net::http::error;
+use crate::net::http::response;
+use crate::net::http::response::json::JsonBuilder;
 use crate::state;
 use crate::request::{initiator_from_request, Initiator};
-use crate::response;
 use crate::email;
-
-use response::error;
 
 pub async fn handle_get(
     req: HttpRequest,
@@ -40,7 +39,6 @@ pub async fn handle_get(
 #[derive(Deserialize)]
 pub struct PutAccountJson {
     username: String,
-    full_name: Option<String>,
     email: String
 }
 
@@ -77,14 +75,12 @@ pub async fn handle_put(
         "\
         update users \
         set username = $2, \
-            full_name = $3, \
-            email = $4, \
-            email_verified = $5 \
+            email = $3, \
+            email_verified = $4 \
         where id = $1",
         &[
             &initiator.user.id,
             &posted.username,
-            &posted.full_name,
             &email_value,
             &email_verified
         ]
@@ -107,7 +103,6 @@ pub async fn handle_put(
         .build(Some(db::users::User {
             id: initiator.user.id,
             username: posted.username,
-            full_name: posted.full_name,
             level: initiator.user.level,
             email: email_value,
             email_verified

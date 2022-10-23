@@ -9,15 +9,14 @@ use crate::db;
 pub mod comments;
 pub mod audio;
 
-use crate::response;
-use crate::response::json::JsonBuilder;
+use crate::net::http::error;
+use crate::net::http::response;
+use crate::net::http::response::json::JsonBuilder;
 use crate::state;
 use crate::request::{initiator_from_request, Initiator};
 use crate::security;
 use crate::util;
 use crate::getters;
-
-use response::error as app_error;
 
 #[derive(Deserialize)]
 pub struct PutTextEntry {
@@ -71,7 +70,7 @@ pub async fn handle_get(
     db: state::WebDbState,
     template: state::WebTemplateState<'_>,
     path: web::Path<EntryPath>
-) -> app_error::Result<impl Responder> {
+) -> error::Result<impl Responder> {
     let conn = &*db.get_conn().await?;
     let accept_html = response::try_check_if_html_req(&req);
     let initiator_opt = initiator_from_request(conn, &req).await?;
@@ -83,17 +82,43 @@ pub async fn handle_get(
             Ok(response::redirect_to_login(&req))
         }
     } else if initiator_opt.is_none() {
-        Err(app_error::ResponseError::Session)
+        Err(error::ResponseError::Session)
     } else {
         let initiator = initiator_opt.unwrap();
         let is_private: Option<bool>;
         let owner: i32;
 
         if let Some(user_id) = path.user_id {
-            security::assert::permission_to_read(conn, &initiator.user.id, &user_id).await?;
+            if !security::permissions::has_permission(
+                &*conn, 
+                &initiator.user.id, 
+                db::permissions::rolls::USERS_ENTRIES, 
+                &[db::permissions::abilities::READ], 
+                Some(&user_id)
+            ).await? {
+                return Err(error::ResponseError::PermissionDenied(
+                    "you do not have permission to read this users entries".into()
+                ));
+            }
+
             is_private = Some(false);
             owner = user_id;
         } else {
+            if !security::permissions::has_permission(
+                &*conn, 
+                &initiator.user.id, 
+                db::permissions::rolls::ENTRIES, 
+                &[
+                    db::permissions::abilities::READ,
+                    db::permissions::abilities::READ_WRITE
+                    ],
+                None
+            ).await? {
+                return Err(error::ResponseError::PermissionDenied(
+                    "you do not have permission to read entries".into()
+                ))
+            }
+
             is_private = None;
             owner = initiator.user.id;
         }
@@ -103,12 +128,12 @@ pub async fn handle_get(
                 JsonBuilder::new(http::StatusCode::OK)
                     .build(Some(record))
             } else {
-                Err(app_error::ResponseError::PermissionDenied(
+                Err(error::ResponseError::PermissionDenied(
                     format!("entry owner mis-match. requested entry is not owned by {}", owner)
                 ))
             }
         } else {
-            Err(app_error::ResponseError::EntryNotFound(path.entry_id))
+            Err(error::ResponseError::EntryNotFound(path.entry_id))
         }
     }
 }
@@ -123,10 +148,25 @@ pub async fn handle_put(
     db: state::WebDbState,
     path: web::Path<EntryPath>,
     posted: web::Json<PutComposedEntry>
-) -> app_error::Result<impl Responder> {
+) -> error::Result<impl Responder> {
     let posted = posted.into_inner();
     let conn = &mut *db.get_conn().await?;
     let created = posted.entry.day.clone();
+
+    if !security::permissions::has_permission(
+        &*conn, 
+        &initiator.user.id,
+        db::permissions::rolls::ENTRIES,
+        &[
+            db::permissions::abilities::READ_WRITE
+        ],
+        None
+    ).await? {
+        return Err(error::ResponseError::PermissionDenied(
+            "you do not have permission to update entries".into()
+        ));
+    }
+
     security::assert::is_owner_for_entry(conn, &path.entry_id, &initiator.user.id).await?;
 
     let transaction = conn.transaction().await?;
@@ -214,11 +254,11 @@ pub async fn handle_put(
                 ).await?;
 
                 if check.len() == 0 {
-                    return Err(app_error::ResponseError::TextEntryNotFound(id));
+                    return Err(error::ResponseError::TextEntryNotFound(id));
                 }
 
                 if check[0].get::<usize, i32>(0) != initiator.user.id {
-                    return Err(app_error::ResponseError::PermissionDenied(
+                    return Err(error::ResponseError::PermissionDenied(
                         format!("you do not have permission to modify another users text entry. text entry: {}", id)
                     ));
                 }
@@ -327,11 +367,11 @@ pub async fn handle_put(
                 ).await?;
 
                 if check.is_empty() {
-                    return Err(app_error::ResponseError::EntryMarkerNotFound(id));
+                    return Err(error::ResponseError::EntryMarkerNotFound(id));
                 }
 
                 if check[0].get::<usize, i32>(0) != initiator.user.id {
-                    return Err(app_error::ResponseError::PermissionDenied(
+                    return Err(error::ResponseError::PermissionDenied(
                         format!("you do not have permission to modify another users entry marker. text entry: {}", id)
                     ));
                 }
@@ -383,8 +423,23 @@ pub async fn handle_delete(
     initiator: Initiator,
     db: state::WebDbState,
     path: web::Path<EntryPath>
-) -> app_error::Result<impl Responder> {
+) -> error::Result<impl Responder> {
     let conn = &mut *db.get_conn().await?;
+
+    if !security::permissions::has_permission(
+        &*conn, 
+        &initiator.user.id, 
+        db::permissions::rolls::ENTRIES, 
+        &[
+            db::permissions::abilities::READ_WRITE
+        ], 
+        None
+    ).await? {
+        return Err(error::ResponseError::PermissionDenied(
+            "you do not have permission to delete entries".into()
+        ));
+    }
+
     let transaction = conn.transaction().await?;
 
     let check = transaction.query(
@@ -399,7 +454,7 @@ pub async fn handle_delete(
         }
 
         if invalid_entries.len() > 0 {
-            return Err(app_error::ResponseError::PermissionDenied(
+            return Err(error::ResponseError::PermissionDenied(
                 format!("you are not allowed to delete entries owned by another user. entries ({:?})", invalid_entries)
             ));
         }

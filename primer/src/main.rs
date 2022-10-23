@@ -58,7 +58,6 @@ async fn run() {
 
         let username = "admin".to_owned();
         let password = b"password";
-        let full_name = None::<String>;
         let email = None::<String>;
         let level = 1;
         let hash = argon2::hash_encoded(password, rand_bytes.as_slice(), &hash_config)
@@ -70,13 +69,12 @@ async fn run() {
 
         transaction.query_one(
             "\
-            insert into users (level, username, full_name, hash, email) values \
-            ($1, $2, $3, $4, $5) \
+            insert into users (level, username, hash, email) values \
+            ($1, $2, $3, $4) \
             returning id",
             &[
                 &level,
                 &username,
-                &full_name,
                 &hash,
                 &email
             ]

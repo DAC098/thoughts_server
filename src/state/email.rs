@@ -4,7 +4,7 @@ use lettre::transport::smtp::SmtpTransport;
 use lettre::transport::smtp::authentication::Credentials;
 
 use crate::config::EmailConfig;
-use crate::response::error;
+use crate::net::http::error;
 
 pub struct EmailState {
     pub enabled: bool,

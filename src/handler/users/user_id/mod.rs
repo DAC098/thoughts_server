@@ -3,19 +3,18 @@ use actix_web::{web, http, HttpRequest, Responder};
 use crate::db;
 
 use crate::request::initiator_from_request;
-use crate::response;
-use crate::response::json::JsonBuilder;
+use crate::net::http::error;
+use crate::net::http::response;
+use crate::net::http::response::json::JsonBuilder;
 use crate::state;
-use crate::parsing::url_paths;
 use crate::security;
-
-use response::error;
+use crate::routing::path;
 
 pub async fn handle_get(
     req: HttpRequest,
     db: state::WebDbState,
     template: state::WebTemplateState<'_>,
-    path: web::Path<url_paths::UserPath>,
+    path: web::Path<path::params::UserPath>,
 ) -> error::Result<impl Responder> {
     let accept_html = response::try_check_if_html_req(&req);
     let conn = &*db.get_conn().await?;

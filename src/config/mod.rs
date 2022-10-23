@@ -1,7 +1,7 @@
 use std::{
     path::PathBuf, 
     convert::{TryFrom, TryInto}, 
-    collections::HashMap, net::{SocketAddr, IpAddr}
+    collections::HashMap, net::{SocketAddr, IpAddr}, fs::canonicalize
 };
 
 use lettre::address::Address;
@@ -465,14 +465,65 @@ impl TryFrom<shapes::ServerConfigShape> for ServerConfig {
 // ----------------------------------------------------------------------------
 // ----------------------------------------------------------------------------
 
+pub fn load_config_file(base_shape: &mut shapes::ServerConfigShape, file: PathBuf) -> error::Result<()> {
+    let mut shape = shapes::ServerConfigShape::try_from(&file)?;
+    let parent = file.parent().unwrap();
+
+    let include = shape.include.take();
+
+    base_shape.map_shape(shapes::validate_server_config_shape(&parent, shape)?);
+
+    if let Some(include) = include {
+        for inc in include {
+            let to_canonicalize = if inc.is_absolute() {
+                inc
+            } else {
+                let mut with_root = parent.clone().to_owned();
+                with_root.push(inc);
+                with_root
+            };
+
+            let full_path = match canonicalize(&to_canonicalize) {
+                Ok(path) => {
+                    if !path.is_file() {
+                        return Err(error::Error::InvalidConfig(
+                            format!(
+                                "include file {} is not a file.\nconfig file: {}\nreal path: {}",
+                                to_canonicalize.display(),
+                                file.display(),
+                                path.display()
+                            )
+                        ));
+                    }
+
+                    path
+                },
+                Err(error) => {
+                    return match error.kind() {
+                        std::io::ErrorKind::NotFound => Err(error::Error::InvalidConfig(
+                            format!(
+                                "includ file was not found.\nconfig file: {}\ngiven value: {}",
+                                file.display(),
+                                to_canonicalize.display()
+                            )
+                        )),
+                        _ => Err(error.into())
+                    }
+                }
+            };
+
+            load_config_file(base_shape, full_path)?;
+        }
+    }
+
+    Ok(())
+}
+
 pub fn load_server_config(files: Vec<std::path::PathBuf>) -> error::Result<ServerConfig> {
     let mut base_shape: shapes::ServerConfigShape = std::default::Default::default();
 
     for file in files {
-        let shape = shapes::ServerConfigShape::try_from(&file)?;
-        let parent = file.parent().unwrap();
-
-        base_shape.map_shape(shapes::validate_server_config_shape(&parent, shape)?);
+        load_config_file(&mut base_shape, file)?;
     }
 
     let conf = base_shape.try_into()?;

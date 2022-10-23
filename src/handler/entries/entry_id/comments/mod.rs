@@ -5,9 +5,10 @@ use crate::db;
 
 pub mod comment_id;
 
-use crate::response::json::JsonBuilder;
 use crate::state;
-use crate::response;
+use crate::net::http::error;
+use crate::net::http::response;
+use crate::net::http::response::json::JsonBuilder;
 use crate::request::{initiator_from_request, Initiator};
 use crate::security;
 use crate::util;
@@ -23,7 +24,7 @@ pub async fn handle_get(
     db: state::WebDbState,
     template: state::WebTemplateState<'_>,
     path: web::Path<EntryPath>,
-) -> response::error::Result<impl Responder> {
+) -> error::Result<impl Responder> {
     let path = path.into_inner();
     let conn = &*db.get_conn().await?;
     let accept_html = response::try_check_if_html_req(&req);
@@ -36,7 +37,7 @@ pub async fn handle_get(
             Ok(response::redirect_to_login(&req))
         }
     } else if initiator.is_none() {
-        Err(response::error::ResponseError::Session)
+        Err(error::ResponseError::Session)
     } else {
         let initiator = initiator.unwrap();
         let owner: i32;
@@ -68,7 +69,7 @@ pub async fn handle_post(
     db: state::WebDbState,
     path: web::Path<EntryPath>,
     posted: web::Json<PostEntryComment>,
-) -> response::error::Result<impl Responder> {
+) -> error::Result<impl Responder> {
     let initiator = initiator.into_user();
     let posted = posted.into_inner();
     let path = path.into_inner();

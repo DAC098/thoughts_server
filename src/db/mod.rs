@@ -2,9 +2,12 @@ pub mod error;
 
 pub mod users;
 pub mod user_data;
+pub mod groups;
+pub mod group_users;
 pub mod user_sessions;
 pub mod session_csrf_tokens;
 pub mod user_access;
+pub mod permissions;
 pub mod tags;
 pub mod custom_fields;
 pub mod custom_field_entries;

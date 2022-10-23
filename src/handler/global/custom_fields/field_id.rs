@@ -1,16 +1,26 @@
 use actix_web::{web, http, HttpRequest, Responder};
 use serde::Deserialize;
+use tokio_postgres::GenericClient;
 
 use crate::db;
 
 use crate::request::{initiator_from_request, Initiator};
-use crate::response;
-use crate::response::json::JsonBuilder;
+use crate::net::http::error;
+use crate::net::http::response;
+use crate::net::http::response::json::JsonBuilder;
 use crate::state;
 use crate::security;
-use crate::getters;
 
-use response::error::{Result, ResponseError};
+async fn get_via_id(
+    conn: &impl GenericClient,
+    id: &i32
+) -> error::Result<db::global_custom_fields::GlobalCustomField> {
+    if let Some(field) = db::global_custom_fields::find_from_id(conn, id).await? {
+        Ok(field)
+    } else {
+        Err(error::ResponseError::GlobalCustomFieldNotFound(*id))
+    }
+}
 
 #[derive(Deserialize)]
 pub struct FieldPath {
@@ -22,7 +32,7 @@ pub async fn handle_get(
     db: state::WebDbState,
     template: state::WebTemplateState<'_>,
     path: web::Path<FieldPath>,
-) -> Result<impl Responder> {
+) -> error::Result<impl Responder> {
     let conn = &*db.get_conn().await?;
     let initiator_opt = initiator_from_request(conn, &req).await?;
     let accept_html = response::try_check_if_html_req(&req);
@@ -34,10 +44,10 @@ pub async fn handle_get(
             Ok(response::redirect_to_login(&req))
         }
     } else if initiator_opt.is_none() {
-        Err(ResponseError::Session)
+        Err(error::ResponseError::Session)
     } else {
         JsonBuilder::new(http::StatusCode::OK)
-            .build(Some(getters::global_custom_fields::get_via_id(conn, &path.field_id).await?))
+            .build(Some(get_via_id(conn, &path.field_id).await?))
     }
 }
 
@@ -53,13 +63,13 @@ pub async fn handle_put(
     db: state::WebDbState,
     posted: web::Json<PutGlobalCustomFieldJson>,
     path: web::Path<FieldPath>,
-) -> Result<impl Responder> {
+) -> error::Result<impl Responder> {
     security::assert::is_admin(&initiator)?;
 
     let posted = posted.into_inner();
     let conn = &mut *db.get_conn().await?;
 
-    let _original = getters::global_custom_fields::get_via_id(conn, &path.field_id).await?;
+    let _original = get_via_id(conn, &path.field_id).await?;
 
     let transaction = conn.transaction().await?;
 
@@ -93,12 +103,12 @@ pub async fn handle_delete(
     initiator: Initiator,
     db: state::WebDbState,
     path: web::Path<FieldPath>,
-) -> Result<impl Responder> {
+) -> error::Result<impl Responder> {
     security::assert::is_admin(&initiator)?;
 
     let conn = &mut *db.get_conn().await?;
 
-    let _original = getters::global_custom_fields::get_via_id(conn, &path.field_id).await?;
+    let _original = get_via_id(conn, &path.field_id).await?;
 
     let transaction = conn.transaction().await?;
     transaction.execute(

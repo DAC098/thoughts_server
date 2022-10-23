@@ -3,9 +3,9 @@ use serde::Deserialize;
 
 use crate::db;
 
-use crate::response::json::JsonBuilder;
 use crate::state;
-use crate::response;
+use crate::net::http::error;
+use crate::net::http::response::json::JsonBuilder;
 use crate::request::Initiator;
 use crate::security;
 use crate::util;
@@ -27,7 +27,7 @@ pub async fn handle_put(
     db: state::WebDbState,
     path: web::Path<EntryCommentPath>,
     posted: web::Json<PutEntryComment>,
-) -> response::error::Result<impl Responder> {
+) -> error::Result<impl Responder> {
     let initiator = initiator.into_user();
     let posted = posted.into_inner();
     let path = path.into_inner();
@@ -47,7 +47,7 @@ pub async fn handle_put(
 
     if let Some(original) = db::entry_comments::find_from_id(&transaction, &path.comment_id).await? {
         if original.owner != owner {
-            return Err(response::error::ResponseError::PermissionDenied(
+            return Err(error::ResponseError::PermissionDenied(
                 format!("you are not the owner of this comment. you cannot modify another users comment")
             ));
         }
@@ -78,7 +78,7 @@ pub async fn handle_put(
                 }
             }))
     } else {
-        Err(response::error::ResponseError::EntryCommentNotFound(path.comment_id))
+        Err(error::ResponseError::EntryCommentNotFound(path.comment_id))
     }
 }
 

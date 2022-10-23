@@ -1,15 +1,14 @@
 use std::pin::Pin;
 
 use actix_web::{web, dev::Payload, FromRequest, HttpRequest};
-use crate::db::user_sessions::UserSession;
 use tokio_postgres::GenericClient;
 use futures::Future;
 
+use crate::db::user_sessions::UserSession;
 use crate::db::users;
 use crate::state;
-use crate::response::error;
-
-use super::cookie::CookieMap;
+use crate::net::http::error;
+use crate::net::http::cookie::CookieMap;
 
 pub struct Initiator {
     pub user: users::User,

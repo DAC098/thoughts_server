@@ -217,6 +217,8 @@ impl MapShape for SecurityConfigShape {
 
 #[derive(Debug, Deserialize)]
 pub struct ServerConfigShape {
+    pub include: Option<Vec<PathBuf>>,
+
     pub bind: Option<HashMap<String, Option<BindInterfaceShape>>>,
     pub port: Option<u16>,
 
@@ -271,9 +273,11 @@ impl MapShape for ServerConfigShape {
 impl Default for ServerConfigShape {
     fn default() -> ServerConfigShape {
         ServerConfigShape {
+            include: None,
+
             bind: None,
             port: None,
-            
+
             threads: None,
             backlog: None,
             max_connections: None,
