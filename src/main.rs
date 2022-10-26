@@ -229,16 +229,6 @@ async fn server_runner(config: config::ServerConfig) -> Result<()> {
                             .route("", web::get().to(handler::groups::group_id::handle_get))
                             .route("", web::put().to(handler::groups::group_id::handle_put))
                             .route("", web::delete().to(handler::groups::group_id::handle_delete))
-                            .service(
-                                web::scope("/permissions")
-                                    .route("", web::get().to(handler::groups::group_id::permissions::handle_get))
-                                    .route("", web::put().to(handler::groups::group_id::permissions::handle_put))
-                            )
-                            .service(
-                                web::scope("/users")
-                                    .route("", web::get().to(handler::groups::group_id::users::handle_get))
-                                    .route("", web::put().to(handler::groups::group_id::users::handle_put))
-                            )
                     )
             )
             .service(

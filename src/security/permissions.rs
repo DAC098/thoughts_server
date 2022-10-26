@@ -1,8 +1,10 @@
+use serde::{Serialize, Deserialize};
 use tokio_postgres::GenericClient;
 
-use crate::db::error::Result;
+use crate::db::{error::Result, self};
 
 /// checks to see if the given user has the roll with specified abilities.
+/// 
 /// can optionally check it against a specific user as well
 pub async fn has_permission(
     conn: &impl GenericClient,
@@ -81,4 +83,196 @@ pub async fn has_permission(
     log::debug!("total permissions found: {}", count);
 
     Ok(count != 0)
+}
+
+/// common struct for specifying a subjects permission
+/// 
+/// to be given to update_subject_permissions so the subject table and id are
+/// not necessary since the function takes those as arguments
+#[derive(Serialize, Deserialize, Clone)]
+pub struct PermissionJson {
+    roll: String,
+    ability: String,
+    resource_table: Option<String>,
+    resource_id: Option<i32>
+}
+
+/// return result from update_subject_permissions
+/// 
+/// the fields indicate the errors and what the permission was that caused it
+#[derive(Serialize, Deserialize)]
+pub struct FailedPermissions {
+    unknown_roll: Vec<PermissionJson>,
+    invalid_ability: Vec<PermissionJson>,
+    unknown_resource_tables: Vec<PermissionJson>,
+    resource_id_not_found: Vec<PermissionJson>,
+    resource_not_allowed: Vec<PermissionJson>
+}
+
+/// updates a given subjects permissions to be the list given.
+/// 
+/// this is a fairly large process that is common between updating a group and 
+/// user permssion list. it goes through a diff process of sorts to make the 
+/// list of permissions for the subject and adjusts it to be like the list 
+/// given.
+pub async fn update_subject_permissions(
+    conn: &impl GenericClient,
+    subject_table: &str,
+    subject_id: &i32,
+    permissions: Vec<PermissionJson>
+) -> Result<Option<FailedPermissions>> {
+    let mut first = true;
+    let mut invalid = false;
+    let rolls = db::permissions::RollDictionary::new();
+    // error collection
+    let mut failed = FailedPermissions {
+        unknown_roll: Vec::new(),
+        invalid_ability: Vec::new(),
+        unknown_resource_tables: Vec::new(),
+        resource_id_not_found: Vec::new(),
+        resource_not_allowed: Vec::new(),
+    };
+    // database
+    let mut query = "insert into permissions (subject_table, subject_id, roll, ability, resource_table, resource_id) values".to_owned();
+    let mut value_sql = String::new();
+    let mut query_params = db::query::QueryParams::with_capacity(2);
+    query_params.push(&subject_table);
+    query_params.push(&subject_id);
+
+    for index in 0..permissions.len() {
+        if !invalid {
+            if first {
+                first = false;
+            } else {
+                value_sql.push(',');
+            }
+
+            value_sql.push_str("($1,$2,");
+        }
+
+        let permission = &permissions[index];
+        let roll_data = match rolls.get_roll(&permission.roll) {
+            Some(d) => d,
+            None => {
+                // roll does not exist
+                failed.unknown_roll.push(permission.clone());
+                invalid = true;
+                value_sql.clear();
+                continue;
+            }
+        };
+
+        if !invalid {
+            let roll_p = query_params.push(&permission.roll).to_string();
+            value_sql.push('$');
+            value_sql.push_str(&roll_p);
+            value_sql.push(',');
+        }
+
+        if !roll_data.check_ability(&permission.ability) {
+            // invalid ability for given roll
+            failed.invalid_ability.push(permission.clone());
+            invalid = true;
+            value_sql.clear();
+            continue;
+        } else if !invalid {
+            let ability_p = query_params.push(&permission.ability).to_string();
+            value_sql.push('$');
+            value_sql.push_str(&ability_p);
+            value_sql.push(',');
+        }
+
+        if permission.resource_table.is_some() && permission.resource_id.is_some() {
+            if !roll_data.allow_resource {
+                // given a specific resource but not allowed for given roll
+                failed.resource_not_allowed.push(permission.clone());
+                invalid = true;
+                value_sql.clear();
+                continue;
+            }
+
+            let resource_table = permission.resource_table.as_ref().unwrap();
+            let resource_id = permission.resource_id.as_ref().unwrap();
+
+            match resource_table.as_str() {
+                db::permissions::tables::USERS => {
+                    let check = conn.execute(
+                        "select id from users where id = $1",
+                        &[resource_id]
+                    ).await?;
+
+                    if check != 1 {
+                        // resource not found
+                        failed.resource_id_not_found.push(permission.clone());
+                        invalid = true;
+                        value_sql.clear();
+                        continue;
+                    }
+                },
+                db::permissions::tables::GROUPS => {
+                    // check to make sure that id exists
+                    let check = conn.execute(
+                        "select id from groups where id = $1",
+                        &[resource_id]
+                    ).await?;
+
+                    if check != 1 {
+                        // resource not found
+                        failed.resource_id_not_found.push(permission.clone());
+                        invalid = true;
+                        value_sql.clear();
+                        continue;
+                    }
+                },
+                _ => {
+                    // unknown table and needs to be delt with
+                    failed.unknown_resource_tables.push(permission.clone());
+                    invalid = true;
+                    value_sql.clear();
+                    continue;
+                }
+            }
+
+            if !invalid {
+                let resource_table_p = query_params.push(resource_table).to_string();
+                let resource_id_p = query_params.push(resource_id).to_string();
+                value_sql.push('$');
+                value_sql.push_str(&resource_table_p);
+                value_sql.push_str(",$");
+                value_sql.push_str(&resource_id_p);
+                value_sql.push(')');
+            }
+        } else if !invalid {
+            value_sql.push_str("null,null)");
+        }
+
+        if !invalid {
+            query.push_str(&value_sql);
+            value_sql.clear();
+        }
+    }
+
+    if invalid {
+        return Ok(Some(failed))
+    }
+
+    query.push_str("on conflict on constraint unique_permissions do nothing returning id");
+
+    let query_result = conn.query(&query, query_params.slice()).await?;
+    let mut returned_ids: Vec<i32> = Vec::with_capacity(query_result.len());
+
+    for row in query_result {
+        returned_ids.push(row.get(0));
+    }
+
+    conn.execute(
+        "\
+        delete from permissions \
+        where subject_table = $1 and \
+              subject_id = $2 and \
+              id <> all($2)",
+        &[&subject_table, &subject_id, &returned_ids]
+    ).await?;
+
+    Ok(None)
 }

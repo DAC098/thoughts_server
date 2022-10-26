@@ -48,7 +48,7 @@ impl UserSession {
         token: &str
     ) -> error::Result<Option<UserSession>> {
         if let Some(record) = conn.query_opt(
-            "
+            "\
             select token, \
                    owner, \
                    dropped, \
