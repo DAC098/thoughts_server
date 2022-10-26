@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
-const fs = require("node:fs");
-const http = require("node:http");
-const path = require("node:path");
+const node_fs = require("node:fs");
+const node_http = require("node:http");
+const node_path = require("node:path");
 
-const docs_directory = path.resolve(__dirname, "../target/doc");
+const docs_directory = node_path.resolve(__dirname, "../target/doc");
 
 const mime_type_dict = {
     "jpg": "image/jpeg",
@@ -29,10 +29,46 @@ const mime_type_dict = {
     "woff2": "font/woff2"
 }
 
+let verbose = false;
+let port = 40125;
+
+for (let argc = 2; argc < process.argv.length; argc++) {
+    let arg = process.argv[argc];
+
+    switch (arg) {
+        case "--port":
+        case "-p": {
+            let port_given = process.argv[++argc];
+
+            if (typeof port_given !== "string") {
+                console.warn("no port specified");
+                return;
+            }
+
+            let parsed = parseInt(port_given, 10);
+
+            if (isNaN(parsed)) {
+                console.warn("failed to parse port value");
+                return;
+            }
+
+            port = parsed;
+            break;
+        }
+        case "--verbose":
+        case "-v":
+            verbose = true;
+            break;
+        default:
+            console.log('unknown argument given. \"' + arg + "\"");
+            return;
+    }
+}
+
 /**
- * 
+ * try to get the mime type from a given extension
  * @param {string} ext 
- * @returns 
+ * @return {string}
  */
 function getMimeType(ext) {
     if (ext.startsWith(".")) {
@@ -42,45 +78,147 @@ function getMimeType(ext) {
     return ext in mime_type_dict ? mime_type_dict[ext] : "application/octet-stream";
 }
 
-let server = http.createServer((req, res) => {
-    let file_path = docs_directory + req.url;
+/**
+ * responds with a json of somekind
+ * @param {node_http.ServerResponse} res 
+ * @param {number} status
+ * @param {any} data 
+ */
+function respondJson(res, status, data) {
+    let json = JSON.stringify(data);
 
-    fs.readFile(file_path, (err, data) => {
+    res.writeHead(status, {
+        "content-type": "application/json",
+        "content-length": json.length
+    });
+    res.end(json);
+}
+
+/**
+ * 
+ * @param {node_http.ClientRequest} res
+ * @param {string} url
+ */
+function respondRedirect(res, url) {
+    res.writeHead(302, {
+        location: url
+    });
+    res.end();
+}
+
+/**
+ * attempt to see if an index.html exists in this directory and the redirect
+ * if there is one available
+ * @param {node_http.ClientRequest} req
+ * @param {node_http.ServerResponse} res
+ * @param {string} directory
+ */
+function redirectIndexHtml(req, res, directory) {
+    let index_html = node_path.join(directory, "index.html");
+
+    node_fs.stat(index_html, (err, stats) => {
         if (err) {
-            let status_code;
-            let sending;
-
             if (err.code === "ENOENT") {
-                status_code = 404;
-                sending = JSON.stringify({
-                    message: "your requested file was not found"
+                respondJson(res, 404, {
+                    message: "given path is a directory"
                 });
             } else {
-                status_code = 500;
-                sending = JSON.stringify(err);
+                if (verbose) {
+                    console.error(err);
+                }
+
+                respondJson(res, 500, err);
             }
-
-            res.writeHead(status_code, {
-                "content-type": "application/json",
-                "content-length": sending.length
+        } else if (stats.isFile()) {
+            respondRedirect(
+                res, 
+                index_html.replace(docs_directory, "") + 
+                    req.full_url.search + 
+                    req.full_url.hash
+            );
+        } else {
+            respondJson(res, 404, {
+                message: "given path is a directory"
             });
-            res.end(sending);
-
-            return;
         }
-
-        let headers = {
-            "content-type": getMimeType(path.extname(file_path)),
-            "content-length": data.length
-        };
-
-        res.writeHead(200, headers);
-        res.end(data);
     });
+}
+
+let server = node_http.createServer((req, res) => {
+    req.full_url = new URL(req.url, "http://" + (req.headers.host ?? "localhost:" + port));
+
+    res.once("finish", () => {
+        if (verbose) {
+            console.log(req.method, req.url, res.statusCode, res.statusMessage);
+        }
+    });
+
+    if (req.full_url.pathname === "/") {
+        respondRedirect(
+            res,
+            "/thoughts_server/index.html" + 
+                req.full_url.search + 
+                req.full_url.hash
+        );
+    } else {
+        let file_path = node_path.join(docs_directory, req.full_url.pathname);
+
+        node_fs.stat(file_path, (err, stats) => {
+            if (err) {
+                if (err.code === "ENOENT") {
+                    respondJson(res, 404, {
+                        message: "your requested file was not found"
+                    });
+                } else {
+                    if (verbose) {
+                        console.error(err);
+                    }
+
+                    respondJson(res, 500, err);
+                }
+            } else {
+                if (stats.isFile()) {
+                    let read_stream = node_fs.createReadStream(file_path);
+
+                    res.writeHead(200, {
+                        "content-type": getMimeType(node_path.extname(file_path)),
+                        "content-length": stats.size
+                    });
+
+                    /**
+                     * @param {string|Buffer} chunk
+                     */
+                    const onData = (chunk) => {
+                        res.write(chunk);
+                    };
+                    /**
+                     * @param {Error} err
+                     */
+                    const onError = (err) => {
+                        read_stream.off("data", onData);
+                        res.destroy(err);
+                    };
+                    const onEnd = () => {
+                        res.end();
+                    };
+
+                    read_stream.on("data", onData);
+                    read_stream.once("error", onError);
+                    read_stream.once("end", onEnd);
+                } else if (stats.isDirectory()) {
+                    redirectIndexHtml(req, res, file_path);
+                } else {
+                    respondJson(res, 500, {
+                        message: "cannot handle requested file system type"
+                    });
+                }
+            }
+        });
+    }
 });
 
 server.once("listening", () => {
     console.log("server listening", server.address());
 });
 
-server.listen(40125);
+server.listen(port);
