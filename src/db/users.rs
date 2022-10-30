@@ -106,3 +106,30 @@ pub async fn find_from_id(
         Ok(None)
     }
 }
+
+pub async fn find_from_username(
+    client: &impl GenericClient,
+    username: &str
+) -> Result<Option<User>> {
+    if let Some(row) = client.query_opt(
+        "\
+        select id, \
+               username, \
+               email, \
+               email_verified, \
+               level \
+        from users \
+        where username = $1",
+        &[&username]
+    ).await? {
+        Ok(Some(User {
+            id: row.get(0),
+            username: row.get(1),
+            email: row.get(2),
+            email_verified: row.get(3),
+            level: row.get(4)
+        }))
+    } else {
+        Ok(None)
+    }
+}

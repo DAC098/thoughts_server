@@ -103,3 +103,18 @@ impl UserSession {
     //     Self::delete_via_token(conn, &self.token).await
     // }
 }
+
+impl Default for UserSession {
+    fn default() -> Self {
+        let chrono_now = chrono::Utc::now();
+
+        UserSession {
+            token: String::new(), 
+            owner: 0, 
+            dropped: false, 
+            issued_on: chrono_now.clone(), 
+            expires: chrono_now, 
+            use_csrf: false
+        }
+    }
+}

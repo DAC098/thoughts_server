@@ -18,7 +18,6 @@ pub mod custom_fields;
 pub mod users;
 pub mod account;
 pub mod backup;
-pub mod admin;
 pub mod tags;
 pub mod email;
 pub mod global;

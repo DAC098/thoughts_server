@@ -125,20 +125,6 @@ async fn server_runner(config: config::ServerConfig) -> Result<()> {
             .route("/account", web::get().to(handler::account::handle_get))
             .route("/account", web::put().to(handler::account::handle_put))
             .service(
-                web::scope("/admin")
-                    .service(
-                        web::scope("/users")
-                            .route("", web::get().to(handler::admin::users::handle_get))
-                            .route("", web::post().to(handler::admin::users::handle_post))
-                            .service(
-                                web::scope("/{user_id}")
-                                    .route("", web::get().to(handler::admin::users::user_id::handle_get))
-                                    .route("", web::put().to(handler::admin::users::user_id::handle_put))
-                                    .route("", web::delete().to(handler::admin::users::user_id::handle_delete))
-                            )
-                    )
-            )
-            .service(
                 web::scope("/auth")
                     .route("/login", web::get().to(handler::auth::session::handle_get))
                     .route("/login", web::post().to(handler::auth::session::handle_post))
@@ -234,10 +220,12 @@ async fn server_runner(config: config::ServerConfig) -> Result<()> {
             .service(
                 web::scope("/users")
                     .route("", web::get().to(handler::users::handle_get))
+                    .route("", web::post().to(handler::users::handle_post))
                     .service(
                         web::scope("/{user_id}")
                             .route("", web::get().to(handler::users::user_id::handle_get))
-                            .route("", web::put().to(handler::okay))
+                            .route("", web::put().to(handler::users::user_id::handle_put))
+                            .route("", web::delete().to(handler::users::user_id::handle_delete))
                             .service(
                                 web::scope("/entries")
                                     .route("", web::get().to(handler::entries::handle_get))
