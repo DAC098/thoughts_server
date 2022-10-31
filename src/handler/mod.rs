@@ -25,11 +25,12 @@ pub mod groups;
 
 pub async fn handle_get(
     req: HttpRequest,
+    security: state::WebSecurityState,
     db: state::WebDbState,
 ) -> error::Result<impl Responder> {
     let conn = &*db.get_conn().await?;
 
-    match initiator_from_request(conn, &req).await? {
+    match initiator_from_request(&security, conn, &req).await? {
         Some(_) => Ok(response::redirect_to_path("/entries")),
         None => Ok(response::redirect_to_path("/auth/session"))
     }

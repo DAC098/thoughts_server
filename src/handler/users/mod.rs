@@ -51,12 +51,13 @@ pub struct UserListJson {
 
 pub async fn handle_get(
     req: HttpRequest,
+    security: state::WebSecurityState,
     db: state::WebDbState,
     template: state::WebTemplateState<'_>,
 ) -> error::Result<impl Responder> {
     let accept_html = response::try_check_if_html_req(&req);
     let conn = &*db.get_conn().await?;
-    let initiator_opt = initiator_from_request(conn, &req).await?;
+    let initiator_opt = initiator_from_request(&security, conn, &req).await?;
 
     if accept_html {
         return if initiator_opt.is_some() {

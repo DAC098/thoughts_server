@@ -25,6 +25,7 @@ pub struct EntryIdAudioIdquery {
 
 pub async fn handle_get(
     req: HttpRequest,
+    security: state::WebSecurityState,
     db: state::WebDbState,
     storage: state::WebStorageState,
     path: web::Path<EntryIdAudioIdPath>,
@@ -34,7 +35,7 @@ pub async fn handle_get(
     let query = query.into_inner();
     let conn = db.get_conn().await?;
     let accept_html = response::try_check_if_html_req(&req);
-    let initiator = initiator_from_request(&*conn, &req).await?;
+    let initiator = initiator_from_request(&security, &*conn, &req).await?;
 
     if accept_html {
         let redirect_to = format!("/entries/{}", path.entry_id);

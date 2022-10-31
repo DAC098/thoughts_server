@@ -21,6 +21,7 @@ pub struct EntryPath {
 
 pub async fn handle_get(
     req: HttpRequest,
+    security: state::WebSecurityState,
     db: state::WebDbState,
     template: state::WebTemplateState<'_>,
     path: web::Path<EntryPath>,
@@ -28,7 +29,7 @@ pub async fn handle_get(
     let path = path.into_inner();
     let conn = &*db.get_conn().await?;
     let accept_html = response::try_check_if_html_req(&req);
-    let initiator = initiator_from_request(conn, &req).await?;
+    let initiator = initiator_from_request(&security, conn, &req).await?;
 
     if accept_html {
         if initiator.is_some() {

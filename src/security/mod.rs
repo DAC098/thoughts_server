@@ -3,6 +3,8 @@ use rand::RngCore;
 
 use crate::net::http::error;
 
+pub mod mac;
+
 pub mod initiator;
 pub use initiator::*;
 

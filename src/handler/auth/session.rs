@@ -19,13 +19,14 @@ use crate::security;
  */
 pub async fn handle_get(
     req: HttpRequest,
+    security: state::WebSecurityState,
     db: state::WebDbState,
     template: state::WebTemplateState<'_>
 ) -> error::Result<impl Responder> {
     let conn = &*db.get_conn().await?;
 
     if response::try_check_if_html_req(&req) {
-        match initiator_from_request(conn, &req).await? {
+        match initiator_from_request(&security, conn, &req).await? {
             Some(_) => Ok(response::redirect_to_path("/entries")),
             None => Ok(response::respond_index_html(&template.into_inner(), None)?)
         }
@@ -84,8 +85,16 @@ pub async fn handle_post(
     };
 
     user_session.insert(&transaction).await?;
-    
-    let mut session_cookie = cookie::SetCookie::new("session_id", user_session.token.to_string());
+
+    let mac = security::mac::one_off(security.get_secret().as_bytes(), user_session.token.as_bytes());
+    let base64_mac = base64::encode_config(mac, base64::URL_SAFE);
+
+    let mut cookie_value = String::with_capacity(user_session.token.len() + 1 + base64_mac.len());
+    cookie_value.push_str(&user_session.token);
+    cookie_value.push('.');
+    cookie_value.push_str(&base64_mac);
+
+    let mut session_cookie = cookie::SetCookie::new("session_id", cookie_value);
     session_cookie.set_domain(security.get_session().get_domain());
     session_cookie.set_path("/");
     session_cookie.set_max_age(duration);

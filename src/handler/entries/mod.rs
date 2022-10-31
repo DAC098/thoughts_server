@@ -88,6 +88,7 @@ pub struct EntriesQuery {
  */
 pub async fn handle_get(
     req: HttpRequest,
+    security: state::WebSecurityState,
     db: state::WebDbState,
     template: state::WebTemplateState<'_>,
     info: web::Query<EntriesQuery>,
@@ -96,7 +97,7 @@ pub async fn handle_get(
     let info = info.into_inner();
     let pool_conn = db.pool.get().await?;
     let accept_html = response::try_check_if_html_req(&req);
-    let initiator_opt = initiator_from_request(&*pool_conn, &req).await?;
+    let initiator_opt = initiator_from_request(&security, &*pool_conn, &req).await?;
 
     if accept_html {
         if initiator_opt.is_some() {

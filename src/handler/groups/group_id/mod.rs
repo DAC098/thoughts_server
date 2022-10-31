@@ -35,13 +35,14 @@ struct GroupData {
 
 pub async fn handle_get(
     req: HttpRequest,
+    security: state::WebSecurityState,
     db: state::WebDbState,
     template: state::WebTemplateState<'_>,
     path: web::Path<path::params::GroupPath>
 ) -> error::Result<impl Responder> {
     let conn = &*db.pool.get().await?;
     let accept_html = response::try_check_if_html_req(&req);
-    let initiator_opt = security::initiator_from_request(conn, &req).await?;
+    let initiator_opt = security::initiator_from_request(&security, conn, &req).await?;
 
     if accept_html {
         if initiator_opt.is_some() {
