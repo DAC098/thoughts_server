@@ -9,7 +9,7 @@ use crate::state;
 use crate::net::http::error;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
-use crate::request::{initiator_from_request, Initiator};
+use crate::security::{initiator_from_request, Initiator};
 use crate::security;
 use crate::util;
 

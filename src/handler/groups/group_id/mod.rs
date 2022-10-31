@@ -7,7 +7,7 @@ use serde::{Serialize, Deserialize};
 use crate::net::http::error;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
-use crate::{request, security, db, routing};
+use crate::{security, db, routing};
 use crate::routing::path;
 use crate::state;
 
@@ -41,7 +41,7 @@ pub async fn handle_get(
 ) -> error::Result<impl Responder> {
     let conn = &*db.pool.get().await?;
     let accept_html = response::try_check_if_html_req(&req);
-    let initiator_opt = request::initiator_from_request(conn, &req).await?;
+    let initiator_opt = security::initiator_from_request(conn, &req).await?;
 
     if accept_html {
         if initiator_opt.is_some() {
@@ -139,7 +139,7 @@ pub struct UpdateGroup {
 }
 
 pub async fn handle_put(
-    initiator: request::Initiator,
+    initiator: security::Initiator,
     db: state::WebDbState,
     path: web::Path<path::params::GroupPath>,
     posted: web::Json<UpdateGroup>,
@@ -256,7 +256,7 @@ pub async fn handle_put(
 }
 
 pub async fn handle_delete(
-    initiator: request::Initiator,
+    initiator: security::Initiator,
     db: state::WebDbState,
     path: web::Path<routing::path::params::GroupPath>
 ) -> error::Result<impl Responder> {

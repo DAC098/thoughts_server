@@ -5,7 +5,7 @@ use actix_files::NamedFile;
 use actix_web::http::Method;
 use actix_web::{http, HttpRequest, Responder, error as actix_error};
 
-use crate::request::initiator_from_request;
+use crate::security::initiator_from_request;
 use crate::net::http::error;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;

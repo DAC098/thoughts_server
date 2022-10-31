@@ -5,7 +5,7 @@ use serde::Deserialize;
 use crate::db::user_sessions::UserSession;
 use crate::db::{users, user_sessions};
 
-use crate::request::initiator_from_request;
+use crate::security::initiator_from_request;
 use crate::net::http::error;
 use crate::net::http::cookie;
 use crate::net::http::response;

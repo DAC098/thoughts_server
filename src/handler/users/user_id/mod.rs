@@ -4,8 +4,8 @@ use lettre::message::Mailbox;
 
 use crate::db;
 
-use crate::request::Initiator;
-use crate::request::initiator_from_request;
+use crate::security::Initiator;
+use crate::security::initiator_from_request;
 use crate::net::http::error;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;

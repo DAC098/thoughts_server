@@ -4,7 +4,7 @@ use serde::Deserialize;
 use crate::net::http::error;
 use crate::net::http::response::json::JsonBuilder;
 use crate::state;
-use crate::request::Initiator;
+use crate::security::Initiator;
 use crate::security;
 
 #[derive(Deserialize)]

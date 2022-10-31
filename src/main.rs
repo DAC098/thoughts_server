@@ -21,7 +21,6 @@ mod db;
 mod handler;
 mod net;
 mod routing;
-mod request;
 mod parsing;
 mod util;
 mod email;
@@ -108,7 +107,7 @@ async fn server_runner(config: config::ServerConfig) -> Result<()> {
             .app_data(
                 web::JsonConfig::default()
                     .content_type_required(true)
-                    .content_type(request::is_json_mime)
+                    .content_type(|mime| mime == mime::APPLICATION_JSON)
                     .error_handler(handler::handle_json_error)
             )
             .app_data(security_state_ref.clone())

@@ -2,7 +2,7 @@ use actix_web::{Responder, http};
 use lettre::{Message, Transport};
 use lettre::message::Mailbox;
 
-use crate::request::Initiator;
+use crate::security::Initiator;
 use crate::net::http::error;
 use crate::net::http::response::json::JsonBuilder;
 use crate::state;
