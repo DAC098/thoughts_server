@@ -8,7 +8,7 @@ use crate::net::http::error;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
 use crate::state;
-use crate::security::{initiator_from_request, Initiator};
+use crate::security::{initiator, Initiator};
 use crate::security;
 
 #[derive(Deserialize)]
@@ -35,66 +35,64 @@ pub async fn handle_get(
     let query = query.into_inner();
     let conn = db.get_conn().await?;
     let accept_html = response::try_check_if_html_req(&req);
-    let initiator = initiator_from_request(&security, &*conn, &req).await?;
+    let lookup = initiator::from_request(&security, &*conn, &req).await?;
 
     if accept_html {
         let redirect_to = format!("/entries/{}", path.entry_id);
 
-        if initiator.is_some() {
+        return if lookup.is_some() {
             Ok(response::redirect_to_path(redirect_to.as_str()))
         } else {
             Ok(response::redirect_to_login_with(redirect_to.as_str()))
         }
-    } else if initiator.is_none() {
-        Err(error::ResponseError::Session)
+    }
+    
+    let initiator = lookup.try_into()?;
+    let check_private: bool;
+    let owner: i32;
+    let return_json: bool;
+
+    if let Some(user_id) = path.user_id {
+        security::assert::permission_to_read(&*conn, &initiator.user.id, &user_id).await?;
+        owner = user_id;
+        check_private = true;
     } else {
-        let initiator = initiator.unwrap();
-        let check_private: bool;
-        let owner: i32;
-        let return_json: bool;
+        owner = initiator.user.id;
+        check_private = false;
+    }
 
-        if let Some(user_id) = path.user_id {
-            security::assert::permission_to_read(&*conn, &initiator.user.id, &user_id).await?;
-            owner = user_id;
-            check_private = true;
-        } else {
-            owner = initiator.user.id;
-            check_private = false;
+    security::assert::is_owner_of_entry(&*conn, &owner, &path.entry_id).await?;
+
+    if let Some(given) = query.json {
+        return_json = given.as_str() == "1";
+    } else {
+        return_json = false;
+    }
+
+    if let Some(audio_entry) = db::audio_entries::find_from_id(&*conn, &path.audio_id).await? {
+        if audio_entry.entry != path.entry_id {
+            // respond audio entry not found
+            return Err(error::build::audio_entry_not_found(&path.audio_id));
         }
 
-        security::assert::is_owner_of_entry(&*conn, &owner, &path.entry_id).await?;
-
-        if let Some(given) = query.json {
-            return_json = given.as_str() == "1";
-        } else {
-            return_json = false;
+        if check_private && audio_entry.private {
+            // responed permission denied as audio entry is private
+            return Err(error::build::permission_denied(
+                "you do not have permission to access this audio entry"
+            ));
         }
 
-        if let Some(audio_entry) = db::audio_entries::find_from_id(&*conn, &path.audio_id).await? {
-            if audio_entry.entry != path.entry_id {
-                // respond audio entry not found
-                return Err(error::ResponseError::AudioEntryNotFound(path.audio_id));
-            }
-
-            if check_private && audio_entry.private {
-                // responed permission denied as audio entry is private
-                return Err(error::ResponseError::PermissionDenied(
-                    format!("you do not have permission to access this audio entry")
-                ));
-            }
-
-            if return_json {
-                JsonBuilder::new(http::StatusCode::OK)
-                    .build(Some(audio_entry))
-            } else {
-                Ok(NamedFile::open(
-                    storage.get_audio_file_path(&owner, &path.entry_id, &audio_entry.id, "webm")
-                )?.into_response(&req))
-            }
+        if return_json {
+            JsonBuilder::new(http::StatusCode::OK)
+                .build(Some(audio_entry))
         } else {
-            // responed audio entry not found
-            Err(error::ResponseError::AudioEntryNotFound(path.audio_id))
+            Ok(NamedFile::open(
+                storage.get_audio_file_path(&owner, &path.entry_id, &audio_entry.id, "webm")
+            )?.into_response(&req))
         }
+    } else {
+        // responed audio entry not found
+        Err(error::build::audio_entry_not_found(&path.audio_id))
     }
 }
 
@@ -123,8 +121,8 @@ pub async fn handle_put(
         ],
         None
     ).await? {
-        return Err(error::ResponseError::PermissionDenied(
-            "you do not have permission to update audio entries".into()
+        return Err(error::build::permission_denied(
+            "you do not have permission to update audio entries"
         ));
     }
 

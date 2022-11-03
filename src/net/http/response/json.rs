@@ -5,15 +5,6 @@ use serde_json::json;
 
 use super::error;
 
-pub fn respond_json<T>(status: http::StatusCode, data: T) -> HttpResponse
-where
-    T: Serialize 
-{
-    let mut builder = HttpResponse::build(status);
-    builder.insert_header((http::header::CONTENT_TYPE, "application/json"));
-    builder.json(data)
-}
-
 pub struct JsonBuilder {
     builder: HttpResponseBuilder,
     message: String,

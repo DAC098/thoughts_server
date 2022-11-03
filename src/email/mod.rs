@@ -17,7 +17,7 @@ pub fn parse_email_address(email: &str) -> error::Result<Address> {
             msg.push_str(email);
             msg.push('"');
 
-            Err(error::ResponseError::Validation(msg))
+            Err(error::build::validation(msg))
         }
     }
 }
@@ -32,7 +32,7 @@ pub async fn validate_new_email(conn: &impl GenericClient, new_email: &str, user
         let record_id: i32 = record.get(0);
 
         if record_id != *user_id {
-            return Err(error::ResponseError::EmailExists(new_email.into()));
+            return Err(error::build::email_exists(new_email));
         }
     };
 

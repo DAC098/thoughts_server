@@ -1,5 +1,8 @@
 use std::fmt;
-use std::convert::{From};
+use std::convert::From;
+use actix_web::http::StatusCode;
+
+use crate::net::http::error;
 
 #[derive(Debug)]
 pub enum Error {
@@ -37,7 +40,16 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "db::error::{} {}", self.get_type(), self.get_msg())
     }
-    
+}
+
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Error::Validation(_) => None,
+            Error::Postgres(err) => Some(err),
+            Error::RustFmt(err) => Some(err)
+        }
+    }
 }
 
 impl From<tokio_postgres::Error> for Error {
@@ -49,9 +61,32 @@ impl From<tokio_postgres::Error> for Error {
 }
 
 impl From<std::fmt::Error> for Error {
-    
     fn from(error: std::fmt::Error) -> Self {
         Error::RustFmt(error)
     }
-    
+}
+
+impl From<Error> for error::Error {
+    fn from(err: Error) -> Self {
+        match err {
+            Error::Validation(msg) => {
+                error::Error::new()
+                    .set_status(StatusCode::BAD_REQUEST)
+                    .set_name("Validation")
+                    .set_message(msg)
+            },
+            Error::Postgres(err) => {
+                error::Error::new()
+                    .set_name("DatabaseError")
+                    .set_message("database error during request")
+                    .set_source(err)
+                },
+            Error::RustFmt(err) => {
+                error::Error::new()
+                    .set_name("DatabaseError")
+                    .set_message("database error during request")
+                    .set_source(err)
+            }
+        }
+    }
 }

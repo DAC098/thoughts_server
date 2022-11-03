@@ -5,7 +5,7 @@ use serde::{Serialize, Deserialize};
 
 use crate::db;
 
-use crate::security::{Initiator, initiator_from_request};
+use crate::security::{initiator, Initiator};
 use crate::net::http::error;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
@@ -33,33 +33,29 @@ pub async fn handle_get(
 ) -> error::Result<impl Responder> {
     let accept_html = response::try_check_if_html_req(&req);
     let conn = &*db.get_conn().await?;
-    let initiator_opt = initiator_from_request(&security, conn, &req).await?;
+    let lookup = initiator::from_request(&security, conn, &req).await?;
 
     if accept_html {
-        if initiator_opt.is_some() {
-            Ok(response::respond_index_html(&template.into_inner(), Some(initiator_opt.unwrap().user))?)
+        return if lookup.is_some() {
+            Ok(response::respond_index_html(&template.into_inner(), Some(lookup.unwrap().user))?)
         } else {
             Ok(response::redirect_to_path("/auth/login"))
         }
-    } else if initiator_opt.is_none() {
-        Err(error::ResponseError::Session)
-    } else {
-        let initiator = initiator_opt.unwrap();
-        let data = BackupDataJson {
-            custom_fields: db::custom_fields::find_from_owner(conn, &initiator.user.id).await?, 
-            tags: db::tags::find_from_owner(conn, initiator.user.id).await?, 
-            entries: Vec::new()
-        };
-
-        Ok(response::json::respond_json(
-            http::StatusCode::OK,
-            BackupJson {
-                version: "1.0.0".to_owned(),
-                data, 
-                hash: "".to_owned()
-            }
-        ))
     }
+
+    let initiator = lookup.try_into()?;
+    let data = BackupDataJson {
+        custom_fields: db::custom_fields::find_from_owner(conn, &initiator.user.id).await?, 
+        tags: db::tags::find_from_owner(conn, initiator.user.id).await?, 
+        entries: Vec::new()
+    };
+
+    JsonBuilder::new(http::StatusCode::OK)
+        .build(Some(BackupJson {
+            version: "1.0.0".to_owned(),
+            data, 
+            hash: "".to_owned()
+        }))
 }
 
 pub async fn handle_post(

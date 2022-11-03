@@ -13,7 +13,7 @@ use crate::net::http::error;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
 use crate::state;
-use crate::security::{initiator_from_request, Initiator};
+use crate::security::{initiator, Initiator};
 use crate::security;
 use crate::util;
 use crate::getters;
@@ -74,68 +74,66 @@ pub async fn handle_get(
 ) -> error::Result<impl Responder> {
     let conn = &*db.get_conn().await?;
     let accept_html = response::try_check_if_html_req(&req);
-    let initiator_opt = initiator_from_request(&security, conn, &req).await?;
+    let lookup = initiator::from_request(&security, conn, &req).await?;
 
     if accept_html {
-        if initiator_opt.is_some() {
-            Ok(response::respond_index_html(&template.into_inner(), Some(initiator_opt.unwrap().user))?)
+        return if lookup.is_some() {
+            Ok(response::respond_index_html(&template.into_inner(), Some(lookup.unwrap().user))?)
         } else {
             Ok(response::redirect_to_login(&req))
         }
-    } else if initiator_opt.is_none() {
-        Err(error::ResponseError::Session)
+    }
+    
+    let initiator = lookup.try_into()?;
+    let is_private: Option<bool>;
+    let owner: i32;
+
+    if let Some(user_id) = path.user_id {
+        if !security::permissions::has_permission(
+            &*conn, 
+            &initiator.user.id, 
+            db::permissions::rolls::USERS_ENTRIES, 
+            &[db::permissions::abilities::READ], 
+            Some(&user_id)
+        ).await? {
+            return Err(error::build::permission_denied(
+                "you do not have permission to read this users entries"
+            ));
+        }
+
+        is_private = Some(false);
+        owner = user_id;
     } else {
-        let initiator = initiator_opt.unwrap();
-        let is_private: Option<bool>;
-        let owner: i32;
-
-        if let Some(user_id) = path.user_id {
-            if !security::permissions::has_permission(
-                &*conn, 
-                &initiator.user.id, 
-                db::permissions::rolls::USERS_ENTRIES, 
-                &[db::permissions::abilities::READ], 
-                Some(&user_id)
-            ).await? {
-                return Err(error::ResponseError::PermissionDenied(
-                    "you do not have permission to read this users entries".into()
-                ));
-            }
-
-            is_private = Some(false);
-            owner = user_id;
-        } else {
-            if !security::permissions::has_permission(
-                &*conn, 
-                &initiator.user.id, 
-                db::permissions::rolls::ENTRIES, 
-                &[
-                    db::permissions::abilities::READ,
-                    db::permissions::abilities::READ_WRITE
-                    ],
-                None
-            ).await? {
-                return Err(error::ResponseError::PermissionDenied(
-                    "you do not have permission to read entries".into()
-                ))
-            }
-
-            is_private = None;
-            owner = initiator.user.id;
+        if !security::permissions::has_permission(
+            &*conn, 
+            &initiator.user.id, 
+            db::permissions::rolls::ENTRIES, 
+            &[
+                db::permissions::abilities::READ,
+                db::permissions::abilities::READ_WRITE
+                ],
+            None
+        ).await? {
+            return Err(error::build::permission_denied(
+                "you do not have permission to read entries"
+            ))
         }
 
-        if let Some(record) = db::composed::ComposedEntry::find_from_entry(conn, &path.entry_id, &is_private).await? {
-            if record.entry.owner == owner {
-                JsonBuilder::new(http::StatusCode::OK)
-                    .build(Some(record))
-            } else {
-                Err(error::ResponseError::PermissionDenied(
-                    format!("entry owner mis-match. requested entry is not owned by {}", owner)
-                ))
-            }
+        is_private = None;
+        owner = initiator.user.id;
+    }
+
+    if let Some(record) = db::composed::ComposedEntry::find_from_entry(conn, &path.entry_id, &is_private).await? {
+        if record.entry.owner == owner {
+            JsonBuilder::new(http::StatusCode::OK)
+                .build(Some(record))
         } else {
-            Err(error::ResponseError::EntryNotFound(path.entry_id))
+            Err(error::build::permission_denied(
+                format!("entry owner mis-match. requested entry is not owned by {}", owner)
+            ))
         }
+    } else {
+        Err(error::build::entry_not_found(&path.entry_id))
     }
 }
 
@@ -163,8 +161,8 @@ pub async fn handle_put(
         ],
         None
     ).await? {
-        return Err(error::ResponseError::PermissionDenied(
-            "you do not have permission to update entries".into()
+        return Err(error::build::permission_denied(
+            "you do not have permission to update entries"
         ));
     }
 
@@ -255,11 +253,11 @@ pub async fn handle_put(
                 ).await?;
 
                 if check.len() == 0 {
-                    return Err(error::ResponseError::TextEntryNotFound(id));
+                    return Err(error::build::text_entry_not_found(&id));
                 }
 
                 if check[0].get::<usize, i32>(0) != initiator.user.id {
-                    return Err(error::ResponseError::PermissionDenied(
+                    return Err(error::build::permission_denied(
                         format!("you do not have permission to modify another users text entry. text entry: {}", id)
                     ));
                 }
@@ -368,11 +366,11 @@ pub async fn handle_put(
                 ).await?;
 
                 if check.is_empty() {
-                    return Err(error::ResponseError::EntryMarkerNotFound(id));
+                    return Err(error::build::entry_marker_not_found(&id));
                 }
 
                 if check[0].get::<usize, i32>(0) != initiator.user.id {
-                    return Err(error::ResponseError::PermissionDenied(
+                    return Err(error::build::permission_denied(
                         format!("you do not have permission to modify another users entry marker. text entry: {}", id)
                     ));
                 }
@@ -436,8 +434,8 @@ pub async fn handle_delete(
         ], 
         None
     ).await? {
-        return Err(error::ResponseError::PermissionDenied(
-            "you do not have permission to delete entries".into()
+        return Err(error::build::permission_denied(
+            "you do not have permission to delete entries"
         ));
     }
 
@@ -455,7 +453,7 @@ pub async fn handle_delete(
         }
 
         if invalid_entries.len() > 0 {
-            return Err(error::ResponseError::PermissionDenied(
+            return Err(error::build::permission_denied(
                 format!("you are not allowed to delete entries owned by another user. entries ({:?})", invalid_entries)
             ));
         }

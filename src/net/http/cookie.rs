@@ -96,7 +96,7 @@ impl From<&HttpRequest> for CookieMap {
 }
 
 impl FromRequest for CookieMap {
-    type Error = error::ResponseError;
+    type Error = error::Error;
     type Future = Pin<Box<dyn Future<Output = std::result::Result<Self, Self::Error>>>>;
 
     fn from_request(req: &actix_web::HttpRequest, _payload: &mut actix_web::dev::Payload) -> Self::Future {

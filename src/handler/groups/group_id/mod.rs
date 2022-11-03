@@ -42,94 +42,92 @@ pub async fn handle_get(
 ) -> error::Result<impl Responder> {
     let conn = &*db.pool.get().await?;
     let accept_html = response::try_check_if_html_req(&req);
-    let initiator_opt = security::initiator_from_request(&security, conn, &req).await?;
+    let lookup = security::initiator::from_request(&security, conn, &req).await?;
 
     if accept_html {
-        if initiator_opt.is_some() {
+        return if lookup.is_some() {
             Ok(response::respond_index_html(
                 &template, 
-                Some(initiator_opt.unwrap().user)
+                Some(lookup.unwrap().user)
             )?)
         } else {
             Ok(response::redirect_to_login(&req))
         }
-    } else if initiator_opt.is_none() {
-        Err(error::ResponseError::Session)
-    } else {
-        let initiator = initiator_opt.unwrap();
-
-        if !security::permissions::has_permission(
-            conn,
-            &initiator.user.id,
-            db::permissions::rolls::GROUPS,
-            &[
-                db::permissions::abilities::READ,
-                db::permissions::abilities::READ_WRITE
-            ],
-            None
-        ).await? {
-            return Err(error::ResponseError::PermissionDenied(
-                "you do not have permissions to read groups".into()
-            ))
-        }
-
-        let group = match db::groups::find_id(conn, &path.group_id).await? {
-            Some(group) => group,
-            None => {
-                return Err(error::ResponseError::GroupNotFound(path.group_id))
-            }
-        };
-
-        let (attached_users, permissions) = futures_util::future::try_join(
-            conn.query(
-                "\
-                select users.id, \
-                       username \
-                from users \
-                join group_users on \
-                    users.id = group_users.users_id \
-                where group_users.group_id = $1",
-                &[&path.group_id]
-            ),
-            conn.query(
-                "\
-                select roll, \
-                       ability, \
-                       resource_table, \
-                       resource_id \
-                from permissions \
-                where subject_table = 'groups' and \
-                      subject_id = $1",
-                &[&path.group_id]
-            )
-        ).await?;
-
-        let mut rtn = GroupData {
-            id: group.id,
-            name: group.name,
-            users: Vec::with_capacity(attached_users.len()),
-            permissions: Vec::with_capacity(permissions.len())
-        };
-
-        for row in attached_users {
-            rtn.users.push(GroupUser {
-                id: row.get(0),
-                username: row.get(1)
-            });
-        }
-
-        for row in permissions {
-            rtn.permissions.push(GroupPermission { 
-                roll: row.get(0),
-                ability: row.get(1),
-                resource_table: row.get(2),
-                resource_id: row.get(3)
-            })
-        }
-
-        JsonBuilder::new(http::StatusCode::OK)
-            .build(Some(rtn))
     }
+    
+    let initiator = lookup.try_into()?;
+
+    if !security::permissions::has_permission(
+        conn,
+        &initiator.user.id,
+        db::permissions::rolls::GROUPS,
+        &[
+            db::permissions::abilities::READ,
+            db::permissions::abilities::READ_WRITE
+        ],
+        None
+    ).await? {
+        return Err(error::build::permission_denied(
+            "you do not have permissions to read groups"
+        ))
+    }
+
+    let group = match db::groups::find_id(conn, &path.group_id).await? {
+        Some(group) => group,
+        None => {
+            return Err(error::build::group_not_found(&path.group_id))
+        }
+    };
+
+    let (attached_users, permissions) = futures_util::future::try_join(
+        conn.query(
+            "\
+            select users.id, \
+                    username \
+            from users \
+            join group_users on \
+                users.id = group_users.users_id \
+            where group_users.group_id = $1",
+            &[&path.group_id]
+        ),
+        conn.query(
+            "\
+            select roll, \
+                    ability, \
+                    resource_table, \
+                    resource_id \
+            from permissions \
+            where subject_table = 'groups' and \
+                    subject_id = $1",
+            &[&path.group_id]
+        )
+    ).await?;
+
+    let mut rtn = GroupData {
+        id: group.id,
+        name: group.name,
+        users: Vec::with_capacity(attached_users.len()),
+        permissions: Vec::with_capacity(permissions.len())
+    };
+
+    for row in attached_users {
+        rtn.users.push(GroupUser {
+            id: row.get(0),
+            username: row.get(1)
+        });
+    }
+
+    for row in permissions {
+        rtn.permissions.push(GroupPermission { 
+            roll: row.get(0),
+            ability: row.get(1),
+            resource_table: row.get(2),
+            resource_id: row.get(3)
+        })
+    }
+
+    JsonBuilder::new(http::StatusCode::OK)
+        .build(Some(rtn))
 }
 
 #[derive(Deserialize)]
@@ -157,8 +155,8 @@ pub async fn handle_put(
         ],
         None
     ).await? {
-        return Err(error::ResponseError::PermissionDenied(
-            "you do not have permissions to write groups".into()
+        return Err(error::build::permission_denied(
+            "you do not have permissions to write groups"
         ))
     }
 
@@ -167,7 +165,7 @@ pub async fn handle_put(
     let _group = match db::groups::find_id(&transaction, &path.group_id).await? {
         Some(g) => g,
         None => {
-            return Err(error::ResponseError::GroupNotFound(path.group_id))
+            return Err(error::build::group_not_found(&path.group_id))
         }
     };
 
@@ -272,8 +270,8 @@ pub async fn handle_delete(
         ],
         None
     ).await? {
-        return Err(error::ResponseError::PermissionDenied(
-            "you do not have permission to write groups".into()
+        return Err(error::build::permission_denied(
+            "you do not have permission to write groups"
         ));
     }
 
@@ -282,7 +280,7 @@ pub async fn handle_delete(
     let _group_check = match db::groups::find_id(&transaction, &path.group_id).await? {
         Some(group) => group,
         None => {
-            return Err(error::ResponseError::GroupNotFound(path.group_id))
+            return Err(error::build::group_not_found(&path.group_id))
         }
     };
 

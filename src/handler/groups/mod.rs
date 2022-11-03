@@ -15,42 +15,43 @@ pub async fn handle_get(
     security: state::WebSecurityState,
     db: state::WebDbState,
     template: state::WebTemplateState<'_>
-) -> error::Result<impl Responder> {
+) -> std::result::Result<impl Responder, error::Error> {
     let conn = &*db.pool.get().await?;
     let accept_html = response::try_check_if_html_req(&req);
-    let initiator_opt = security::initiator_from_request(&security, conn, &req).await?;
+    let lookup = security::initiator::from_request(&security, conn, &req).await?;
 
     if accept_html {
-        if initiator_opt.is_some() {
-            Ok(response::respond_index_html(&template, Some(initiator_opt.unwrap().user))?)
+        return if lookup.is_valid() {
+            Ok(response::respond_index_html(
+                &template, 
+                Some(lookup.unwrap().user))?)
         } else {
             Ok(response::redirect_to_login(&req))
         }
-    } else if initiator_opt.is_none() {
-        Err(error::ResponseError::Session)
-    } else {
-        let initiator = initiator_opt.unwrap();
-
-        if !security::permissions::has_permission(
-            conn, 
-            &initiator.user.id, 
-            db::permissions::rolls::GROUPS, 
-            &[
-                db::permissions::abilities::READ,
-                db::permissions::abilities::READ_WRITE
-            ],
-            None
-        ).await? {
-            return Err(error::ResponseError::PermissionDenied(
-                "you do not have permission to read groups".into()
-            ))
-        }
-
-        let groups = db::groups::get_all(conn).await?;
-
-        JsonBuilder::new(http::StatusCode::OK)
-            .build(Some(groups))
     }
+
+    let initiator = lookup.try_into()?;
+
+    if !security::permissions::has_permission(
+        conn, 
+        &initiator.user.id, 
+        db::permissions::rolls::GROUPS, 
+        &[
+            db::permissions::abilities::READ,
+            db::permissions::abilities::READ_WRITE
+        ],
+        None
+    ).await? {
+        return Err(error::build::permission_denied(
+            "you do not have permission to read groups"
+        ))
+    }
+
+    let groups = db::groups::get_all(conn).await?;
+
+    JsonBuilder::new(http::StatusCode::OK)
+        .build(Some(groups))
+        .map_err(|e| e.into())
 }
 
 #[derive(Deserialize)]
@@ -74,8 +75,8 @@ pub async fn handle_post(
         ], 
         None
     ).await? {
-        return Err(error::ResponseError::PermissionDenied(
-            "you do not have permission to write groups".into()
+        return Err(error::build::permission_denied(
+            "you do not have permission to write groups"
         ));
     }
 
@@ -87,7 +88,7 @@ pub async fn handle_post(
     ).await?;
 
     if group_check != 0 {
-        return Err(error::ResponseError::GroupAlreadyExists(
+        return Err(error::build::group_already_exists(
             posted.name.clone()
         ));
     }

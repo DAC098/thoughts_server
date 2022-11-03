@@ -9,7 +9,7 @@ use crate::state;
 use crate::net::http::error;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
-use crate::security::{initiator_from_request, Initiator};
+use crate::security::{initiator, Initiator};
 use crate::security;
 use crate::util;
 
@@ -29,35 +29,33 @@ pub async fn handle_get(
     let path = path.into_inner();
     let conn = &*db.get_conn().await?;
     let accept_html = response::try_check_if_html_req(&req);
-    let initiator = initiator_from_request(&security, conn, &req).await?;
+    let lookup = initiator::from_request(&security, conn, &req).await?;
 
     if accept_html {
-        if initiator.is_some() {
-            Ok(response::respond_index_html(&template.into_inner(), Some(initiator.unwrap().user))?)
+        return if lookup.is_some() {
+            Ok(response::respond_index_html(&template.into_inner(), Some(lookup.unwrap().user))?)
         } else {
             Ok(response::redirect_to_login(&req))
         }
-    } else if initiator.is_none() {
-        Err(error::ResponseError::Session)
-    } else {
-        let initiator = initiator.unwrap();
-        let owner: i32;
-
-        if let Some(user_id) = path.user_id {
-            security::assert::permission_to_read(conn, &initiator.user.id, &user_id).await?;
-            owner = user_id;
-        } else {
-            owner = initiator.user.id;
-        }
-
-        security::assert::is_owner_of_entry(conn, &owner, &path.entry_id).await?;
-
-        JsonBuilder::new(http::StatusCode::OK)
-            .build(Some(db::composed::ComposedEntryComment::find_from_entry(
-                conn,
-                &path.entry_id
-            ).await?))
     }
+    
+    let initiator = lookup.try_into()?;
+    let owner: i32;
+
+    if let Some(user_id) = path.user_id {
+        security::assert::permission_to_read(conn, &initiator.user.id, &user_id).await?;
+        owner = user_id;
+    } else {
+        owner = initiator.user.id;
+    }
+
+    security::assert::is_owner_of_entry(conn, &owner, &path.entry_id).await?;
+
+    JsonBuilder::new(http::StatusCode::OK)
+        .build(Some(db::composed::ComposedEntryComment::find_from_entry(
+            conn,
+            &path.entry_id
+        ).await?))
 }
 
 #[derive(Deserialize)]

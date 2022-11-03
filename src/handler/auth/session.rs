@@ -5,7 +5,7 @@ use serde::Deserialize;
 use crate::db::user_sessions::UserSession;
 use crate::db::{users, user_sessions};
 
-use crate::security::initiator_from_request;
+use crate::security::initiator;
 use crate::net::http::error;
 use crate::net::http::cookie;
 use crate::net::http::response;
@@ -26,9 +26,12 @@ pub async fn handle_get(
     let conn = &*db.get_conn().await?;
 
     if response::try_check_if_html_req(&req) {
-        match initiator_from_request(&security, conn, &req).await? {
-            Some(_) => Ok(response::redirect_to_path("/entries")),
-            None => Ok(response::respond_index_html(&template.into_inner(), None)?)
+        let lookup = initiator::from_request(&security, conn, &req).await?;
+        
+        if lookup.is_valid() {
+            Ok(response::redirect_to_path("/entries"))
+        } else {
+            Ok(response::respond_index_html(&template.into_inner(), None)?)
         }
     } else {
         JsonBuilder::new(http::StatusCode::OK)
@@ -61,7 +64,10 @@ pub async fn handle_post(
     ).await?;
 
     if result.is_none() {
-        return Err(error::ResponseError::UsernameNotFound(posted.username.clone()));
+        return Err(error::Error::new()
+            .set_status(http::StatusCode::NOT_FOUND)
+            .set_name("UsernameNotFound")
+            .set_message("failed to find the requested username"))
     }
     
     let row = result.unwrap();

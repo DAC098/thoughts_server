@@ -47,7 +47,7 @@ pub async fn handle_put(
 
     if let Some(original) = db::entry_comments::find_from_id(&transaction, &path.comment_id).await? {
         if original.owner != owner {
-            return Err(error::ResponseError::PermissionDenied(
+            return Err(error::build::permission_denied(
                 format!("you are not the owner of this comment. you cannot modify another users comment")
             ));
         }
@@ -78,7 +78,7 @@ pub async fn handle_put(
                 }
             }))
     } else {
-        Err(error::ResponseError::EntryCommentNotFound(path.comment_id))
+        Err(error::build::entry_comment_not_found(&path.comment_id))
     }
 }
 

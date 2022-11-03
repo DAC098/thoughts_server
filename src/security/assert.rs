@@ -15,12 +15,12 @@ pub async fn is_owner_for_entry(
     ).await?;
 
     if owner_result.len() == 0 {
-        return Err(error::ResponseError::EntryNotFound(*entry_id));
+        return Err(error::build::entry_not_found(entry_id));
     }
 
     if owner_result[0].get::<usize, i32>(0) != *initiator {
-        return Err(error::ResponseError::PermissionDenied(
-            "you don't have permission to modify this users entry".to_owned()
+        return Err(error::build::permission_denied(
+            "you don't have permission to modify this users entry"
         ));
     }
     
@@ -38,12 +38,12 @@ pub async fn is_owner_for_custom_field(
     ).await?;
 
     if rows.len() == 0 {
-        return Err(error::ResponseError::CustomFieldNotFound(*field_id));
+        return Err(error::build::custom_field_not_found(field_id));
     }
 
     if rows[0].get::<usize, i32>(0) != *owner {
-        return Err(error::ResponseError::PermissionDenied(
-            "you don't have permission to modify this users custom field".to_owned()
+        return Err(error::build::permission_denied(
+            "you don't have permission to modify this users custom field"
         ));
     }
 
@@ -61,11 +61,11 @@ pub async fn is_owner_for_tag(
     ).await?;
 
     if rows.len() == 0 {
-        Err(error::ResponseError::TagNotFound(*tag_id))
+        Err(error::build::tag_not_found(tag_id))
     } else {
         if rows[0].get::<usize, i32>(0) != *owner {
-            Err(error::ResponseError::PermissionDenied(
-                "you don't have permission to modify this users tag".to_owned()
+            Err(error::build::permission_denied(
+                "you don't have permission to modify this users tag"
             ))
         } else {
             Ok(())
@@ -93,20 +93,20 @@ pub async fn permission_to_read(
             }
         }
 
-        Err(error::ResponseError::PermissionDenied(
-            "you do not have permission to read this users information".to_owned()
+        Err(error::build::permission_denied(
+            "you do not have permission to read this users information"
         ))
     } else {
-        Err(error::ResponseError::PermissionDenied(
-            "no ability was found for the requested user".to_owned()
+        Err(error::build::permission_denied(
+            "no ability was found for the requested user"
         ))
     }
 }
 
 pub fn is_admin(initiator: &Initiator) -> error::Result<()> {
     if initiator.user.level != (db::users::Level::Admin as i32) {
-        Err(error::ResponseError::PermissionDenied(
-            format!("you are not an administrator")
+        Err(error::build::permission_denied(
+            "you are not an administrator"
         ))
     } else {
         Ok(())
@@ -129,11 +129,11 @@ pub async fn is_owner_of_entry(
         if *owner == entry_owner {
             Ok(())
         } else {
-            Err(error::ResponseError::PermissionDenied(
+            Err(error::build::permission_denied(
                 format!("entry owner mis-match. requested entry is not owned by {}", *owner)
             ))
         }
     } else {
-        Err(error::ResponseError::EntryNotFound(*entry))
+        Err(error::build::entry_not_found(entry))
     }
 }

@@ -13,7 +13,7 @@ pub type WebDbState = web::Data<DBState>;
 impl DBState {
     pub async fn get_conn(&self) -> error::Result<PooledConnection<'_, PostgresConnectionManager<NoTls>>> {
         self.pool.get().await.map_err(
-            |e| error::ResponseError::BB8Error(e)
+            |e| e.into()
         )
     }
 }

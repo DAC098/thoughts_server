@@ -3,8 +3,7 @@ use std::fs::File;
 use std::path::PathBuf;
 
 use futures_util::stream::StreamExt;
-use actix_web::{web, http, HttpRequest, Responder};
-use actix_web::web::Buf;
+use actix_web::{web, web::Buf, http, HttpRequest, Responder};
 use serde::Deserialize;
 
 use crate::db;
@@ -15,7 +14,7 @@ use crate::net::http::error;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
 use crate::state;
-use crate::security::{initiator_from_request, Initiator};
+use crate::security::{initiator, Initiator};
 use crate::security;
 use crate::util;
 
@@ -34,71 +33,69 @@ pub async fn handle_get(
     let path = path.into_inner();
     let conn = db.get_conn().await?;
     let accept_html = response::try_check_if_html_req(&req);
-    let initiator = initiator_from_request(&security, &*conn, &req).await?;
+    let lookup = initiator::from_request(&security, &*conn, &req).await?;
 
     if accept_html {
         let redirect_to = format!("/entries/{}", path.entry_id);
 
-        if initiator.is_some() {
+        return if lookup.is_some() {
             Ok(response::redirect_to_path(redirect_to.as_str()))
         } else {
             Ok(response::redirect_to_login_with(redirect_to.as_str()))
         }
-    } else if initiator.is_none() {
-        Err(error::ResponseError::Session)
-    } else {
-        let initiator = initiator.unwrap();
-        let is_private: Option<bool>;
-        let owner: i32;
+    }
+    
+    let initiator = lookup.try_into()?;
+    let is_private: Option<bool>;
+    let owner: i32;
 
-        if let Some(user_id) = path.user_id {
-            if !security::permissions::has_permission(
-                &*conn, 
-                &initiator.user.id, 
-                db::permissions::rolls::USERS_ENTRIES, 
-                &[
-                    db::permissions::abilities::READ
-                ],
-                Some(&user_id)
-            ).await? {
-                return Err(error::ResponseError::PermissionDenied(
-                    "you do not have permission to read this users audio entries".into()
-                ));
-            }
-
-            owner = user_id;
-            is_private = Some(false);
-        } else {
-            if !security::permissions::has_permission(
-                &*conn, 
-                &initiator.user.id, 
-                db::permissions::rolls::ENTRIES, 
-                &[
-                    db::permissions::abilities::READ,
-                    db::permissions::abilities::READ_WRITE
-                ], 
-                None
-            ).await? {
-                return Err(error::ResponseError::PermissionDenied(
-                    "you do not have permission to read audio entries".into()
-                ));
-            }
-
-            owner = initiator.user.id;
-            is_private = None;
+    if let Some(user_id) = path.user_id {
+        if !security::permissions::has_permission(
+            &*conn, 
+            &initiator.user.id, 
+            db::permissions::rolls::USERS_ENTRIES, 
+            &[
+                db::permissions::abilities::READ
+            ],
+            Some(&user_id)
+        ).await? {
+            return Err(error::build::permission_denied(
+                "you do not have permission to read this users audio entries"
+            ));
         }
 
-        security::assert::is_owner_of_entry(&*conn, &owner, &path.entry_id).await?;
-
-        let entry = db::audio_entries::find_from_entry(
+        owner = user_id;
+        is_private = Some(false);
+    } else {
+        if !security::permissions::has_permission(
             &*conn, 
-            &path.entry_id, 
-            &is_private
-        ).await?;
+            &initiator.user.id, 
+            db::permissions::rolls::ENTRIES, 
+            &[
+                db::permissions::abilities::READ,
+                db::permissions::abilities::READ_WRITE
+            ], 
+            None
+        ).await? {
+            return Err(error::build::permission_denied(
+                "you do not have permission to read audio entries"
+            ));
+        }
 
-        JsonBuilder::new(http::StatusCode::OK)
-            .build(Some(entry))
+        owner = initiator.user.id;
+        is_private = None;
     }
+
+    security::assert::is_owner_of_entry(&*conn, &owner, &path.entry_id).await?;
+
+    let entry = db::audio_entries::find_from_entry(
+        &*conn, 
+        &path.entry_id, 
+        &is_private
+    ).await?;
+
+    JsonBuilder::new(http::StatusCode::OK)
+        .build(Some(entry))
 }
 
 #[derive(Deserialize)]
@@ -123,11 +120,11 @@ async fn handle_multipart_form(
 
     while let Some(item) = body.next().await {
         let mut field = item.map_err(
-            |e| error::ResponseError::GeneralWithInternal(
-                format!("error when parsing multipart form"),
-                format!("multipart form error: {:?}", e)
-            )
-        )?;
+            |e| error::Error::new()
+                .set_name("InternalError")
+                .set_message("errore when parsing multipart form")
+                .set_source(e)
+            )?;
         let content_type = field.content_type();
 
         if content_type.type_() == "application" {
@@ -140,18 +137,18 @@ async fn handle_multipart_form(
                             chunk.reader().read_to_string(&mut string_data)?;
                         },
                         Err(e) => {
-                            return Err(error::ResponseError::GeneralWithInternal(
-                                format!("problem when reading data from request body"),
-                                format!("failed to read json information from request. {:?}", e)
-                            ));
+                            return Err(error::Error::new()
+                                .set_name("InternalError")
+                                .set_message("problem when reading data from request body")
+                                .set_source(e));
                         }
                     }
                 }
 
                 audio_entry = Some(serde_json::from_str(string_data.as_str())?);
             } else {
-                return Err(error::ResponseError::BadRequest(
-                    format!("invalid content-type given for application group. only accepts application/json")
+                return Err(error::build::bad_request(
+                    "invalid content-type given for application group. only accepts application/json"
                 ));
             }
         } else if content_type.type_() == "audio" {
@@ -174,10 +171,10 @@ async fn handle_multipart_form(
                             file.write(&chunk)?;
                         },
                         Err(e) => {
-                            return Err(error::ResponseError::GeneralWithInternal(
-                                format!("problem with reading file from request"),
-                                format!("failed to read audio file from request. {:?}", e)
-                            ))
+                            return Err(error::Error::new()
+                                .set_name("InternalError")
+                                .set_message("problem with reading file from request")
+                                .set_source(e));
                         }
                     }
                 }
@@ -189,8 +186,8 @@ async fn handle_multipart_form(
     }
 
     if audio_file.is_none() {
-        return Err(error::ResponseError::BadRequest(
-            format!("missing required audio file in multipart form body.")
+        return Err(error::build::bad_request(
+            "missing required audio file in multipart form body."
         ));
     }
 
@@ -222,10 +219,10 @@ async fn handle_audio_webm(
                 audio_file.write(&chunk)?;
             },
             Err(e) => {
-                return Err(error::ResponseError::GeneralWithInternal(
-                    format!("problem with reading file from request"),
-                    format!("failed to read audio file from request. {:?}", e)
-                ));
+                return Err(error::Error::new()
+                    .set_name("InternalError")
+                    .set_message("problem with reading file from request")
+                    .set_source(e))
             }
         }
     }
@@ -256,8 +253,8 @@ pub async fn handle_post(
         ],
         None
     ).await? {
-        return Err(error::ResponseError::PermissionDenied(
-            "you do not have permission to create audio entries".into()
+        return Err(error::build::permission_denied(
+            "you do not have permission to create audio entries"
         ));
     }
 
@@ -288,18 +285,18 @@ pub async fn handle_post(
             audio_file_path = results.audio_file_path;
         } else {
             if let Ok(header_value) = content_type_value.to_str() {
-                return Err(error::ResponseError::BadRequest(
+                return Err(error::build::bad_request(
                     format!("invalid content-type given. expect: multipart/form-data | given: {}", header_value)
                 ));
             } else {
-                return Err(error::ResponseError::BadRequest(
-                    format!("header value contains invalid characters. cannot display value")
+                return Err(error::build::bad_request(
+                    "header value contains invalid characters. cannot display value"
                 ))
             }
         }
     } else {
-        return Err(error::ResponseError::BadRequest(
-            format!("no content-type specified for request body")
+        return Err(error::build::bad_request(
+            "no content-type specified for request body"
         ));
     }
 

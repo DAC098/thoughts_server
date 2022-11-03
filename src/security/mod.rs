@@ -1,3 +1,4 @@
+use actix_web::http::StatusCode;
 use argon2::{Config, ThreadMode, Variant, Version};
 use rand::RngCore;
 
@@ -57,7 +58,11 @@ pub fn verify_password(hash: &str, password: &String) -> error::Result<()> {
     let matches = argon2::verify_encoded(hash, password.as_bytes())?;
 
     if !matches {
-        Err(error::ResponseError::InvalidPassword)
+        Err(error::Error::new()
+            .set_status(StatusCode::UNAUTHORIZED)
+            .set_name("InvalidPassword")
+            .set_message("invalid password given for account")
+        )
     } else {
         Ok(())
     }

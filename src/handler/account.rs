@@ -8,7 +8,7 @@ use crate::net::http::error;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
 use crate::state;
-use crate::security::{initiator_from_request, Initiator};
+use crate::security::{initiator, Initiator};
 use crate::email;
 
 pub async fn handle_get(
@@ -19,22 +19,20 @@ pub async fn handle_get(
 ) -> error::Result<impl Responder> {
     let accept_html = response::try_check_if_html_req(&req);
     let conn = &*db.get_conn().await?;
-    let initiator_opt = initiator_from_request(&security, conn, &req).await?;
+    let lookup = initiator::from_request(&security, conn, &req).await?;
 
     if accept_html {
-        if initiator_opt.is_some() {
-            Ok(response::respond_index_html(&template.into_inner(), Some(initiator_opt.unwrap().user))?)
+        return if lookup.is_some() {
+            Ok(response::respond_index_html(&template.into_inner(), Some(lookup.unwrap().user))?)
         } else {
             Ok(response::redirect_to_path("/auth/login?jump_to=/account"))
         }
-    } else if initiator_opt.is_none() {
-        Err(error::ResponseError::Session)
-    } else {
-        let initiator = initiator_opt.unwrap();
-
-        JsonBuilder::new(http::StatusCode::OK)
-            .build(Some(initiator.user))
     }
+    
+    let initiator = lookup.try_into()?;
+
+    JsonBuilder::new(http::StatusCode::OK)
+        .build(Some(initiator.user))
 }
 
 #[derive(Deserialize)]

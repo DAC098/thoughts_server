@@ -3,7 +3,7 @@ use serde::Deserialize;
 
 use crate::db;
 
-use crate::security::{initiator_from_request, Initiator};
+use crate::security::{initiator, Initiator};
 use crate::net::http::error;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
@@ -24,32 +24,30 @@ pub async fn handle_get(
 ) -> error::Result<impl Responder> {
     let accept_html = response::try_check_if_html_req(&req);
     let conn = &*db.get_conn().await?;
-    let initiator_opt = initiator_from_request(&security, conn, &req).await?;
+    let lookup = initiator::from_request(&security, conn, &req).await?;
 
     if accept_html {
-        if initiator_opt.is_some() {
-            Ok(response::respond_index_html(&template.into_inner(), Some(initiator_opt.unwrap().user))?)
+        return if lookup.is_some() {
+            Ok(response::respond_index_html(&template.into_inner(), Some(lookup.unwrap().user))?)
         } else {
             let redirect = format!("/auth/login?jump_to=/tags/{}", path.tag_id);
             Ok(response::redirect_to_path(redirect.as_str()))
         }
-    } else if initiator_opt.is_none() {
-        Err(error::ResponseError::Session)
-    } else {
-        let initiator = initiator_opt.unwrap();
+    }
 
-        if let Some(tag) = db::tags::find_from_id(conn, path.tag_id).await? {
-            if tag.owner != initiator.user.id {
-                Err(error::ResponseError::PermissionDenied(
-                    format!("you do not have permission to view this tag. id: {}", tag.id)
-                ))
-            } else {
-                JsonBuilder::new(http::StatusCode::OK)
-                    .build(Some(tag))
-            }
+    let initiator = lookup.try_into()?;
+
+    if let Some(tag) = db::tags::find_from_id(conn, path.tag_id).await? {
+        if tag.owner != initiator.user.id {
+            Err(error::build::permission_denied(
+                format!("you do not have permission to view this tag. id: {}", tag.id)
+            ))
         } else {
-            Err(error::ResponseError::TagNotFound(path.tag_id))
+            JsonBuilder::new(http::StatusCode::OK)
+                .build(Some(tag))
         }
+    } else {
+        Err(error::build::tag_not_found(&path.tag_id))
     }
 }
 

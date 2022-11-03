@@ -8,7 +8,7 @@ pub mod user_id;
 
 use crate::db::query::QueryParams;
 use crate::security::Initiator;
-use crate::security::initiator_from_request;
+use crate::security::initiator;
 use crate::net::http::error;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
@@ -57,22 +57,20 @@ pub async fn handle_get(
 ) -> error::Result<impl Responder> {
     let accept_html = response::try_check_if_html_req(&req);
     let conn = &*db.get_conn().await?;
-    let initiator_opt = initiator_from_request(&security, conn, &req).await?;
+    let lookup = initiator::from_request(&security, conn, &req).await?;
 
     if accept_html {
-        return if initiator_opt.is_some() {
+        return if lookup.is_some() {
             Ok(response::respond_index_html(
                 &template.into_inner(),
-                Some(initiator_opt.unwrap().user)
+                Some(lookup.unwrap().user)
             )?)
         } else {
             Ok(response::redirect_to_login(&req))
         }
-    } else if initiator_opt.is_none() {
-        return Err(error::ResponseError::Session)
     }
 
-    let initiator = initiator_opt.unwrap();
+    let initiator = lookup.try_into()?;
 
     // first we will check to see if they just have a sweeping ability to
     // view all users. eg root admin
@@ -321,8 +319,8 @@ pub async fn handle_post(
         ],
         None
     ).await? {
-        return Err(error::ResponseError::PermissionDenied(
-            "you do not have permission to create new users".into()
+        return Err(error::build::permission_denied(
+            "you do not have permission to create new users"
         ))
     }
 
@@ -331,11 +329,11 @@ pub async fn handle_post(
     ).await?;
 
     if found_username {
-        return Err(error::ResponseError::UsernameExists(posted.user.username.clone()));
+        return Err(error::build::username_exists(posted.user.username.clone()));
     }
 
     if found_email {
-        return Err(error::ResponseError::EmailExists(posted.user.email.clone()))
+        return Err(error::build::email_exists(posted.user.email.clone()))
     }
 
     let email_verified: bool = false;
@@ -393,7 +391,7 @@ pub async fn handle_post(
             message.push_str(&posted.data.dob);
             message.push('"');
 
-            return Err(error::ResponseError::Validation(message))
+            return Err(error::build::validation(message))
         }
 
         transaction.execute(

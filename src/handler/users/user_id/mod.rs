@@ -4,8 +4,7 @@ use lettre::message::Mailbox;
 
 use crate::db;
 
-use crate::security::Initiator;
-use crate::security::initiator_from_request;
+use crate::security::{initiator, Initiator};
 use crate::net::http::error;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
@@ -24,20 +23,18 @@ pub async fn handle_get(
 ) -> error::Result<impl Responder> {
     let accept_html = response::try_check_if_html_req(&req);
     let conn = &*db.get_conn().await?;
-    let initiator_opt = initiator_from_request(&security, conn, &req).await?;
+    let lookup = initiator::from_request(&security, conn, &req).await?;
 
     if accept_html {
-        return if initiator_opt.is_some() {
-            Ok(response::respond_index_html(&template.into_inner(), Some(initiator_opt.unwrap().user))?)
+        return if lookup.is_some() {
+            Ok(response::respond_index_html(&template.into_inner(), Some(lookup.unwrap().user))?)
         } else {
             let redirect = format!("/auth/login?jump_to=/users/{}", path.user_id);
             Ok(response::redirect_to_path(redirect.as_str()))
         }
-    } else if initiator_opt.is_none() {
-        return Err(error::ResponseError::Session)
     }
     
-    let initiator = initiator_opt.unwrap();
+    let initiator = lookup.try_into()?;
 
     if !security::permissions::has_permission(
         conn, 
@@ -49,8 +46,8 @@ pub async fn handle_get(
         ],
         Some(&path.user_id)
     ).await? {
-        return Err(error::ResponseError::PermissionDenied(
-            "you do not have permission to read this users information".into()
+        return Err(error::build::permission_denied(
+            "you do not have permission to read this users information"
         ))
     }
 
@@ -58,7 +55,7 @@ pub async fn handle_get(
         JsonBuilder::new(http::StatusCode::OK)
             .build(Some(user))
     } else {
-        Err(error::ResponseError::UserIDNotFound(path.user_id))
+        Err(error::build::user_id_not_found(&path.user_id))
     }
 }
 
@@ -106,15 +103,15 @@ pub async fn handle_put(
         ],
         Some(&path.user_id)
     ).await? {
-        return Err(error::ResponseError::PermissionDenied(
-            "you do not have permission to edit another user".into()
+        return Err(error::build::permission_denied(
+            "you do not have permission to edit another user"
         ));
     }
 
     let original = db::users::find_from_id(conn, &path.user_id).await?;
 
     if original.is_none() {
-        return Err(error::ResponseError::UserIDNotFound(path.user_id));
+        return Err(error::build::user_id_not_found(&path.user_id));
     }
 
     let original = original.unwrap();
@@ -182,7 +179,7 @@ pub async fn handle_put(
             message.push_str(&posted.data.dob);
             message.push('"');
 
-            return Err(error::ResponseError::Validation(message))
+            return Err(error::build::validation(message))
         }
 
         transaction.execute(
@@ -243,7 +240,7 @@ pub async fn handle_delete(
         ],
         Some(&path.user_id)
     ).await? {
-        return Err(error::ResponseError::PermissionDenied(
+        return Err(error::build::permission_denied(
             format!("you do not have permission to delete another user")
         ));
     }
@@ -254,7 +251,7 @@ pub async fn handle_delete(
     ).await?;
 
     if check.len() == 0 {
-        return Err(error::ResponseError::UserIDNotFound(path.user_id));
+        return Err(error::build::user_id_not_found(&path.user_id));
     }
 
     let transaction = conn.transaction().await?;

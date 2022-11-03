@@ -5,7 +5,7 @@ use crate::db;
 
 pub mod field_id;
 
-use crate::security::{initiator_from_request, Initiator};
+use crate::security::{initiator, Initiator};
 use crate::net::http::error;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
@@ -20,20 +20,20 @@ pub async fn handle_get(
 ) -> error::Result<impl Responder> {
     let accept_html = response::try_check_if_html_req(&req);
     let conn = &*db.get_conn().await?;
-    let initiator_opt = initiator_from_request(&security, conn, &req).await?;
+    let lookup = initiator::from_request(&security, conn, &req).await?;
 
     if accept_html {
-        if initiator_opt.is_some() {
-            Ok(response::respond_index_html(&template.into_inner(), Some(initiator_opt.unwrap().user))?)
+        return if lookup.is_some() {
+            Ok(response::respond_index_html(&template.into_inner(), Some(lookup.unwrap().user))?)
         } else {
             Ok(response::redirect_to_login(&req))
         }
-    } else if initiator_opt.is_none() {
-        Err(error::ResponseError::Session)
-    } else {
-        JsonBuilder::new(http::StatusCode::OK)
-            .build(Some(db::global_custom_fields::find_all(conn).await?))
     }
+
+    lookup.try_into()?;
+    
+    JsonBuilder::new(http::StatusCode::OK)
+        .build(Some(db::global_custom_fields::find_all(conn).await?))
 }
 
 #[derive(Deserialize)]
@@ -59,7 +59,7 @@ pub async fn handle_post(
     ).await?;
 
     if check.len() != 0 {
-        return Err(error::ResponseError::GlobalCustomFieldExists(posted.name));
+        return Err(error::build::global_custom_field_exists(posted.name));
     }
 
     let config_json = serde_json::to_value(posted.config.clone())?;
