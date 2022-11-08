@@ -205,11 +205,13 @@ impl MapShape for SessionConfigShape {
 pub struct SecurityConfigShape {
     pub session: Option<SessionConfigShape>,
     pub secret: Option<String>,
+    pub signing_algo: Option<String>,
 }
 
 impl MapShape for SecurityConfigShape {
     fn map_shape(&mut self, rhs: Self) {
         self.secret.map_shape(rhs.secret);
+        self.signing_algo.map_shape(rhs.signing_algo);
 
         assign_map_struct(&mut self.session, rhs.session);
     }

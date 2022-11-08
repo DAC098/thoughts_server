@@ -75,7 +75,8 @@ impl TryFrom<Option<shapes::SessionConfigShape>> for SessionConfig {
 #[derive(Debug, Clone)]
 pub struct SecurityConfig {
     pub session: SessionConfig,
-    pub secret: String
+    pub secret: String,
+    pub signing_algo: String
 }
 
 impl TryFrom<Option<shapes::SecurityConfigShape>> for SecurityConfig {
@@ -85,12 +86,14 @@ impl TryFrom<Option<shapes::SecurityConfigShape>> for SecurityConfig {
         if let Some(security) = value {
             Ok(SecurityConfig {
                 session: security.session.try_into()?,
-                secret: security.secret.unwrap_or("secret".into())
+                secret: security.secret.unwrap_or("secret".into()),
+                signing_algo: security.signing_algo.unwrap_or("blake3".into())
             })
         } else {
             Ok(SecurityConfig {
                 session: (None).try_into()?,
-                secret: "secret".into()
+                secret: "secret".into(),
+                signing_algo: "blake3".into()
             })
         }
     }
@@ -561,6 +564,19 @@ pub fn validate_server_config(config: &ServerConfig) -> error::Result<()> {
             return Err(error::Error::InvalidConfig(
                 "relay must be given if email is emabled".to_owned()
             ));
+        }
+    }
+
+    match config.security.signing_algo.as_str() {
+        "blake3" |
+        "sha224" |
+        "sha256" |
+        "sha384" |
+        "sha512" => {},
+        _ => {
+            return Err(error::Error::InvalidConfig(
+                "security signing algo must be \"blake3\", \"sha224\", \"sha256\", \"sha384\", or \"sha512\"".to_owned()
+            ))
         }
     }
 

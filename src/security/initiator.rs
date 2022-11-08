@@ -117,7 +117,12 @@ pub async fn from_cookie_map(
             }
         };
 
-        match mac::one_off_verify_blake3(security.get_secret().as_bytes(), token.as_bytes(), &decoded_mac) {
+        match mac::algo_one_off_verify(
+            security.get_signing(), 
+            security.get_secret().as_bytes(), 
+            token.as_bytes(), 
+            &decoded_mac
+        ) {
             Ok(valid) => {
                 if !valid {
                     return Ok(InitiatorLookup::VerifyFailed)

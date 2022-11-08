@@ -113,6 +113,7 @@ pub fn one_off_verify_blake3(secret: &[u8], data: &[u8], mac: &[u8]) -> Result<b
     Ok(hash == cmp)
 }
 
+#[allow(non_camel_case_types)]
 pub enum Algorithm {
     HMAC_SHA224,
     HMAC_SHA256,
@@ -122,7 +123,7 @@ pub enum Algorithm {
 }
 
 /// runs a one_off using algorithm
-pub fn algo_one_off(algo: Algorithm, secret: &[u8], data: &[u8]) -> Result<Vec<u8>> {
+pub fn algo_one_off(algo: &Algorithm, secret: &[u8], data: &[u8]) -> Result<Vec<u8>> {
     match algo {
         Algorithm::HMAC_SHA224 => one_off_sha224(secret, data),
         Algorithm::HMAC_SHA256 => one_off_sha256(secret, data),
@@ -133,7 +134,7 @@ pub fn algo_one_off(algo: Algorithm, secret: &[u8], data: &[u8]) -> Result<Vec<u
 }
 
 /// runs a one_off_verify using algorithm
-pub fn algo_one_off_verify(algo: Algorithm, secret: &[u8], data: &[u8], mac: &[u8]) -> Result<bool> {
+pub fn algo_one_off_verify(algo: &Algorithm, secret: &[u8], data: &[u8], mac: &[u8]) -> Result<bool> {
     match algo {
         Algorithm::HMAC_SHA224 => one_off_verify_sha224(secret, data, mac),
         Algorithm::HMAC_SHA256 => one_off_verify_sha256(secret, data, mac),

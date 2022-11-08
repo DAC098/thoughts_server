@@ -92,7 +92,11 @@ pub async fn handle_post(
 
     user_session.insert(&transaction).await?;
 
-    let mac = security::mac::one_off_blake3(security.get_secret().as_bytes(), user_session.token.as_bytes()).unwrap();
+    let mac = security::mac::algo_one_off(
+        security.get_signing(),
+        security.get_secret().as_bytes(), 
+        user_session.token.as_bytes()
+    ).unwrap();
     let base64_mac = base64::encode_config(mac, base64::URL_SAFE);
 
     let mut cookie_value = String::with_capacity(user_session.token.len() + 1 + base64_mac.len());
