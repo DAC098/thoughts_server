@@ -1,7 +1,17 @@
+use hmac::{Mac, Hmac};
+
+// for the context below, would it be better to have this specified by the 
+// environment since this is technically an open source project
+
+/// required for the blake3 key derivation
+pub const BLAKE3_CONTEXT: &str = "thoughts_server 20221031 security::mac";
+
 #[derive(Debug)]
 pub enum Error {
     InvalidKeyLength
 }
+
+pub type Result<T> = std::result::Result<T, Error>;
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -23,96 +33,54 @@ impl From<hmac::digest::InvalidLength> for Error {
     }
 }
 
-// for the context below, would it be better to have this specified by the 
-// environment since this is technically an open source project
-
-/// required for the blake3 key derivation
-pub const BLAKE3_CONTEXT: &str = "thoughts_server 20221031 security::mac";
-
-/*
-// this is an attempt to allow for different options when doing mac's. I dont
-// really want to fuck with all the different generics for the various types
-// so I will just use BLAKE3 until I figure out how to do it
-
-pub enum HmacAlgorithms {
-    SHA2_224,
-    SHA2_256,
-    SHA2_384,
-    SHA2_512,
-
-    SHA3_224,
-    SHA3_256,
-    SHA3_384,
-    SHA3_512,
-}
-
-pub enum MacAlgorithms {
-    HMAC(HmacAlgorithms),
-    BLAKE3
-}
-
-pub fn hmac_one_off(alg: HmacAlgorithms, secret: &[u8], data: &[u8]) -> std::result::Result<(), Error>
-{
-    Ok(match alg {
-        HmacAlgorithms::SHA2_224 => {
-            let mut hash = Hmac::<sha2::Sha224>::new_from_slice(secret)?;
-            hash.update(data);
-            hash.finalize().into_bytes()
-        },
-        HmacAlgorithms::SHA2_256 => {
-            let mut hash = Hmac::<sha2::Sha256>::new_from_slice(secret)?;
-            hash.update(data);
-            hash.finalize().into_bytes()
-        },
-        HmacAlgorithms::SHA2_384 => {
-            let mut hash = Hmac::<sha2::Sha384>::new_from_slice(secret)?;
-            hash.update(data);
-            hash.finalize().into_bytes()
-        },
-        HmacAlgorithms::SHA2_512 => {
-            let mut hash = Hmac::<sha2::Sha512>::new_from_slice(secret)?;
-            hash.update(data);
-            hash.finalize().into_bytes()
-        },
-
-        HmacAlgorithms::SHA3_224 => {
-            let mut hash = Hmac::<sha3::Sha3_224>::new_from_slice(secret)?;
-            hash.update(data);
-            hash.finalize().into_bytes()
-        },
-        HmacAlgorithms::SHA3_256 => {
-            let mut hash = Hmac::<sha3::Sha3_256>::new_from_slice(secret)?;
-            hash.update(data);
-            hash.finalize().into_bytes()
-        },
-        HmacAlgorithms::SHA3_384 => {
-            let mut hash = Hmac::<sha3::Sha3_384>::new_from_slice(secret)?;
-            hash.update(data);
-            hash.finalize().into_bytes()
-        },
-        HmacAlgorithms::SHA3_512 => {
-            let mut hash = Hmac::<sha3::Sha3_512>::new_from_slice(secret)?;
-            hash.update(data);
-            hash.finalize().into_bytes()
+macro_rules! hmac_methods {
+    ($make:ident, $once:ident, $verify:ident, $e:path) => {
+        /// create a new hmac
+        fn $make(secret: &[u8], data: &[u8])-> Result<Hmac<$e>> {
+            let mut mac = Hmac::new_from_slice(secret)?;
+            mac.update(data);
+            Ok(mac)
         }
-    })
-}
-*/
 
-/// create [`blake3::Hash`] from given secret and data
+        /// a one off hmac
+        pub fn $once(secret: &[u8], data: &[u8]) -> Result<Vec<u8>> {
+            let result = $make(secret, data)?.finalize();
+            let bytes = result.into_bytes();
+            Ok(bytes.to_vec())
+        }
+
+        /// verify a given hmac
+        pub fn $verify(secret: &[u8], data: &[u8], mac: &[u8]) -> Result<bool> {
+            let result = $make(secret, data)?;
+
+            Ok(match result.verify_slice(mac) {
+                Ok(()) => true,
+                Err(_e) => false
+            })
+        }
+    };
+}
+
+hmac_methods!(make_sha1, one_off_sha1, one_off_verify_sha1, sha1::Sha1);
+hmac_methods!(make_sha224, one_off_sha224, one_off_verify_sha224, sha3::Sha3_224);
+hmac_methods!(make_sha256, one_off_sha256, one_off_verify_sha256, sha3::Sha3_256);
+hmac_methods!(make_sha384, one_off_sha384, one_off_verify_sha384, sha3::Sha3_384);
+hmac_methods!(make_sha512, one_off_sha512, one_off_verify_sha512, sha3::Sha3_512);
+
+/// create [blake3::Hash] from given secret and data
 /// 
-/// it will use the [`BLAKE3_CONTEXT`] for key derivation to be used for the
+/// it will use the [BLAKE3_CONTEXT] for key derivation to be used for the
 /// hasher and then return the finalized hash
-fn make_hash(secret: &[u8], data: &[u8]) -> blake3::Hash {
+fn make_blake3(secret: &[u8], data: &[u8]) -> blake3::Hash {
     let key = blake3::derive_key(BLAKE3_CONTEXT, secret);
     let mut hasher = blake3::Hasher::new_keyed(&key);
-    hasher.update(data);
-    hasher.finalize()
+    blake3::Hasher::update(&mut hasher, data);
+    blake3::Hasher::finalize(&hasher)
 }
 
-/// creates a mac via BLAKE3 hashing
-pub fn one_off(secret: &[u8], data: &[u8]) -> Vec<u8> {
-    let hash = make_hash(secret, data);
+/// creates a mac via [blake3::Hash]
+pub fn one_off_blake3(secret: &[u8], data: &[u8]) -> Result<Vec<u8>> {
+    let hash = make_blake3(secret, data);
     let bytes = hash.as_bytes();
     let mut rtn = Vec::with_capacity(bytes.len());
 
@@ -120,26 +88,16 @@ pub fn one_off(secret: &[u8], data: &[u8]) -> Vec<u8> {
         rtn.push(b.clone());
     }
 
-    rtn
+    Ok(rtn)
 }
 
-/// result returned from [`one_off_verify`]
-pub enum VerifyResult {
-    /// the mac and data given matched
-    Valid,
-    /// the mac data data given did not match
-    Invalid,
-    /// the mac provided was too long
-    InvalidLength,
-}
-
-/// validates secret and data against an existing mac using BLAKE3 hashing
-pub fn one_off_verify(secret: &[u8], data: &[u8], mac: &[u8]) -> VerifyResult {
+/// validates secret and data against an existing mac using [blake3::Hash]
+pub fn one_off_verify_blake3(secret: &[u8], data: &[u8], mac: &[u8]) -> Result<bool> {
     if mac.len() != blake3::OUT_LEN {
-        return VerifyResult::InvalidLength;
+        return Err(Error::InvalidKeyLength);
     }
 
-    let hash = make_hash(secret, data);
+    let hash = make_blake3(secret, data);
     let cmp = {
         // not sure if this is optimal or if something else should be done
         // since this will get called a lot
@@ -152,9 +110,35 @@ pub fn one_off_verify(secret: &[u8], data: &[u8], mac: &[u8]) -> VerifyResult {
         blake3::Hash::from(bytes)
     };
 
-    if hash == cmp {
-        VerifyResult::Valid
-    } else {
-        VerifyResult::Invalid
+    Ok(hash == cmp)
+}
+
+pub enum Algorithm {
+    HMAC_SHA224,
+    HMAC_SHA256,
+    HMAC_SHA384,
+    HMAC_SHA512,
+    BLAKE3
+}
+
+/// runs a one_off using algorithm
+pub fn algo_one_off(algo: Algorithm, secret: &[u8], data: &[u8]) -> Result<Vec<u8>> {
+    match algo {
+        Algorithm::HMAC_SHA224 => one_off_sha224(secret, data),
+        Algorithm::HMAC_SHA256 => one_off_sha256(secret, data),
+        Algorithm::HMAC_SHA384 => one_off_sha384(secret, data),
+        Algorithm::HMAC_SHA512 => one_off_sha512(secret, data),
+        Algorithm::BLAKE3 => one_off_blake3(secret, data)
+    }
+}
+
+/// runs a one_off_verify using algorithm
+pub fn algo_one_off_verify(algo: Algorithm, secret: &[u8], data: &[u8], mac: &[u8]) -> Result<bool> {
+    match algo {
+        Algorithm::HMAC_SHA224 => one_off_verify_sha224(secret, data, mac),
+        Algorithm::HMAC_SHA256 => one_off_verify_sha256(secret, data, mac),
+        Algorithm::HMAC_SHA384 => one_off_verify_sha384(secret, data, mac),
+        Algorithm::HMAC_SHA512 => one_off_verify_sha512(secret, data, mac),
+        Algorithm::BLAKE3 => one_off_verify_blake3(secret, data, mac)
     }
 }
