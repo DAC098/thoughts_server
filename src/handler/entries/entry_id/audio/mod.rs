@@ -26,7 +26,7 @@ pub struct EntryIdAudioPath {
 
 pub async fn handle_get(
     req: HttpRequest,
-    security: state::WebSecurityState,
+    security: security::state::WebSecurityState,
     db: state::WebDbState,
     path: web::Path<EntryIdAudioPath>
 ) -> error::Result<impl Responder> {

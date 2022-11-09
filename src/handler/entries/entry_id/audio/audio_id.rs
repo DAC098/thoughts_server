@@ -25,7 +25,7 @@ pub struct EntryIdAudioIdquery {
 
 pub async fn handle_get(
     req: HttpRequest,
-    security: state::WebSecurityState,
+    security: security::state::WebSecurityState,
     db: state::WebDbState,
     storage: state::WebStorageState,
     path: web::Path<EntryIdAudioIdPath>,

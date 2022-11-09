@@ -19,7 +19,7 @@ use crate::security;
  */
 pub async fn handle_get(
     req: HttpRequest,
-    security: state::WebSecurityState,
+    security: security::state::WebSecurityState,
     db: state::WebDbState,
     template: state::WebTemplateState<'_>
 ) -> error::Result<impl Responder> {
@@ -52,7 +52,7 @@ pub struct LoginBodyJSON {
  * send back a successful message with a login session
  */
 pub async fn handle_post(
-    security: state::WebSecurityState,
+    security: security::state::WebSecurityState,
     db: state::WebDbState,
     posted: web::Json<LoginBodyJSON>
 ) -> error::Result<impl Responder> {
@@ -69,10 +69,12 @@ pub async fn handle_post(
             .set_name("UsernameNotFound")
             .set_message("failed to find the requested username"))
     }
-    
+
     let row = result.unwrap();
 
-    security::verify_password(row.get(1), &posted.password)?;
+    if !security::verify_password(row.get(1), &posted.password)? {
+        return Err(error::build::invalid_password());
+    }
 
     let transaction = conn.transaction().await?;
     let bytes = security::get_rand_bytes(64)?;
@@ -94,7 +96,7 @@ pub async fn handle_post(
 
     let mac = security::mac::algo_one_off(
         security.get_signing(),
-        security.get_secret().as_bytes(), 
+        security.get_secret().as_bytes(),
         user_session.token.as_bytes()
     ).unwrap();
     let base64_mac = base64::encode_config(mac, base64::URL_SAFE);
@@ -121,7 +123,7 @@ pub async fn handle_post(
 
 pub async fn handle_delete(
     req: HttpRequest,
-    security: state::WebSecurityState,
+    security: security::state::WebSecurityState,
     db: state::WebDbState
 ) -> error::Result<impl Responder> {
     let mut conn = db.pool.get().await?;

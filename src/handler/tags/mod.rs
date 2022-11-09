@@ -19,7 +19,7 @@ pub struct TagsPath {
 
 pub async fn handle_get(
     req: HttpRequest,
-    security: state::WebSecurityState,
+    security: security::state::WebSecurityState,
     db: state::WebDbState,
     template: state::WebTemplateState<'_>,
     path: web::Path<TagsPath>,

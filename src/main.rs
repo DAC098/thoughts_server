@@ -80,7 +80,7 @@ async fn server_runner(config: config::ServerConfig) -> Result<()> {
 
     let bind_config = config.bind;
 
-    let security_state_ref = web::Data::new(state::SecurityState::from(config.security));
+    let security_state_ref = web::Data::new(security::state::SecurityState::from(config.security));
     let db_state_ref = web::Data::new(state::DBState::from(
         bb8::Pool::builder().build(
             PostgresConnectionManager::new(db_config, NoTls)

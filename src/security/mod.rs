@@ -1,4 +1,3 @@
-use actix_web::http::StatusCode;
 use argon2::{Config, ThreadMode, Variant, Version};
 use rand::RngCore;
 
@@ -12,6 +11,8 @@ pub use initiator::*;
 
 pub mod assert;
 pub mod permissions;
+
+pub mod state;
 
 pub fn get_rand_bytes(size: usize) -> error::Result<Vec<u8>> {
     let mut rand_bytes = vec![0; size];
@@ -55,16 +56,6 @@ pub fn generate_new_hash(password: &String) -> error::Result<String> {
     )
 }
 
-pub fn verify_password(hash: &str, password: &String) -> error::Result<()> {
-    let matches = argon2::verify_encoded(hash, password.as_bytes())?;
-
-    if !matches {
-        Err(error::Error::new()
-            .set_status(StatusCode::UNAUTHORIZED)
-            .set_name("InvalidPassword")
-            .set_message("invalid password given for account")
-        )
-    } else {
-        Ok(())
-    }
+pub fn verify_password(hash: &str, password: &String) -> error::Result<bool> {
+    Ok(argon2::verify_encoded(hash, password.as_bytes())?)
 }

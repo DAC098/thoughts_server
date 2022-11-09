@@ -20,6 +20,15 @@ where
 }
 
 #[inline]
+pub fn invalid_password() -> Error
+{
+    Error::new()
+        .set_status(StatusCode::UNAUTHORIZED)
+        .set_name("InvalidPassword")
+        .set_message("invalid password provided")
+}
+
+#[inline]
 pub fn user_id_not_found(id: &i32) -> Error
 {
     Error::new()

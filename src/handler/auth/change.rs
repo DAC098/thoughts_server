@@ -24,7 +24,9 @@ pub async fn handle_post(
         &[&initiator.user.id]
     ).await?;
 
-    security::verify_password(result.get(1), &posted.current_password)?;
+    if !security::verify_password(result.get(1), &posted.current_password)? {
+        return Err(error::build::invalid_password());
+    }
 
     let hash = security::generate_new_hash(&posted.new_password)?;
     let transaction = conn.transaction().await?;

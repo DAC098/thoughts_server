@@ -8,12 +8,12 @@ use crate::net::http::error;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
 use crate::state;
-use crate::security::{initiator, Initiator};
+use crate::security::{self, initiator, Initiator};
 use crate::email;
 
 pub async fn handle_get(
     req: HttpRequest,
-    security: state::WebSecurityState,
+    security: security::state::WebSecurityState,
     db: state::WebDbState,
     template: state::WebTemplateState<'_>,
 ) -> error::Result<impl Responder> {

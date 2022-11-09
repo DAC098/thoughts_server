@@ -5,7 +5,7 @@ use serde::{Serialize, Deserialize};
 
 use crate::db;
 
-use crate::security::{initiator, Initiator};
+use crate::security::{self, initiator, Initiator};
 use crate::net::http::error;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
@@ -27,7 +27,7 @@ pub struct BackupJson {
 
 pub async fn handle_get(
     req: HttpRequest,
-    security: state::WebSecurityState,
+    security: security::state::WebSecurityState,
     db: state::WebDbState,
     template: state::WebTemplateState<'_>,
 ) -> error::Result<impl Responder> {

@@ -10,7 +10,7 @@ use crate::db::users;
 use crate::state;
 use crate::net::http::error;
 use crate::net::http::cookie::CookieMap;
-use super::mac;
+use super::{mac, state::SecurityState};
 
 pub struct Initiator {
     pub user: users::User,
@@ -97,7 +97,7 @@ impl InitiatorLookup {
 }
 
 pub async fn from_cookie_map(
-    security: &state::SecurityState,
+    security: &SecurityState,
     conn: &impl GenericClient,
     cookies: &CookieMap
 ) -> std::result::Result<InitiatorLookup, db::error::Error> 
@@ -157,7 +157,7 @@ pub async fn from_cookie_map(
 }
 
 pub async fn from_request(
-    security: &state::SecurityState,
+    security: &SecurityState,
     conn: &impl GenericClient,
     req: &HttpRequest
 ) -> std::result::Result<InitiatorLookup, db::error::Error>
@@ -173,7 +173,7 @@ impl FromRequest for Initiator {
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
         let db = req.app_data::<web::Data<state::DBState>>().unwrap().clone();
-        let security = req.app_data::<web::Data<state::SecurityState>>().unwrap().clone();
+        let security = req.app_data::<web::Data<SecurityState>>().unwrap().clone();
         let cookies = CookieMap::from(req.headers());
 
         Box::pin(async move {

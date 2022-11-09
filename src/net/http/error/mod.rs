@@ -141,8 +141,6 @@ macro_rules! generic_catch {
             fn from(err: $e) -> Self
             {
                 Error::new()
-                    .set_name("InternalError")
-                    .set_message("internal server error")
                     .set_source(err)
             }
         }

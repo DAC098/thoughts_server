@@ -5,7 +5,7 @@ use actix_files::NamedFile;
 use actix_web::http::Method;
 use actix_web::{http, HttpRequest, Responder, error as actix_error};
 
-use crate::security::initiator;
+use crate::security::{self, initiator};
 use crate::net::http::error;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
@@ -25,7 +25,7 @@ pub mod groups;
 
 pub async fn handle_get(
     req: HttpRequest,
-    security: state::WebSecurityState,
+    security: security::state::WebSecurityState,
     db: state::WebDbState,
 ) -> error::Result<impl Responder> {
     let conn = &*db.get_conn().await?;

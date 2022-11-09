@@ -12,7 +12,7 @@ pub mod group_id;
 
 pub async fn handle_get(
     req: HttpRequest,
-    security: state::WebSecurityState,
+    security: security::state::WebSecurityState,
     db: state::WebDbState,
     template: state::WebTemplateState<'_>
 ) -> std::result::Result<impl Responder, error::Error> {
