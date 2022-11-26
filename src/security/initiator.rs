@@ -29,7 +29,8 @@ pub enum InitiatorLookup {
     InvalidMAC,
     VerifyFailed,
     SessionNotFound(String),
-    SessionExpired,
+    SessionExpired(UserSession),
+    SessionUnverified(UserSession),
     UserNotFound(i32),
     CookieNotFound,
 }
@@ -54,44 +55,56 @@ impl InitiatorLookup {
         }
     }
 
-    pub fn try_into(self) -> std::result::Result<Initiator, error::Error> {
+    pub fn get_error(self) -> Option<error::Error> {
         match self {
-            InitiatorLookup::Found(initiator) => Ok(initiator),
-            InitiatorLookup::InvalidFormat => Err(error::Error::new()
+            InitiatorLookup::Found(_initiator) => None,
+            InitiatorLookup::InvalidFormat => Some(error::Error::new()
                 .set_status(StatusCode::UNAUTHORIZED)
                 .set_name("SessionInvalidFormat")
                 .set_message("value for session_id is an invalid format")
             ),
-            InitiatorLookup::InvalidMAC => Err(error::Error::new()
+            InitiatorLookup::InvalidMAC => Some(error::Error::new()
                 .set_status(StatusCode::UNAUTHORIZED)
                 .set_name("SessionInvalidMAC")
                 .set_message("MAC value for session_id is invalid")
             ),
-            InitiatorLookup::VerifyFailed => Err(error::Error::new()
+            InitiatorLookup::VerifyFailed => Some(error::Error::new()
                 .set_status(StatusCode::UNAUTHORIZED)
                 .set_name("SessionInvalid")
                 .set_message("value for session_id invalid")
             ),
-            InitiatorLookup::SessionNotFound(_) => Err(error::Error::new()
+            InitiatorLookup::SessionNotFound(_) => Some(error::Error::new()
                 .set_status(StatusCode::NOT_FOUND)
                 .set_name("SessionNotFound")
                 .set_message("requested session was not found")
             ),
-            InitiatorLookup::SessionExpired => Err(error::Error::new()
+            InitiatorLookup::SessionExpired(_) => Some(error::Error::new()
                 .set_status(StatusCode::UNAUTHORIZED)
                 .set_name("SessionExpired")
                 .set_message("session has expired")
             ),
-            InitiatorLookup::UserNotFound(_) => Err(error::Error::new()
+            InitiatorLookup::SessionUnverified(_) => Some(error::Error::new()
+                .set_status(StatusCode::UNAUTHORIZED)
+                .set_name("SessionUnverified")
+                .set_message("session has not been verified by 2fa")
+            ),
+            InitiatorLookup::UserNotFound(_) => Some(error::Error::new()
                 .set_status(StatusCode::NOT_FOUND)
                 .set_name("SessionUserNotFound")
                 .set_message("session user was not found")
             ),
-            InitiatorLookup::CookieNotFound => Err(error::Error::new()
+            InitiatorLookup::CookieNotFound => Some(error::Error::new()
                 .set_status(StatusCode::UNAUTHORIZED)
                 .set_name("SessionCookieNotFound")
                 .set_message("session_id cookie was not found")
             ),
+        }
+    }
+
+    pub fn try_into(self) -> error::Result<Initiator> {
+        match self {
+            InitiatorLookup::Found(initiator) => Ok(initiator),
+            _ => Err(self.get_error().unwrap()),
         }
     }
 }
@@ -137,7 +150,11 @@ pub async fn from_cookie_map(
             let now = chrono::Utc::now();
 
             if session_record.dropped || session_record.expires < now {
-                return Ok(InitiatorLookup::SessionExpired);
+                return Ok(InitiatorLookup::SessionExpired(session_record));
+            }
+
+            if !session_record.verified {
+                return Ok(InitiatorLookup::SessionUnverified(session_record));
             }
 
             if let Some(user_record) = users::find_from_id(conn, &session_record.owner).await? {

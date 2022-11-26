@@ -104,7 +104,7 @@ pub struct Permission {
     resource_id: Option<i32>
 }
 
-pub async fn find_from_subject(conn: &impl GenericClient, table: &str, id: &i32) -> Result<Vec<Permission>> {
+pub async fn _find_from_subject(conn: &impl GenericClient, table: &str, id: &i32) -> Result<Vec<Permission>> {
     Ok(conn.query(
         "\
         select id, \
@@ -132,7 +132,7 @@ pub async fn find_from_subject(conn: &impl GenericClient, table: &str, id: &i32)
     .collect())
 }
 
-pub async fn find_from_resource(conn: &impl GenericClient, table: &str, id: &i32) -> Result<Vec<Permission>> {
+pub async fn _find_from_resource(conn: &impl GenericClient, table: &str, id: &i32) -> Result<Vec<Permission>> {
     Ok(conn.query(
         "\
         select id, \
@@ -160,7 +160,7 @@ pub async fn find_from_resource(conn: &impl GenericClient, table: &str, id: &i32
     .collect())
 }
 
-pub async fn find_user_permissions(conn: &impl GenericClient, users_id: &i32) -> Result<Vec<Permission>> {
+pub async fn _find_user_permissions(conn: &impl GenericClient, users_id: &i32) -> Result<Vec<Permission>> {
     Ok(conn.query(
         "\
         with user_groups ( \

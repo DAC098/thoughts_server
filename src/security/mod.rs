@@ -14,9 +14,15 @@ pub mod permissions;
 
 pub mod state;
 
-pub fn get_rand_bytes(size: usize) -> error::Result<Vec<u8>> {
-    let mut rand_bytes = vec![0; size];
-    rand::thread_rng().try_fill_bytes(rand_bytes.as_mut_slice())?;
+/// simple get random bytes with a given size
+/// 
+/// uses [rand::thread_rng] to fill the Vec with the given size
+pub fn get_rand_bytes(size: usize) -> std::result::Result<Vec<u8>, rand::Error> {
+    let mut rng = rand::thread_rng();
+    let mut rand_bytes = vec!(0u8; size);
+
+    rng.try_fill_bytes(rand_bytes.as_mut_slice())?;
+
     Ok(rand_bytes)
 }
 

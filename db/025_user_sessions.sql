@@ -7,6 +7,7 @@ create table user_sessions (
     issued_on timestamp with time zone not null,
     expires timestamp with time zone not null,
 
+    verified boolean not null default false,
     use_csrf boolean not null default false,
 
     constraint owner_fk foreign key (owner) references users (id),

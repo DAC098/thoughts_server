@@ -65,7 +65,7 @@ impl Error
         self
     }
 
-    pub fn set_data<D>(mut self, data: D) -> Self
+    pub fn _set_data<D>(mut self, data: D) -> Self
     where
         D: Serialize
     {
@@ -172,6 +172,7 @@ impl From<bb8_postgres::bb8::RunError<tokio_postgres::Error>> for Error
 // std
 generic_catch!(std::fmt::Error);
 generic_catch!(std::io::Error);
+generic_catch!(std::num::TryFromIntError);
 
 // chrono
 generic_catch!(chrono::ParseError);

@@ -8,6 +8,7 @@ pub struct UserSession {
     pub dropped: bool,
     pub issued_on: chrono::DateTime<chrono::Utc>,
     pub expires: chrono::DateTime<chrono::Utc>,
+    pub verified: bool,
     pub use_csrf: bool,
 }
 
@@ -54,6 +55,7 @@ impl UserSession {
                    dropped, \
                    issued_on, \
                    expires, \
+                   verified, \
                    use_csrf \
             from user_sessions \
             where token = $1",
@@ -65,37 +67,39 @@ impl UserSession {
                 dropped: record.get(2),
                 issued_on: record.get(3),
                 expires: record.get(4),
-                use_csrf: record.get(5)
+                verified: record.get(5),
+                use_csrf: record.get(6)
             }))
         } else {
             Ok(None)
         }
     }
 
-    pub async fn delete_via_token(
-        conn: &impl GenericClient,
-        token: &str
-    ) -> error::Result<bool> {
-        Ok(conn.execute(
-            "delete from user_sessions where token = $1", 
-            &[&token]
-        ).await? == 1)
+    pub async fn delete(&self, conn: &impl GenericClient) -> error::Result<u64> {
+        let result = conn.execute(
+            "delete from user_sessions where token = $1",
+            &[&self.token]
+        ).await?;
+
+        Ok(result)
     }
 
     pub async fn insert(&self, conn: &impl GenericClient) -> error::Result<()> {
         conn.execute(
             "\
             insert into user_sessions \
-            values ($1, $2, $3, $4, $5, $6)",
+            values ($1, $2, $3, $4, $5, $6, $7)",
             &[
                 &self.token,
                 &self.owner,
                 &self.dropped,
                 &self.issued_on,
                 &self.expires,
+                &self.verified,
                 &self.use_csrf
             ]
         ).await?;
+
         Ok(())
     }
 
@@ -113,7 +117,8 @@ impl Default for UserSession {
             owner: 0, 
             dropped: false, 
             issued_on: chrono_now.clone(), 
-            expires: chrono_now, 
+            expires: chrono_now,
+            verified: false,
             use_csrf: false
         }
     }

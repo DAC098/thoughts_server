@@ -43,17 +43,26 @@ macro_rules! hmac_methods {
         }
 
         /// a one off hmac
-        pub fn $once(secret: &[u8], data: &[u8]) -> Result<Vec<u8>> {
-            let result = $make(secret, data)?.finalize();
+        pub fn $once<S,D>(secret: S, data: D) -> Result<Vec<u8>>
+        where
+            S: AsRef<[u8]>,
+            D: AsRef<[u8]>,
+        {
+            let result = $make(secret.as_ref(), data.as_ref())?.finalize();
             let bytes = result.into_bytes();
             Ok(bytes.to_vec())
         }
 
         /// verify a given hmac
-        pub fn $verify(secret: &[u8], data: &[u8], mac: &[u8]) -> Result<bool> {
-            let result = $make(secret, data)?;
+        pub fn $verify<S,D,M>(secret: S, data: D, mac: M) -> Result<bool>
+        where
+            S: AsRef<[u8]>,
+            D: AsRef<[u8]>,
+            M: AsRef<[u8]>
+        {
+            let result = $make(secret.as_ref(), data.as_ref())?;
 
-            Ok(match result.verify_slice(mac) {
+            Ok(match result.verify_slice(mac.as_ref()) {
                 Ok(()) => true,
                 Err(_e) => false
             })
@@ -61,7 +70,7 @@ macro_rules! hmac_methods {
     };
 }
 
-hmac_methods!(make_sha1, one_off_sha1, one_off_verify_sha1, sha1::Sha1);
+hmac_methods!(make_sha1, one_off_sha1, _one_off_verify_sha1, sha1::Sha1);
 hmac_methods!(make_sha224, one_off_sha224, one_off_verify_sha224, sha3::Sha3_224);
 hmac_methods!(make_sha256, one_off_sha256, one_off_verify_sha256, sha3::Sha3_256);
 hmac_methods!(make_sha384, one_off_sha384, one_off_verify_sha384, sha3::Sha3_384);
@@ -79,8 +88,12 @@ fn make_blake3(secret: &[u8], data: &[u8]) -> blake3::Hash {
 }
 
 /// creates a mac via [blake3::Hash]
-pub fn one_off_blake3(secret: &[u8], data: &[u8]) -> Result<Vec<u8>> {
-    let hash = make_blake3(secret, data);
+pub fn one_off_blake3<S,D>(secret: S, data: D) -> Result<Vec<u8>>
+where
+    S: AsRef<[u8]>,
+    D: AsRef<[u8]>,
+{
+    let hash = make_blake3(secret.as_ref(), data.as_ref());
     let bytes = hash.as_bytes();
     let mut rtn = Vec::with_capacity(bytes.len());
 
@@ -92,19 +105,26 @@ pub fn one_off_blake3(secret: &[u8], data: &[u8]) -> Result<Vec<u8>> {
 }
 
 /// validates secret and data against an existing mac using [blake3::Hash]
-pub fn one_off_verify_blake3(secret: &[u8], data: &[u8], mac: &[u8]) -> Result<bool> {
-    if mac.len() != blake3::OUT_LEN {
+pub fn one_off_verify_blake3<S,D,M>(secret: S, data: D, mac: M) -> Result<bool>
+where
+    S: AsRef<[u8]>,
+    D: AsRef<[u8]>,
+    M: AsRef<[u8]>,
+{
+    let mac_ref = mac.as_ref();
+
+    if mac_ref.len() != blake3::OUT_LEN {
         return Err(Error::InvalidKeyLength);
     }
 
-    let hash = make_blake3(secret, data);
+    let hash = make_blake3(secret.as_ref(), data.as_ref());
     let cmp = {
         // not sure if this is optimal or if something else should be done
         // since this will get called a lot
         let mut bytes = [0u8; 32];
 
-        for index in 0..mac.len() {
-            bytes[index] = mac[index];
+        for index in 0..mac_ref.len() {
+            bytes[index] = mac_ref[index];
         }
 
         blake3::Hash::from(bytes)
@@ -123,7 +143,11 @@ pub enum Algorithm {
 }
 
 /// runs a one_off using algorithm
-pub fn algo_one_off(algo: &Algorithm, secret: &[u8], data: &[u8]) -> Result<Vec<u8>> {
+pub fn algo_one_off<S,D>(algo: &Algorithm, secret: S, data: D) -> Result<Vec<u8>>
+where
+    S: AsRef<[u8]>,
+    D: AsRef<[u8]>,
+{
     match algo {
         Algorithm::HMAC_SHA224 => one_off_sha224(secret, data),
         Algorithm::HMAC_SHA256 => one_off_sha256(secret, data),
@@ -134,7 +158,12 @@ pub fn algo_one_off(algo: &Algorithm, secret: &[u8], data: &[u8]) -> Result<Vec<
 }
 
 /// runs a one_off_verify using algorithm
-pub fn algo_one_off_verify(algo: &Algorithm, secret: &[u8], data: &[u8], mac: &[u8]) -> Result<bool> {
+pub fn algo_one_off_verify<S,D,M>(algo: &Algorithm, secret: S, data: D, mac: M) -> Result<bool>
+where
+    S: AsRef<[u8]>,
+    D: AsRef<[u8]>,
+    M: AsRef<[u8]>
+{
     match algo {
         Algorithm::HMAC_SHA224 => one_off_verify_sha224(secret, data, mac),
         Algorithm::HMAC_SHA256 => one_off_verify_sha256(secret, data, mac),
@@ -142,4 +171,28 @@ pub fn algo_one_off_verify(algo: &Algorithm, secret: &[u8], data: &[u8], mac: &[
         Algorithm::HMAC_SHA512 => one_off_verify_sha512(secret, data, mac),
         Algorithm::BLAKE3 => one_off_verify_blake3(secret, data, mac)
     }
+}
+
+/// creates a signed string using the given data
+/// 
+/// signs the given data with the specified algorithm and delimiter. returns a
+/// strimg with the format of "{data}{delimiter}{mac}". the delimiter will
+/// default to "."
+pub fn algo_sign_value<S,D,L>(algo: &Algorithm, secret: S, data: D, dlm: L) -> Result<String>
+where
+    S: AsRef<[u8]>,
+    D: AsRef<str>,
+    L: AsRef<str>,
+{
+    let dlm = dlm.as_ref();
+    let data = data.as_ref();
+    let mac = algo_one_off(algo, secret, data.as_bytes())?;
+    let base64_mac = base64::encode_config(mac, base64::URL_SAFE);
+
+    let mut signed = String::with_capacity(data.len() + dlm.len() + base64_mac.len());
+    signed.push_str(data);
+    signed.push_str(dlm);
+    signed.push_str(&base64_mac);
+
+    Ok(signed)
 }
