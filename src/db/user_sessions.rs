@@ -87,7 +87,7 @@ impl UserSession {
     pub async fn insert(&self, conn: &impl GenericClient) -> error::Result<()> {
         conn.execute(
             "\
-            insert into user_sessions \
+            insert into user_sessions (token, owner, dropped, issued_on, expires, use_csrf, verified) \
             values ($1, $2, $3, $4, $5, $6, $7)",
             &[
                 &self.token,
@@ -95,8 +95,8 @@ impl UserSession {
                 &self.dropped,
                 &self.issued_on,
                 &self.expires,
+                &self.use_csrf,
                 &self.verified,
-                &self.use_csrf
             ]
         ).await?;
 

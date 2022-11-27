@@ -6,4 +6,4 @@ create table auth_otp (
     digits smallint not null,
     step smallint not null,
     verified boolean not null default false
-)
+);

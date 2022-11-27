@@ -79,7 +79,7 @@ where
 /// generates a random 64 byte base64 token and the signs it will the security 
 /// state information returning the regular token and the signed token
 pub fn create_token_and_cookie_value(security: &SecurityState) -> error::Result<(String, String)> {
-    let bytes = security::get_rand_bytes(64)?;
+    let bytes = security::get_rand_bytes(36)?;
     let token = base64::encode_config(bytes.as_slice(), base64::URL_SAFE);
 
     let value = match security::mac::algo_sign_value(

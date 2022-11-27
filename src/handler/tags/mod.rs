@@ -36,7 +36,7 @@ pub async fn handle_get(
         }
     }
 
-    let initiator = lookup.unwrap();
+    let initiator = lookup.try_into()?;
     let owner: i32;
 
     if let Some(user_id) = path.user_id {

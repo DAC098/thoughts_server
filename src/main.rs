@@ -35,9 +35,8 @@ fn main() -> error::Result<()> {
     args.next();
 
     loop {
-        let arg = match args.next() {
-            Some(a) => a,
-            None => break
+        let Some(arg) = args.next() else {
+            break;
         };
 
         if let Some(arg_substring) = cli::get_cli_option(&arg)? {

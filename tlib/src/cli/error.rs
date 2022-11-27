@@ -1,5 +1,5 @@
-use std::{fmt};
-use std::ffi::{OsString};
+use std::fmt;
+use std::ffi::OsString;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
