@@ -169,14 +169,16 @@ pub async fn handle_put(
     security::assert::is_owner_for_entry(conn, &path.entry_id, &initiator.user.id).await?;
 
     let transaction = conn.transaction().await?;
-    let result = transaction.query_one(
+
+    let _result = transaction.execute(
         "update entries set day = $1 where id = $2 returning day",
         &[&created, &path.entry_id]
     ).await?;
+
     let mut rtn = db::composed::ComposedEntry {
         entry: db::entries::Entry {
             id: path.entry_id,
-            day: result.get(0),
+            day: created,
             owner: initiator.user.id
         },
         tags: vec!(),
@@ -217,23 +219,10 @@ pub async fn handle_put(
             });
         }
 
-        let left_over = transaction.query(
-            "select field from custom_field_entries where entry = $1 and not (field = any($2))",
+        let _dropped = transaction.query(
+            "delete from custom_field_entries where entry = $1 and field <> all($2)",
             &[&path.entry_id, &ids]
         ).await?;
-
-        if left_over.len() > 0 {
-            let mut to_delete = Vec::<i32>::with_capacity(left_over.len());
-
-            for row in left_over {
-                to_delete.push(row.get(0));
-            }
-
-            let _result = transaction.execute(
-                "delete from custom_field_entries where field = any($1) and entry = $2",
-                &[&to_delete, &path.entry_id]
-            ).await?;
-        }
     } else {
         rtn.custom_field_entries = db::custom_field_entries::find_from_entry_hashmap(&transaction, &path.entry_id).await?;
     }
@@ -243,33 +232,18 @@ pub async fn handle_put(
 
         for text_entry in t {
             if let Some(id) = text_entry.id {
-                let check = transaction.query(
-                    "\
-                    select entries.owner \
-                    from text_entries \
-                    join entries on text_entries.entry = entries.id \
-                    where text_entries.id = $1",
-                    &[&id]
-                ).await?;
-
-                if check.len() == 0 {
-                    return Err(error::build::text_entry_not_found(&id));
-                }
-
-                if check[0].get::<usize, i32>(0) != initiator.user.id {
-                    return Err(error::build::permission_denied(
-                        format!("you do not have permission to modify another users text entry. text entry: {}", id)
-                    ));
-                }
-
-                let result = transaction.query_one(
+                let result = transaction.execute(
                     "update text_entries set thought = $1, private = $2 where id = $3 returning id",
                     &[&text_entry.thought, &text_entry.private, &id]
                 ).await?;
 
+                if result == 0 {
+                    return Err(error::build::text_entry_not_found(&id));
+                }
+
                 ids.push(id);
                 rtn.text_entries.push(db::text_entries::TextEntry {
-                    id: result.get(0),
+                    id,
                     thought: text_entry.thought,
                     entry: path.entry_id,
                     private: text_entry.private
@@ -290,63 +264,33 @@ pub async fn handle_put(
             }
         }
 
-        let left_over = transaction.query(
-            "select id from text_entries where entry = $1 and not (id = any($2))",
+        let _dropped = transaction.query(
+            "delete from text_entries where entry = $1 and id <> all($2)",
             &[&path.entry_id, &ids]
         ).await?;
-
-        if left_over.len() > 0 {
-            let mut to_delete = Vec::<i32>::with_capacity(left_over.len());
-
-            for row in left_over {
-                to_delete.push(row.get(0));
-            }
-
-            let _result = transaction.execute(
-                "delete from text_entries where id = any($1)",
-                &[&to_delete]
-            ).await?;
-        }
     } else {
-        let is_private = None::<bool>;
+        let is_private = None;
         rtn.text_entries = db::text_entries::find_from_entry(&transaction, &path.entry_id, &is_private).await?;
     }
 
     if let Some(tags) = posted.tags {
-        let mut ids: Vec<i32> = vec!();
-
-        for tag_id in tags {
-            let result = transaction.query_one(
+        for tag_id in &tags {
+            let _result = transaction.execute(
                 "\
                 insert into entries2tags (tag, entry) \
                 values ($1, $2) \
                 on conflict on constraint unique_entry_tag do update \
-                set tag = excluded.tag \
-                returning id",
+                set tag = excluded.tag",
                 &[&tag_id, &path.entry_id]
             ).await?;
-
-            ids.push(result.get(0));
-            rtn.tags.push(tag_id);
         }
 
-        let left_over = transaction.query(
-            "select id from entries2tags where entry = $1 and not (id = any ($2))",
-            &[&path.entry_id, &ids]
+        let _dropped = transaction.execute(
+            "delete from entries2tags where entry = $1 and tag <> all($2)",
+            &[&path.entry_id, &tags]
         ).await?;
 
-        if left_over.len() > 0 {
-            let mut to_delete: Vec<i32> = Vec::with_capacity(left_over.len());
-
-            for row in left_over {
-                to_delete.push(row.get(0));
-            }
-
-            let _result = transaction.execute(
-                "delete from entries2tags where id = any($1)",
-                &[&to_delete]
-            ).await?;
-        }
+        rtn.tags = tags;
     } else {
         rtn.tags = db::entries2tags::find_id_from_entry(&transaction, &path.entry_id).await?;
     }
@@ -356,33 +300,18 @@ pub async fn handle_put(
 
         for marker in markers {
             if let Some(id) = marker.id {
-                let check = transaction.query(
-                    "\
-                    select entries.owner \
-                    from entry_markers \
-                    join entries on entry_markers.entry = entries.id \
-                    where entry_markers.entry = $1",
-                    &[&path.entry_id]
+                let result = transaction.execute(
+                    "update entry_markers set title = $1, comment = $2 where id = $3 and entry = $4",
+                    &[&marker.title, &marker.comment, &id, &path.entry_id]
                 ).await?;
 
-                if check.is_empty() {
+                if result == 0 {
                     return Err(error::build::entry_marker_not_found(&id));
                 }
 
-                if check[0].get::<usize, i32>(0) != initiator.user.id {
-                    return Err(error::build::permission_denied(
-                        format!("you do not have permission to modify another users entry marker. text entry: {}", id)
-                    ));
-                }
-
-                transaction.execute(
-                    "update entry_markers set title = $1, comment = $2 where id = $3",
-                    &[&marker.title, &marker.comment, &id]
-                ).await?;
-
                 ids.push(id);
                 rtn.markers.push(db::entry_markers::EntryMarker {
-                    id: id,
+                    id,
                     title: marker.title,
                     comment: marker.comment,
                     entry: path.entry_id
@@ -405,6 +334,11 @@ pub async fn handle_put(
                 });
             }
         }
+
+        let _dropped = transaction.execute(
+            "delete from entry_markers where entry = $1 and id <> all($2)",
+            &[&path.entry_id, &ids]
+        ).await?;
     } else {
         rtn.markers = db::entry_markers::find_from_entry(&transaction, &path.entry_id).await?;
     }
@@ -441,24 +375,13 @@ pub async fn handle_delete(
 
     let transaction = conn.transaction().await?;
 
-    let check = transaction.query(
-        "select id, owner from entries where id = $1",
-        &[&path.entry_id]
-    ).await?;
-    let mut invalid_entries: Vec<i32> = vec!();
+    let Some(_record) = transaction.query_opt(
+        "select id, owner from entries where id = $1 and owner = $2",
+        &[&path.entry_id, &initiator.user.id]
+    ).await? else {
+        return Err(error::build::entry_not_found(&path.entry_id));
+    };
 
-    for row in check {
-        if row.get::<usize, i32>(1) != initiator.user.id {
-            invalid_entries.push(row.get(0));
-        }
-
-        if invalid_entries.len() > 0 {
-            return Err(error::build::permission_denied(
-                format!("you are not allowed to delete entries owned by another user. entries ({:?})", invalid_entries)
-            ));
-        }
-    }
-    
     let _text_result = transaction.execute(
         "delete from text_entries where entry = $1",
         &[&path.entry_id]
@@ -466,6 +389,16 @@ pub async fn handle_delete(
 
     let _custom_field_entries_result = transaction.execute(
         "delete from custom_field_entries where entry = $1",
+        &[&path.entry_id]
+    ).await?;
+
+    let _tag_result = transaction.execute(
+        "delete from entries2tags where entry = $1",
+        &[&path.entry_id]
+    ).await?;
+
+    let _marker_result = transaction.execute(
+        "delete from entry_markers where entry = $1",
         &[&path.entry_id]
     ).await?;
 
