@@ -3,7 +3,7 @@ use serde::{Serialize, Deserialize};
 
 use crate::db::error;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct CustomField {
     pub id: i32,
     pub name: String,
@@ -22,7 +22,7 @@ fn default_as_12hr() -> bool {
     false
 }
 
-fn default_step() -> f32 {
+fn default_step() -> f64 {
     0.01
 }
 
@@ -30,7 +30,7 @@ fn default_precision() -> i32 {
     2
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(tag = "type")]
 pub enum CustomFieldType {
     Integer {
@@ -46,7 +46,7 @@ pub enum CustomFieldType {
         minimum: Option<f32>,
         maximum: Option<f32>,
         #[serde(default = "default_step")]
-        step: f32,
+        step: f64,
         #[serde(default = "default_precision")]
         precision: i32
     },
@@ -54,7 +54,7 @@ pub enum CustomFieldType {
         minimum: Option<f32>,
         maximum: Option<f32>,
         #[serde(default = "default_step")]
-        step: f32,
+        step: f64,
         #[serde(default = "default_precision")]
         precision: i32
     },

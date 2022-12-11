@@ -60,7 +60,7 @@ pub async fn handle_get(
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct PutCustomFieldJson {
     name: String,
     config: db::custom_fields::CustomFieldType,
@@ -74,11 +74,13 @@ pub async fn handle_put(
     path: web::Path<CustomFieldPath>,
     posted: web::Json<PutCustomFieldJson>,
 ) -> error::Result<impl Responder> {
-    let conn = &*db.get_conn().await?;
-    security::assert::is_owner_for_custom_field(conn, &path.field_id, &initiator.user.id).await?;
+    let conn = db.pool.get().await?;
+    let posted = posted.into_inner();
+
+    security::assert::is_owner_for_custom_field(&*conn, &path.field_id, &initiator.user.id).await?;
 
     let config_json = serde_json::to_value(posted.config.clone())?;
-    let result = conn.query_one(
+    let _result = conn.execute(
         "\
         update custom_fields \
         set name = $1, \
@@ -96,16 +98,18 @@ pub async fn handle_put(
         ]
     ).await?;
 
+    let rtn = db::custom_fields::CustomField {
+        id: path.field_id,
+        name: posted.name,
+        config: posted.config,
+        comment: posted.comment,
+        owner: initiator.user.id,
+        order: posted.order,
+        issued_by: None
+    };
+
     JsonBuilder::new(http::StatusCode::OK)
-        .build(Some(db::custom_fields::CustomField {
-            id: path.field_id,
-            name: result.get(0),
-            config: posted.config.clone(),
-            comment: result.get(1),
-            owner: initiator.user.id,
-            order: posted.order,
-            issued_by: None
-        }))
+        .build(Some(rtn))
 }
 
 pub async fn handle_delete(

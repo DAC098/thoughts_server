@@ -50,7 +50,7 @@ pub async fn handle_get(
         .build(Some(db::custom_fields::find_from_owner(conn, &owner).await?))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct PostCustomFieldJson {
     name: String,
     config: db::custom_fields::CustomFieldType,
