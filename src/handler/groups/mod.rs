@@ -1,6 +1,7 @@
 use actix_web::{web, http, HttpRequest, Responder};
 use serde::Deserialize;
 
+use crate::components;
 use crate::net::http::error;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
@@ -56,7 +57,9 @@ pub async fn handle_get(
 
 #[derive(Deserialize)]
 pub struct NewGroupJson {
-    name: String
+    name: String,
+    users: Option<Vec<i32>>,
+    permissions: Option<Vec<security::permissions::PermissionJson>>
 }
 
 pub async fn handle_post(
@@ -65,6 +68,7 @@ pub async fn handle_post(
     posted: web::Json<NewGroupJson>
 ) -> error::Result<impl Responder> {
     let conn = &mut *db.pool.get().await?;
+    let posted = posted.into_inner();
     
     if !security::permissions::has_permission(
         conn, 
@@ -99,6 +103,37 @@ pub async fn handle_post(
     ).await?;
 
     let group_id: i32 = result.get(0);
+
+    if let Some(users) = posted.users {
+        let result = components::groups::update_group_users(
+            &transaction, 
+            &group_id, 
+            users
+        ).await?;
+
+        if result.is_some() {
+            return JsonBuilder::new(http::StatusCode::BAD_REQUEST)
+                .set_error("Validation")
+                .set_message("some id's provided are not valid user ids")
+                .build(result)
+        }
+    }
+
+    if let Some(permissions) = posted.permissions {
+        let result = security::permissions::update_subject_permissions(
+            &transaction, 
+            db::permissions::tables::GROUPS, 
+            &group_id, 
+            permissions
+        ).await?;
+
+        if result.is_some() {
+            return JsonBuilder::new(http::StatusCode::BAD_REQUEST)
+                .set_error("Validation")
+                .set_message("some of the permissions provided are invalid")
+                .build(result);
+        }
+    }
 
     transaction.commit().await?;
 

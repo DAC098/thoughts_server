@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use actix_web::HttpRequest;
 use actix_web::{web, http, Responder};
 use serde::{Serialize, Deserialize};
@@ -7,7 +5,7 @@ use serde::{Serialize, Deserialize};
 use crate::net::http::error;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
-use crate::{security, db, routing};
+use crate::{security, db, routing, components};
 use crate::routing::path;
 use crate::state;
 
@@ -193,59 +191,18 @@ pub async fn handle_put(
     }
 
     if let Some(users) = posted.users {
-        let users_check = transaction.query(
-            "select id from users where id = any($1)",
-            &[&users]
+        let result = components::groups::update_group_users(
+            &transaction, 
+            &path.group_id, 
+            users
         ).await?;
-        let mut id_set: HashSet<i32> = HashSet::with_capacity(users_check.len());
-        let mut invalid_ids = Vec::with_capacity(users.len());
-        let mut valid_ids = Vec::with_capacity(users_check.len());
     
-        for row in users_check {
-            let id = row.get(0);
-            id_set.insert(id);
-            valid_ids.push(id);
-        }
-    
-        for id in users {
-            if !id_set.contains(&id) {
-                invalid_ids.push(id);
-            }
-        }
-    
-        if invalid_ids.len() > 0 {
+        if result.is_some() {
             return JsonBuilder::new(http::StatusCode::BAD_REQUEST)
                 .set_error("Validation")
                 .set_message("some id's provided are not valid user ids")
-                .build(Some(invalid_ids))
+                .build(result);
         }
-    
-        let mut query = "insert into group_users (group_id, users_id) values ".to_owned();
-        let mut params = db::query::QueryParams::with_capacity(valid_ids.len() + 1);
-        params.push(&path.group_id);
-    
-        for i in 0..valid_ids.len() {
-            let key = params.push(&valid_ids[i]).to_string();
-            
-            if i == 0 {
-                query.reserve(key.len() + 6);
-            } else {
-                query.reserve(key.len() + 7);
-                query.push(',');
-            }
-    
-            query.push_str("($1,$");
-            query.push_str(&key);
-            query.push_str(")");
-        }
-    
-        query.push_str(" on conflict (users_id, group_id) do nothing");
-    
-        transaction.execute(query.as_str(), params.slice()).await?;
-        transaction.execute(
-            "delete from group_users where group_id = $1 and users_id <> all($2)",
-            &[&path.group_id, &valid_ids]
-        ).await?;
     }
 
     transaction.commit().await?;

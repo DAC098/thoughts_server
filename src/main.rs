@@ -25,6 +25,7 @@ mod util;
 mod email;
 mod getters;
 mod template;
+mod components;
 
 use error::Result;
 
