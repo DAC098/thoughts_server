@@ -106,7 +106,8 @@ pub struct FailedPermissions {
     invalid_ability: Vec<PermissionJson>,
     unknown_resource_tables: Vec<PermissionJson>,
     resource_id_not_found: Vec<PermissionJson>,
-    resource_not_allowed: Vec<PermissionJson>
+    resource_not_allowed: Vec<PermissionJson>,
+    same_as_subject: Vec<PermissionJson>,
 }
 
 /// updates a given subjects permissions to be the list given.
@@ -131,6 +132,7 @@ pub async fn update_subject_permissions(
         unknown_resource_tables: Vec::new(),
         resource_id_not_found: Vec::new(),
         resource_not_allowed: Vec::new(),
+        same_as_subject: Vec::new(),
     };
     // database
     let mut query = "insert into permissions (subject_table, subject_id, roll, ability, resource_table, resource_id) values".to_owned();
@@ -151,15 +153,12 @@ pub async fn update_subject_permissions(
         }
 
         let permission = &permissions[index];
-        let roll_data = match rolls.get_roll(&permission.roll) {
-            Some(d) => d,
-            None => {
-                // roll does not exist
-                failed.unknown_roll.push(permission.clone());
-                invalid = true;
-                value_sql.clear();
-                continue;
-            }
+        let Some(roll_data) = rolls.get_roll(&permission.roll) else {
+            // roll does not exist
+            failed.unknown_roll.push(permission.clone());
+            invalid = true;
+            value_sql.clear();
+            continue;
         };
 
         if !invalid {
@@ -193,6 +192,13 @@ pub async fn update_subject_permissions(
 
             let resource_table = permission.resource_table.as_ref().unwrap();
             let resource_id = permission.resource_id.as_ref().unwrap();
+
+            if resource_table == subject_table && resource_id == subject_id {
+                failed.same_as_subject.push(permission.clone());
+                invalid = true;
+                value_sql.clear();
+                continue;
+            }
 
             match resource_table.as_str() {
                 db::permissions::tables::USERS => {
