@@ -27,11 +27,11 @@ pub mod entry_id;
 use crate::net::http::error;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
+use crate::routing;
 use crate::state;
 use crate::security::{initiator, Initiator};
 use crate::getters;
 use crate::security;
-use crate::parsing;
 
 #[derive(Deserialize)]
 pub struct PostTextEntryJson {
@@ -169,7 +169,7 @@ pub async fn handle_get(
                 let day: DateTime<Utc> = marker_check[0].get(0);
                 write!(&mut entries_where, " and entries.day >= '{}'", day.to_rfc3339())?;
             }
-        } else if let Some(from) = parsing::url_query::get_date(&info.from)? {
+        } else if let Some(from) = routing::query::get_date(&info.from)? {
             write!(&mut entries_where, " and entries.day >= '{}'", from.to_rfc3339())?;
         }
 
@@ -191,11 +191,11 @@ pub async fn handle_get(
                 let day: DateTime<Utc> = marker_check[0].get(0);
                 write!(&mut entries_where, " and entries.day <= '{}'", day.to_rfc3339())?;
             }
-        } else if let Some(to) = parsing::url_query::get_date(&info.to)? {
+        } else if let Some(to) = routing::query::get_date(&info.to)? {
             write!(&mut entries_where, " and entries.day <= '{}'", to.to_rfc3339())?;
         }
 
-        if let Some(tags) = parsing::url_query::get_tags(&info.tags) {
+        if let Some(tags) = routing::query::get_tags(&info.tags) {
             write!(
                 &mut entries_where,
                 " and entries.id in (select entry from entries2tags where tag in ({}))", 

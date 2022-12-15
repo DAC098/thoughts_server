@@ -35,7 +35,7 @@ pub async fn handle_get(
             Ok(response::redirect_to_path(redirect.as_str()))
         }
     }
-    
+
     let initiator = lookup.try_into()?;
     let owner: i32;
 

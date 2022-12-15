@@ -21,7 +21,6 @@ mod db;
 mod handler;
 mod net;
 mod routing;
-mod parsing;
 mod util;
 mod email;
 mod getters;
