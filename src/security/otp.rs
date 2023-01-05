@@ -1,13 +1,44 @@
-use std::convert::TryInto;
+//! methods, processes, and defaults for using hotp and totp
+
+use std::convert::{TryInto, TryFrom};
 
 use super::mac;
-use crate::{db::auth_otp::{Algo, AuthOtp}, util};
+use crate::{db, util};
 
 /// default step for totp
 pub const _DEFAULT_STEP: u64 = 30;
 /// default digit legnth for totp
 pub const _DEFAULT_DIGITS: u32 = 8;
 
+/// available hashs for totp and hotp
+pub enum Algo {
+    SHA1,
+    SHA256,
+    SHA512
+}
+
+impl From<db::auth_otp::Algo> for Algo {
+    fn from(algo: db::auth_otp::Algo) -> Self {
+        match algo {
+            db::auth_otp::Algo::SHA1 => Algo::SHA1,
+            db::auth_otp::Algo::SHA256 => Algo::SHA256,
+            db::auth_otp::Algo::SHA512 => Algo::SHA512
+        }
+    }
+}
+
+impl From<&db::auth_otp::Algo> for Algo {
+    fn from(algo: &db::auth_otp::Algo) -> Self {
+        match algo {
+            db::auth_otp::Algo::SHA1 => Algo::SHA1,
+            db::auth_otp::Algo::SHA256 => Algo::SHA256,
+            db::auth_otp::Algo::SHA512 => Algo::SHA512
+        }
+    }
+}
+
+/// wrapper around mac hashing algorithms
+#[inline]
 fn one_off(algo: &Algo, secret: &[u8], data: &[u8]) -> mac::Result<Vec<u8>> {
     match algo {
         Algo::SHA1 => mac::one_off_sha1(secret, data),
@@ -69,7 +100,7 @@ where
     generate_integer_string(&Algo::SHA1, secret.as_ref(), digits, &counter_bytes)
 }
 
-// create an totp hash
+/// create an totp hash
 pub fn totp<S>(algorithm: &Algo, secret: S, digits: u32, step: u64, time: u64) -> String
 where
     S: AsRef<[u8]>
@@ -79,19 +110,84 @@ where
     generate_integer_string(algorithm, secret.as_ref(), digits, &data)
 }
 
+/// result from totp verification
 pub enum VerifyResult {
     Valid,
     Invalid,
+    /// code contains a non acii digit
     InvalidCharacters,
+    /// code is not the required length
     InvalidLength,
-    FromIntError,
+    /// potential issues when getting unix epoch integers
     UnixEpochError,
 }
 
-pub fn verify_totp_code(otp: &AuthOtp, code: String) -> VerifyResult {
-    let Ok(digits) = TryInto::<u32>::try_into(otp.digits) else {
-        return VerifyResult::FromIntError;
-    };
+/// settings for totp verification
+pub struct TotpSettings {
+    pub algo: Algo,
+    pub secret: Vec<u8>,
+    pub digits: u32,
+    pub step: u64,
+    pub window_before: u8,
+    pub window_after: u8
+}
+
+/// potential errors when converting to TotpSettings
+pub enum FromError {
+    FromIntError
+}
+
+impl TryFrom<db::auth_otp::AuthOtp> for TotpSettings {
+    type Error = FromError;
+
+    fn try_from(value: db::auth_otp::AuthOtp) -> Result<Self, Self::Error> {
+        let Ok(digits) = TryInto::try_into(value.digits) else {
+            return Err(FromError::FromIntError);
+        };
+        let Ok(step) = TryInto::try_into(value.step) else {
+            return Err(FromError::FromIntError);
+        };
+
+        Ok(Self {
+            algo: value.algo.into(),
+            secret: value.secret,
+            digits,
+            step,
+            window_before: 1,
+            window_after: 1
+        })
+    }
+}
+
+impl TryFrom<&db::auth_otp::AuthOtp> for TotpSettings {
+    type Error = FromError;
+
+    fn try_from(value: &db::auth_otp::AuthOtp) -> Result<Self, Self::Error> {
+        let Ok(digits) = TryInto::try_into(value.digits.clone()) else {
+            return Err(FromError::FromIntError);
+        };
+        let Ok(step) = TryInto::try_into(value.step.clone()) else {
+            return Err(FromError::FromIntError);
+        };
+
+        Ok(Self {
+            algo: From::from(&value.algo),
+            secret: value.secret.clone(),
+            digits,
+            step,
+            window_before: 1,
+            window_after: 1
+        })
+    }
+}
+
+/// verify totp code from given settings
+/// 
+/// checks to make sure that the code contains only ascii digits and that the
+/// length is equal to the specified digits. after that the current timestamp
+/// is checked first, then window before, then window after. if an overflow
+/// happens when creating the window timpestamps a UnixEpocError is returned.
+pub fn verify_totp_code(settings: &TotpSettings, code: String) -> VerifyResult {
     let mut len: u32 = 0;
 
     for ch in code.chars() {
@@ -102,32 +198,42 @@ pub fn verify_totp_code(otp: &AuthOtp, code: String) -> VerifyResult {
         len += 1;
     }
 
-    if len != digits {
+    if len != settings.digits {
         return VerifyResult::InvalidLength;
     }
 
-    let Ok(step) = TryInto::<u64>::try_into(otp.step) else {
-        return VerifyResult::FromIntError;
-    };
     let Some(now) = util::time::unix_epoch_sec_now() else {
+        // probably the system date is wrong
         return VerifyResult::UnixEpochError;
     };
-    let prev = now - step;
-    let next = now + step;
 
     // check now first
-    if totp(&otp.algo, &otp.secret, digits, step, now) == code {
+    if totp(&settings.algo, &settings.secret, settings.digits, settings.step, now) == code {
         return VerifyResult::Valid;
     }
 
     // check before now
-    if totp(&otp.algo, &otp.secret, digits, step, prev) == code {
-        return VerifyResult::Valid;
+    for win in 1..=settings.window_before {
+        let value = settings.step * (win as u64);
+        let Some(time) = now.checked_sub(value) else {
+            return VerifyResult::UnixEpochError;
+        };
+
+        if totp(&settings.algo, &settings.secret, settings.digits, settings.step, time) == code {
+            return VerifyResult::Valid;
+        }
     }
 
     // check after now
-    if totp(&otp.algo, &otp.secret, digits, step, next) == code {
-        return VerifyResult::Valid;
+    for win in 1..=settings.window_after {
+        let value = settings.step * (win as u64);
+        let Some(time) = now.checked_add(value) else {
+            return VerifyResult::UnixEpochError;
+        };
+
+        if totp(&settings.algo, &settings.secret, settings.digits, settings.step, time) == code {
+            return VerifyResult::Valid;
+        }
     }
 
     VerifyResult::Invalid

@@ -1,3 +1,5 @@
+use std::convert::TryFrom;
+
 use actix_web::{web, http, Responder};
 use serde::Deserialize;
 use rand::RngCore;
@@ -41,7 +43,11 @@ pub async fn handle_post(
             .set_message("totp has already been verified"))
     }
 
-    match otp::verify_totp_code(&otp, posted.value) {
+    let Ok(settings) = TryFrom::try_from(&otp) else {
+        return Err(error::Error::new());
+    };
+
+    match otp::verify_totp_code(&settings, posted.value) {
         otp::VerifyResult::Valid => {},
         otp::VerifyResult::Invalid => {
             return Err(error::Error::new()

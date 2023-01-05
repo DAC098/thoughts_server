@@ -1,3 +1,5 @@
+use std::convert::TryFrom;
+
 use actix_web::{web, http, HttpRequest, Responder};
 use serde::Deserialize;
 
@@ -64,7 +66,11 @@ pub async fn handle_post(
                     .set_message("user totp has not been verified"))
             }
 
-            match security::otp::verify_totp_code(&otp, value) {
+            let Ok(settings) = TryFrom::try_from(&otp) else {
+                return Err(error::Error::new());
+            };
+
+            match security::otp::verify_totp_code(&settings, value) {
                 otp::VerifyResult::Valid => {},
                 otp::VerifyResult::Invalid => {
                     return Err(error::Error::new()
