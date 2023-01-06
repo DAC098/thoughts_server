@@ -182,6 +182,7 @@ pub async fn handle_post(
     if verify_option.is_some() {
         JsonBuilder::new(http::StatusCode::UNAUTHORIZED)
             .insert_header(session_cookie)
+            .set_error("VerifySession")
             .set_message("additional verification is required")
             .build(verify_option)
     } else {

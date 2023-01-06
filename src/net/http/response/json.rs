@@ -63,7 +63,7 @@ impl JsonBuilder {
         self
     }
 
-    pub fn build<T>(mut self, data: Option<T>) -> error::Result<HttpResponse>
+    pub fn build<T>(self, data: Option<T>) -> error::Result<HttpResponse>
     where
         T: Serialize
     {
@@ -88,8 +88,20 @@ impl JsonBuilder {
             map.insert("timestamp".into(), serde_json::Value::Number(serde_json::Number::from(time.timestamp())));
         }
 
-        self.builder.insert_header((http::header::CONTENT_TYPE, "application/json"));
-        Ok(self.builder.json(map))
+        let mut builder = self.builder;
+        builder.insert_header((http::header::CONTENT_TYPE, "application/json"));
+
+        Ok(builder.json(map))
+    }
+
+    pub fn build_root<T>(self, data: T) -> error::Result<HttpResponse>
+    where
+        T: Serialize
+    {
+        let mut builder = self.builder;
+        builder.insert_header((http::header::CONTENT_TYPE, "application/json"));
+
+        Ok(builder.json(data))
     }
 
     #[inline]
