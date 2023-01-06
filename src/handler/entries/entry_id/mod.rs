@@ -16,7 +16,7 @@ use crate::state;
 use crate::security::{initiator, Initiator};
 use crate::security;
 use crate::util;
-use crate::getters;
+use crate::components;
 
 #[derive(Deserialize)]
 pub struct PutTextEntry {
@@ -191,10 +191,10 @@ pub async fn handle_put(
         let mut ids: Vec<i32> = vec!();
 
         for custom_field_entry in m {
-            let field = getters::custom_fields::get_via_id(
+            let field = components::custom_fields::get_via_id(
                 &transaction, 
-                custom_field_entry.field, 
-                Some(initiator.user.id)
+                &custom_field_entry.field, 
+                Some(&initiator.user.id)
             ).await?;
 
             db::validation::verifiy_custom_field_entry(&field.config, &custom_field_entry.value)?;

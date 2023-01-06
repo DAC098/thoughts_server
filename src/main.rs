@@ -23,7 +23,6 @@ mod net;
 mod routing;
 mod util;
 mod email;
-mod getters;
 mod template;
 mod components;
 

@@ -30,7 +30,7 @@ use crate::net::http::response::json::JsonBuilder;
 use crate::routing;
 use crate::state;
 use crate::security::{initiator, Initiator};
-use crate::getters;
+use crate::components;
 use crate::security;
 
 #[derive(Deserialize)]
@@ -476,7 +476,11 @@ pub async fn handle_post(
 
     if let Some(m) = posted.custom_field_entries {
         for custom_field_entry in m {
-            let field = getters::custom_fields::get_via_id(&transaction, custom_field_entry.field, Some(initiator.user.id)).await?;
+            let field = components::custom_fields::get_via_id(
+                &transaction, 
+                &custom_field_entry.field, 
+                Some(&initiator.user.id)
+            ).await?;
 
             db::validation::verifiy_custom_field_entry(&field.config, &custom_field_entry.value)?;
 

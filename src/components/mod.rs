@@ -5,3 +5,4 @@
 //! for now.
 
 pub mod groups;
+pub mod custom_fields;
