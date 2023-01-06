@@ -7,7 +7,7 @@ use crate::net::http::error;
 use crate::net::http::response::json::JsonBuilder;
 use crate::security::{self, otp, initiator, initiator::InitiatorLookup};
 use crate::state;
-use crate::db;
+use crate::db::{self, users};
 
 #[derive(Deserialize)]
 #[serde(tag = "method")]
@@ -138,5 +138,5 @@ pub async fn handle_post(
 
     JsonBuilder::new(http::StatusCode::OK)
         .set_message("session verified")
-        .build(None::<()>)
+        .build(Some(users::find_from_id(&*conn, &session.owner).await?))
 }

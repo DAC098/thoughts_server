@@ -60,7 +60,7 @@ pub struct LoginBodyJSON {
 /// - max age is set to the duration specified
 /// - same site is strict
 /// - http only is set to true
-pub fn create_session_cookie<V>(security: &SecurityState, duration: chrono::Duration, value: V) -> cookie::SetCookie
+fn create_session_cookie<V>(security: &SecurityState, duration: chrono::Duration, value: V) -> cookie::SetCookie
 where
     V: Into<String>
 {
@@ -78,7 +78,7 @@ where
 /// 
 /// generates a random 64 byte base64 token and the signs it will the security 
 /// state information returning the regular token and the signed token
-pub fn create_token_and_cookie_value(security: &SecurityState) -> error::Result<(String, String)> {
+fn create_token_and_cookie_value(security: &SecurityState) -> error::Result<(String, String)> {
     let bytes = security::get_rand_bytes(36)?;
     let token = base64::encode_config(bytes.as_slice(), base64::URL_SAFE);
 

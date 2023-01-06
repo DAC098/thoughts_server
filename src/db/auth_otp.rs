@@ -60,6 +60,7 @@ impl TryFrom<&str> for Algo
 {
     type Error = ();
 
+    #[inline]
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         Self::try_from_str(value)
     }
@@ -69,6 +70,7 @@ impl TryFrom<String> for Algo
 {
     type Error = ();
 
+    #[inline]
     fn try_from(value: String) -> Result<Self, Self::Error> {
         Self::try_from_str(value)
     }
@@ -78,6 +80,7 @@ impl TryFrom<i16> for Algo
 {
     type Error = ();
 
+    #[inline]
     fn try_from(value: i16) -> Result<Self, Self::Error> {
         Self::try_from_i16(value)
     }
@@ -85,6 +88,7 @@ impl TryFrom<i16> for Algo
 
 impl Into<i16> for Algo
 {
+    #[inline]
     fn into(self) -> i16 {
         self.into_i16()
     }
@@ -92,6 +96,7 @@ impl Into<i16> for Algo
 
 impl Into<String> for Algo
 {
+    #[inline]
     fn into(self) -> String {
         self.into_string()
     }
