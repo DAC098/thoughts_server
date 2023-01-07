@@ -15,10 +15,10 @@ use tlib::cli;
 
 mod error;
 mod config;
+mod net;
+mod db;
 mod security;
 mod state;
-mod db;
-mod net;
 mod util;
 mod email;
 mod template;
