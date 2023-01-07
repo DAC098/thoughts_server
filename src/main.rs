@@ -18,13 +18,12 @@ mod config;
 mod security;
 mod state;
 mod db;
-mod handler;
 mod net;
-mod routing;
 mod util;
 mod email;
 mod template;
 mod components;
+mod routing;
 
 use error::Result;
 
@@ -101,6 +100,8 @@ async fn server_runner(config: config::ServerConfig) -> Result<()> {
     ));
 
     let mut server = HttpServer::new(move || {
+        use routing::handler;
+
         App::new()
             .app_data(
                 web::JsonConfig::default()
