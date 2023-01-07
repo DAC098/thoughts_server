@@ -1,8 +1,6 @@
 use tokio_postgres::GenericClient;
 
-use crate::db;
 use crate::net::http::error;
-use crate::security::initiator::Initiator;
 
 pub async fn is_owner_for_entry(
     conn: &impl GenericClient,
@@ -23,7 +21,7 @@ pub async fn is_owner_for_entry(
             "you don't have permission to modify this users entry"
         ));
     }
-    
+
     Ok(())
 }
 
@@ -100,16 +98,6 @@ pub async fn permission_to_read(
         Err(error::build::permission_denied(
             "no ability was found for the requested user"
         ))
-    }
-}
-
-pub fn is_admin(initiator: &Initiator) -> error::Result<()> {
-    if initiator.user.level != (db::users::Level::Admin as i32) {
-        Err(error::build::permission_denied(
-            "you are not an administrator"
-        ))
-    } else {
-        Ok(())
     }
 }
 

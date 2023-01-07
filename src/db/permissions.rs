@@ -15,6 +15,8 @@ pub mod rolls {
     pub const USERS_ENTRIES: &str = "users/etnries";
     pub const USERS_ENTRIES_COMMENTS: &str = "users/entries/comments";
     pub const GROUPS: &str = "groups";
+    pub const GLOBAL_TAGS: &str = "global/tags";
+    pub const GLOBAL_CUSTOM_FIELDS: &str = "global/custom_fields";
 }
 
 pub mod abilities {
@@ -46,7 +48,7 @@ pub struct RollDictionary {
 impl RollDictionary {
     pub fn new() -> Self {
         let mapping = {
-            let mut rtn = HashMap::with_capacity(5);
+            let mut rtn = HashMap::with_capacity(7);
             rtn.insert(rolls::ENTRIES, RollData {
                 abilities: [
                     abilities::READ,
@@ -81,7 +83,21 @@ impl RollDictionary {
                 ].into(),
                 allow_resource: true
             });
-    
+            rtn.insert(rolls::GLOBAL_TAGS, RollData {
+                abilities: [
+                    abilities::READ,
+                    abilities::READ_WRITE
+                ].into(),
+                allow_resource: false
+            });
+            rtn.insert(rolls::GLOBAL_CUSTOM_FIELDS, RollData { 
+                abilities: [
+                    abilities::READ,
+                    abilities::READ_WRITE
+                ].into(), 
+                allow_resource: false
+            });
+
             rtn
         };
 

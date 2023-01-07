@@ -46,7 +46,22 @@ pub async fn handle_get(
         }
     }
 
-    lookup.try_into()?;
+    let initiator = lookup.try_into()?;
+
+    if !security::permissions::has_permission(
+        &*conn, 
+        &initiator.user.id, 
+        db::permissions::rolls::GLOBAL_CUSTOM_FIELDS, 
+        &[
+            db::permissions::abilities::READ,
+            db::permissions::abilities::READ_WRITE
+        ], 
+        None
+    ).await? {
+        return Err(error::build::permission_denied(
+            "you do not have permissions to read global custom fields"
+        ));
+    }
     
     JsonBuilder::new(http::StatusCode::OK)
         .build(Some(get_via_id(conn, &path.field_id).await?))
@@ -65,12 +80,24 @@ pub async fn handle_put(
     posted: web::Json<PutGlobalCustomFieldJson>,
     path: web::Path<FieldPath>,
 ) -> error::Result<impl Responder> {
-    security::assert::is_admin(&initiator)?;
-
+    let mut conn = db.get_conn().await?;
     let posted = posted.into_inner();
-    let conn = &mut *db.get_conn().await?;
 
-    let _original = get_via_id(conn, &path.field_id).await?;
+    if !security::permissions::has_permission(
+        &*conn, 
+        &initiator.user.id, 
+        db::permissions::rolls::GLOBAL_CUSTOM_FIELDS,
+        &[
+            db::permissions::abilities::READ_WRITE
+        ],
+        None
+    ).await? {
+        return Err(error::build::permission_denied(
+            "you do not have permissions to write global custom fields"
+        ));
+    }
+
+    let _original = get_via_id(&*conn, &path.field_id).await?;
 
     let transaction = conn.transaction().await?;
 
@@ -105,9 +132,21 @@ pub async fn handle_delete(
     db: state::WebDbState,
     path: web::Path<FieldPath>,
 ) -> error::Result<impl Responder> {
-    security::assert::is_admin(&initiator)?;
-
     let conn = &mut *db.get_conn().await?;
+
+    if !security::permissions::has_permission(
+        &*conn, 
+        &initiator.user.id, 
+        db::permissions::rolls::GLOBAL_CUSTOM_FIELDS,
+        &[
+            db::permissions::abilities::READ_WRITE
+        ],
+        None
+    ).await? {
+        return Err(error::build::permission_denied(
+            "you do not have permissions to write global custom fields"
+        ));
+    }
 
     let _original = get_via_id(conn, &path.field_id).await?;
 

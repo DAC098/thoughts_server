@@ -3,13 +3,6 @@ use std::convert::From;
 use serde::{Serialize, Deserialize};
 use tokio_postgres::GenericClient;
 
-#[repr(i32)]
-pub enum Level {
-    Admin = 1,
-    Manager = 10,
-    User = 20
-}
-
 use crate::db::error;
 
 use error::Result;
@@ -107,7 +100,7 @@ pub async fn find_from_id(
     }
 }
 
-pub async fn find_from_username(
+pub async fn _find_from_username(
     client: &impl GenericClient,
     username: &str
 ) -> Result<Option<User>> {

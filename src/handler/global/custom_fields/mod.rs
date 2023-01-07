@@ -30,7 +30,22 @@ pub async fn handle_get(
         }
     }
 
-    lookup.try_into()?;
+    let initiator = lookup.try_into()?;
+
+    if !security::permissions::has_permission(
+        &*conn, 
+        &initiator.user.id, 
+        db::permissions::rolls::GLOBAL_CUSTOM_FIELDS, 
+        &[
+            db::permissions::abilities::READ,
+            db::permissions::abilities::READ_WRITE
+        ], 
+        None
+    ).await? {
+        return Err(error::build::permission_denied(
+            "you do not have permissions to read global custom fields"
+        ));
+    }
     
     JsonBuilder::new(http::StatusCode::OK)
         .build(Some(db::global_custom_fields::find_all(conn).await?))
@@ -48,10 +63,22 @@ pub async fn handle_post(
     db: state::WebDbState,
     posted: web::Json<PostGlobalCustomFieldJson>,
 ) -> error::Result<impl Responder> {
-    security::assert::is_admin(&initiator)?;
-
-    let conn = &mut *db.get_conn().await?;
+    let mut conn = db.get_conn().await?;
     let posted = posted.into_inner();
+
+    if !security::permissions::has_permission(
+        &*conn, 
+        &initiator.user.id, 
+        db::permissions::rolls::GLOBAL_CUSTOM_FIELDS,
+        &[
+            db::permissions::abilities::READ_WRITE
+        ],
+        None
+    ).await? {
+        return Err(error::build::permission_denied(
+            "you do not have permissions to write global custom fields"
+        ));
+    }
 
     let check = conn.query(
         "select id from global_custom_fields where name = $1",

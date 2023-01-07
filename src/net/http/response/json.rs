@@ -94,7 +94,7 @@ impl JsonBuilder {
         Ok(builder.json(map))
     }
 
-    pub fn build_root<T>(self, data: T) -> error::Result<HttpResponse>
+    pub fn _build_root<T>(self, data: T) -> error::Result<HttpResponse>
     where
         T: Serialize
     {
