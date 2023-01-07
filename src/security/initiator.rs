@@ -31,7 +31,7 @@ pub enum InitiatorLookup {
     SessionNotFound(String),
     SessionExpired(UserSession),
     SessionUnverified(UserSession),
-    UserNotFound(i32),
+    UserNotFound(UserSession),
     CookieNotFound,
 }
 
@@ -132,8 +132,8 @@ pub async fn from_cookie_map(
 
         match mac::algo_one_off_verify(
             security.get_signing(), 
-            security.get_secret().as_bytes(), 
-            token.as_bytes(), 
+            security.get_secret(), 
+            &token, 
             &decoded_mac
         ) {
             Ok(valid) => {
@@ -163,7 +163,7 @@ pub async fn from_cookie_map(
                     session: session_record
                 }))
             } else {
-                Ok(InitiatorLookup::UserNotFound(session_record.owner))
+                Ok(InitiatorLookup::UserNotFound(session_record))
             }
         } else {
             Ok(InitiatorLookup::SessionNotFound(token.into()))

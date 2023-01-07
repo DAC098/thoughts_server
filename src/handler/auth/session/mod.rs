@@ -22,11 +22,11 @@ pub async fn handle_get(
     db: state::WebDbState,
     template: state::WebTemplateState<'_>
 ) -> error::Result<impl Responder> {
-    let conn = &*db.get_conn().await?;
+    let conn = db.get_conn().await?;
 
     if response::try_check_if_html_req(&req) {
-        let lookup = initiator::from_request(&security, conn, &req).await?;
-        
+        let lookup = initiator::from_request(&security, &*conn, &req).await?;
+
         if lookup.is_valid() {
             Ok(response::redirect_to_path("/entries"))
         } else {
@@ -82,17 +82,12 @@ fn create_token_and_cookie_value(security: &SecurityState) -> error::Result<(Str
     let bytes = security::get_rand_bytes(36)?;
     let token = base64::encode_config(bytes.as_slice(), base64::URL_SAFE);
 
-    let value = match security::mac::algo_sign_value(
+    let value = security::mac::algo_sign_value(
         security.get_signing(),
-        security.get_secret().as_bytes(),
+        security.get_secret(),
         &token,
         "."
-    ) {
-        Ok(m) => m,
-        Err(err) => {
-            return Err(error::Error::new().set_source(err))
-        }
-    };
+    )?;
 
     Ok((token, value))
 }
@@ -152,14 +147,16 @@ pub async fn handle_post(
     let session_cookie = create_session_cookie(&security, duration.clone(), signed_token);
 
     let issued_on = chrono::Utc::now();
-    let expires = issued_on.clone().checked_add_signed(duration).unwrap();
+    let expires = issued_on.clone()
+        .checked_add_signed(duration)
+        .unwrap();
     let mut verified = true;
     let mut verify_option: Option<VerifyOption> = None;
 
     if let Some(otp) = db::auth_otp::AuthOtp::find_users_id(&transaction, &owner).await? {
         if otp.verified {
             verified = false;
-            verify_option = Some(VerifyOption::Totp { 
+            verify_option = Some(VerifyOption::Totp {
                 digits: otp.digits
             });
         }

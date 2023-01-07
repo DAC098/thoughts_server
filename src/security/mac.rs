@@ -1,5 +1,7 @@
 use hmac::{Mac, Hmac};
 
+use crate::net;
+
 // for the context below, would it be better to have this specified by the 
 // environment since this is technically an open source project
 
@@ -30,6 +32,13 @@ impl std::error::Error for Error {
 impl From<hmac::digest::InvalidLength> for Error {
     fn from(_: hmac::digest::InvalidLength) -> Self {
         Error::InvalidKeyLength
+    }
+}
+
+impl From<Error> for net::http::error::Error {
+    fn from(err: Error) -> Self {
+        net::http::error::Error::new()
+            .set_source(err)
     }
 }
 
