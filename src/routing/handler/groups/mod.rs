@@ -1,12 +1,15 @@
 use actix_web::{web, http, HttpRequest, Responder};
 use serde::Deserialize;
 
+use crate::db::tables::{
+    permissions,
+    groups,
+};
 use crate::components;
 use crate::net::http::error;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
 use crate::state;
-use crate::db;
 use crate::security;
 
 pub mod group_id;
@@ -36,10 +39,10 @@ pub async fn handle_get(
     if !security::permissions::has_permission(
         conn, 
         &initiator.user.id, 
-        db::permissions::rolls::GROUPS, 
+        permissions::rolls::GROUPS, 
         &[
-            db::permissions::abilities::READ,
-            db::permissions::abilities::READ_WRITE
+            permissions::abilities::READ,
+            permissions::abilities::READ_WRITE
         ],
         None
     ).await? {
@@ -48,7 +51,7 @@ pub async fn handle_get(
         ))
     }
 
-    let groups = db::groups::get_all(conn).await?;
+    let groups = groups::get_all(conn).await?;
 
     JsonBuilder::new(http::StatusCode::OK)
         .build(Some(groups))
@@ -73,9 +76,9 @@ pub async fn handle_post(
     if !security::permissions::has_permission(
         conn, 
         &initiator.user.id,
-        db::permissions::rolls::GROUPS,
+        permissions::rolls::GROUPS,
         &[
-            db::permissions::abilities::READ_WRITE
+            permissions::abilities::READ_WRITE
         ], 
         None
     ).await? {
@@ -122,7 +125,7 @@ pub async fn handle_post(
     if let Some(permissions) = posted.permissions {
         let result = security::permissions::update_subject_permissions(
             &transaction, 
-            db::permissions::tables::GROUPS, 
+            permissions::tables::GROUPS, 
             &group_id, 
             permissions
         ).await?;

@@ -2,7 +2,7 @@ use actix_web::HttpRequest;
 use actix_web::{web, http, Responder};
 use serde::{Deserialize, Serialize};
 
-use crate::db::{users, user_sessions, self};
+use crate::db::{tables::{users, user_sessions}, self};
 use crate::security::state::SecurityState;
 use crate::security::{self, initiator, InitiatorLookup};
 use crate::net::http::error;
@@ -153,7 +153,7 @@ pub async fn handle_post(
     let mut verified = true;
     let mut verify_option: Option<VerifyOption> = None;
 
-    if let Some(otp) = db::auth_otp::AuthOtp::find_users_id(&transaction, &owner).await? {
+    if let Some(otp) = db::tables::auth_otp::AuthOtp::find_users_id(&transaction, &owner).await? {
         if otp.verified {
             verified = false;
             verify_option = Some(VerifyOption::Totp {

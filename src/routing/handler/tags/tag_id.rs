@@ -1,8 +1,7 @@
 use actix_web::{web, http, HttpRequest, Responder};
 use serde::Deserialize;
 
-use crate::db;
-
+use crate::db::tables::tags;
 use crate::security::{initiator, Initiator};
 use crate::net::http::error;
 use crate::net::http::response;
@@ -37,7 +36,7 @@ pub async fn handle_get(
 
     let initiator = lookup.try_into()?;
 
-    if let Some(tag) = db::tags::find_from_id(conn, path.tag_id).await? {
+    if let Some(tag) = tags::find_from_id(conn, path.tag_id).await? {
         if tag.owner != initiator.user.id {
             Err(error::build::permission_denied(
                 format!("you do not have permission to view this tag. id: {}", tag.id)
@@ -76,7 +75,7 @@ pub async fn handle_put(
     transaction.commit().await?;
 
     JsonBuilder::new(http::StatusCode::OK)
-        .build(Some(db::tags::Tag {
+        .build(Some(tags::Tag {
             id: path.tag_id,
             title: posted.title.clone(),
             color: posted.color.clone(),

@@ -11,18 +11,22 @@ use chrono::serde::ts_seconds;
 //use futures::{pin_mut, Stream, TryStreamExt, future};
 use futures::future;
 
+pub mod entry_id;
+
 use crate::db::{
     self,
-    custom_field_entries,
-    entries,
-    entry_markers,
-    text_entries,
-    composed,
+    tables::{
+        permissions,
+        custom_field_entries,
+        entries,
+        entry_markers,
+        text_entries,
+    },
+    composed::{
+        self,
+        ComposedEntry
+    },
 };
-
-use db::composed::ComposedEntry;
-
-pub mod entry_id;
 
 use crate::net::http::error;
 use crate::net::http::response;
@@ -42,7 +46,7 @@ pub struct PostTextEntryJson {
 #[derive(Deserialize)]
 pub struct PostCustomFieldEntryJson {
     field: i32,
-    value: db::custom_field_entries::CustomFieldEntryType,
+    value: custom_field_entries::CustomFieldEntryType,
     comment: Option<String>
 }
 
@@ -115,8 +119,8 @@ pub async fn handle_get(
         if !security::permissions::has_permission(
             &*pool_conn, 
             &initiator.user.id, 
-            db::permissions::rolls::USERS_ENTRIES, 
-            &[db::permissions::abilities::READ], 
+            permissions::rolls::USERS_ENTRIES, 
+            &[permissions::abilities::READ], 
             Some(&user_id)
         ).await? {
             return Err(error::build::permission_denied(
@@ -130,10 +134,10 @@ pub async fn handle_get(
         if !security::permissions::has_permission(
             &*pool_conn, 
             &initiator.user.id, 
-            db::permissions::rolls::ENTRIES, 
+            permissions::rolls::ENTRIES, 
             &[
-                db::permissions::abilities::READ,
-                db::permissions::abilities::READ_WRITE
+                permissions::abilities::READ,
+                permissions::abilities::READ_WRITE
             ],
             None
         ).await? {
@@ -284,28 +288,28 @@ pub async fn handle_get(
     let tags = results.pop().unwrap();
     let mut tags_iter = tags.iter().map(|row| (row.get::<usize, i32>(0), row.get::<usize, i32>(1)));
     let text_entries = results.pop().unwrap();
-    let mut text_entries_iter = text_entries.iter().map(|row| db::text_entries::TextEntry {
+    let mut text_entries_iter = text_entries.iter().map(|row| text_entries::TextEntry {
         id: row.get(0),
         thought: row.get(1),
         private: row.get(2),
         entry: row.get(3)
     });
     let entry_markers = results.pop().unwrap();
-    let mut entry_markers_iter = entry_markers.iter().map(|row| db::entry_markers::EntryMarker {
+    let mut entry_markers_iter = entry_markers.iter().map(|row| entry_markers::EntryMarker {
         id: row.get(0),
         title: row.get(1),
         comment: row.get(2),
         entry: row.get(3)
     });
     let custom_field_entries = results.pop().unwrap();
-    let mut custom_field_entries_iter = custom_field_entries.iter().map(|row| db::custom_field_entries::CustomFieldEntry {
+    let mut custom_field_entries_iter = custom_field_entries.iter().map(|row| custom_field_entries::CustomFieldEntry {
         field: row.get(0),
         value: serde_json::from_value(row.get(1)).unwrap(),
         comment: row.get(2),
         entry: row.get(3)
     });
     let rows = results.pop().unwrap();
-    let rows_iter = rows.iter().map(|row| db::entries::Entry {
+    let rows_iter = rows.iter().map(|row| entries::Entry {
         id: row.get(0),
         day: row.get(1),
         owner: row.get(2)
@@ -317,15 +321,15 @@ pub async fn handle_get(
     let mut markers_done = false;
     let mut text_done = false;
     let mut tags_done = false;
-    let mut next_custom_field_entry: Option<db::custom_field_entries::CustomFieldEntry> = None;
-    let mut next_entry_marker: Option<db::entry_markers::EntryMarker> = None;
-    let mut next_text_entry: Option<db::text_entries::TextEntry> = None;
+    let mut next_custom_field_entry: Option<custom_field_entries::CustomFieldEntry> = None;
+    let mut next_entry_marker: Option<entry_markers::EntryMarker> = None;
+    let mut next_text_entry: Option<text_entries::TextEntry> = None;
     let mut next_tag: Option<(i32, i32)> = None;
 
     for row in rows_iter {
-        let mut custom_field_entries_vec: HashMap<i32, db::custom_field_entries::CustomFieldEntry> = HashMap::new();
-        let mut entry_markers_vec: Vec<db::entry_markers::EntryMarker> = Vec::new();
-        let mut text_entries_vec: Vec<db::text_entries::TextEntry> = Vec::new();
+        let mut custom_field_entries_vec: HashMap<i32, custom_field_entries::CustomFieldEntry> = HashMap::new();
+        let mut entry_markers_vec: Vec<entry_markers::EntryMarker> = Vec::new();
+        let mut text_entries_vec: Vec<text_entries::TextEntry> = Vec::new();
         let mut tags_vec: Vec<i32> = Vec::new();
 
         if let Some (refer) = next_custom_field_entry.as_ref() {
@@ -445,8 +449,8 @@ pub async fn handle_post(
     if !security::permissions::has_permission(
         &*conn, 
         &initiator.user.id, 
-        db::permissions::rolls::ENTRIES, 
-        &[db::permissions::abilities::READ_WRITE], 
+        permissions::rolls::ENTRIES, 
+        &[permissions::abilities::READ_WRITE], 
         None
     ).await? {
         return Err(error::build::permission_denied(

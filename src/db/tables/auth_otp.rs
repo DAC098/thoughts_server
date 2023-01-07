@@ -2,7 +2,7 @@ use std::convert::TryFrom;
 
 use tokio_postgres::GenericClient;
 
-use super::error;
+use crate::db::error;
 
 /// possible algorithm values for totp
 #[derive(Clone)]

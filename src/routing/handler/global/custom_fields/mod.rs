@@ -1,10 +1,13 @@
 use actix_web::{web, http, HttpRequest, Responder};
 use serde::Deserialize;
 
-use crate::db;
-
 pub mod field_id;
 
+use crate::db::tables::{
+    permissions,
+    global_custom_fields,
+    custom_fields
+};
 use crate::security::{initiator, Initiator};
 use crate::net::http::error;
 use crate::net::http::response;
@@ -35,10 +38,10 @@ pub async fn handle_get(
     if !security::permissions::has_permission(
         &*conn, 
         &initiator.user.id, 
-        db::permissions::rolls::GLOBAL_CUSTOM_FIELDS, 
+        permissions::rolls::GLOBAL_CUSTOM_FIELDS, 
         &[
-            db::permissions::abilities::READ,
-            db::permissions::abilities::READ_WRITE
+            permissions::abilities::READ,
+            permissions::abilities::READ_WRITE
         ], 
         None
     ).await? {
@@ -48,14 +51,14 @@ pub async fn handle_get(
     }
     
     JsonBuilder::new(http::StatusCode::OK)
-        .build(Some(db::global_custom_fields::find_all(conn).await?))
+        .build(Some(global_custom_fields::find_all(conn).await?))
 }
 
 #[derive(Deserialize)]
 pub struct PostGlobalCustomFieldJson {
     name: String,
     comment: Option<String>,
-    config: db::custom_fields::CustomFieldType
+    config: custom_fields::CustomFieldType
 }
 
 pub async fn handle_post(
@@ -69,9 +72,9 @@ pub async fn handle_post(
     if !security::permissions::has_permission(
         &*conn, 
         &initiator.user.id, 
-        db::permissions::rolls::GLOBAL_CUSTOM_FIELDS,
+        permissions::rolls::GLOBAL_CUSTOM_FIELDS,
         &[
-            db::permissions::abilities::READ_WRITE
+            permissions::abilities::READ_WRITE
         ],
         None
     ).await? {
@@ -106,7 +109,7 @@ pub async fn handle_post(
     transaction.commit().await?;
 
     JsonBuilder::new(http::StatusCode::OK)
-        .build(Some(db::global_custom_fields::GlobalCustomField {
+        .build(Some(global_custom_fields::GlobalCustomField {
             id: result.get(0),
             name: posted.name,
             comment: posted.comment,

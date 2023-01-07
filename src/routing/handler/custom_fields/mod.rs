@@ -1,10 +1,9 @@
 use actix_web::{web, http, HttpRequest, Responder};
 use serde::Deserialize;
 
-use crate::db;
-
 pub mod field_id;
 
+use crate::db::tables::custom_fields;
 use crate::security::{initiator, Initiator};
 use crate::net::http::error;
 use crate::net::http::response;
@@ -47,13 +46,13 @@ pub async fn handle_get(
     }
 
     JsonBuilder::new(http::StatusCode::OK)
-        .build(Some(db::custom_fields::find_from_owner(conn, &owner).await?))
+        .build(Some(custom_fields::find_from_owner(conn, &owner).await?))
 }
 
 #[derive(Deserialize, Debug)]
 pub struct PostCustomFieldJson {
     name: String,
-    config: db::custom_fields::CustomFieldType,
+    config: custom_fields::CustomFieldType,
     comment: Option<String>,
     order: i32
 }
@@ -91,7 +90,7 @@ pub async fn handle_post(
     ).await?;
 
     JsonBuilder::new(http::StatusCode::OK)
-        .build(Some(db::custom_fields::CustomField {
+        .build(Some(custom_fields::CustomField {
             id: result.get(0),
             name: result.get(1),
             config: serde_json::from_value(result.get(2))?,

@@ -7,7 +7,7 @@ use crate::net::http::error;
 use crate::net::http::response::json::JsonBuilder;
 use crate::security::{self, otp, initiator, initiator::InitiatorLookup};
 use crate::state;
-use crate::db::{self, users};
+use crate::db::{self, tables::users};
 
 #[derive(Deserialize)]
 #[serde(tag = "method")]
@@ -52,7 +52,7 @@ pub async fn handle_post(
 
     match posted.into_inner() {
         VerifyMethod::Totp { value } => {
-            let Some(otp) = db::auth_otp::AuthOtp::find_users_id(&transaction, &session.owner).await? else {
+            let Some(otp) = db::tables::auth_otp::AuthOtp::find_users_id(&transaction, &session.owner).await? else {
                 return Err(error::Error::new()
                     .set_status(http::StatusCode::NOT_FOUND)
                     .set_name("TotpNotFound")
@@ -96,7 +96,7 @@ pub async fn handle_post(
             };
         },
         VerifyMethod::TotpHash { value } => {
-            let Some(otp) = db::auth_otp::AuthOtp::find_users_id(&transaction, &session.owner).await? else {
+            let Some(otp) = db::tables::auth_otp::AuthOtp::find_users_id(&transaction, &session.owner).await? else {
                 return Err(error::Error::new()
                     .set_status(http::StatusCode::NOT_FOUND)
                     .set_name("TotpNotFound")

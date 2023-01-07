@@ -1,6 +1,6 @@
 use tokio_postgres::GenericClient;
 
-use crate::db::custom_fields;
+use crate::db::tables::custom_fields;
 use crate::net::http::error;
 
 pub async fn get_via_id(

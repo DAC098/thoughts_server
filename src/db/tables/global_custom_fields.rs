@@ -1,7 +1,7 @@
-use tokio_postgres::{GenericClient};
+use tokio_postgres::GenericClient;
 use serde::{Serialize, Deserialize};
 
-use crate::db::{custom_fields, error};
+use crate::db::{tables::custom_fields, error};
 
 #[derive(Serialize, Deserialize)]
 pub struct GlobalCustomField {

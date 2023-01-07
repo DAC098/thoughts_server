@@ -4,16 +4,18 @@ use tokio_postgres::GenericClient;
 use serde::{Serialize, Deserialize};
 
 use crate::db::{
-    error,
-    users,
-    user_data,
-    user_access,
-    entries,
-    entry_markers,
-    custom_field_entries,
-    text_entries,
-    entries2tags,
-    entry_comments,
+    error, 
+    tables::{
+        users,
+        user_data,
+        user_access,
+        entries,
+        entry_markers,
+        custom_field_entries,
+        text_entries,
+        entries2tags,
+        entry_comments,
+}
 };
 
 #[derive(Serialize, Deserialize)]

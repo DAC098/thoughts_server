@@ -2,8 +2,7 @@ use actix_web::{web, http, HttpRequest, Responder};
 use actix_files::NamedFile;
 use serde::Deserialize;
 
-use crate::db;
-
+use crate::db::tables::{audio_entries, permissions};
 use crate::net::http::error;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
@@ -69,7 +68,7 @@ pub async fn handle_get(
         return_json = false;
     }
 
-    if let Some(audio_entry) = db::audio_entries::find_from_id(&*conn, &path.audio_id).await? {
+    if let Some(audio_entry) = audio_entries::find_from_id(&*conn, &path.audio_id).await? {
         if audio_entry.entry != path.entry_id {
             // respond audio entry not found
             return Err(error::build::audio_entry_not_found(&path.audio_id));
@@ -115,9 +114,9 @@ pub async fn handle_put(
     if !security::permissions::has_permission(
         &*conn, 
         &initiator.user.id, 
-        db::permissions::rolls::ENTRIES, 
+        permissions::rolls::ENTRIES, 
         &[
-            db::permissions::abilities::READ_WRITE
+            permissions::abilities::READ_WRITE
         ],
         None
     ).await? {
@@ -141,7 +140,7 @@ pub async fn handle_put(
     transaction.commit().await?;
 
     JsonBuilder::new(http::StatusCode::OK)
-        .build(Some(db::audio_entries::AudioEntry {
+        .build(Some(audio_entries::AudioEntry {
             id: path.audio_id,
             private: posted.private,
             comment: posted.comment,

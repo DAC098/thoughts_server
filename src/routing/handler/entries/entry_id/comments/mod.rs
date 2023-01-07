@@ -1,10 +1,9 @@
 use actix_web::{web, http, HttpRequest, Responder};
 use serde::Deserialize;
 
-use crate::db;
-
 pub mod comment_id;
 
+use crate::db::{self, tables::entry_comments};
 use crate::state;
 use crate::net::http::error;
 use crate::net::http::response;
@@ -104,7 +103,7 @@ pub async fn handle_post(
     JsonBuilder::new(http::StatusCode::OK)
         .build(Some(db::composed::ComposedEntryComment {
             user: initiator.into(),
-            comment: db::entry_comments::EntryComment {
+            comment: entry_comments::EntryComment {
                 id: record.get(0),
                 entry: path.entry_id,
                 owner: owner,

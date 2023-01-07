@@ -4,9 +4,7 @@ use actix_web::{web, http::StatusCode, dev::Payload, FromRequest, HttpRequest};
 use tokio_postgres::GenericClient;
 use futures::Future;
 
-use crate::db;
-use crate::db::user_sessions::UserSession;
-use crate::db::users;
+use crate::db::{self, tables::{user_sessions::UserSession, users}};
 use crate::state;
 use crate::net::http::error;
 use crate::net::http::cookie::CookieMap;

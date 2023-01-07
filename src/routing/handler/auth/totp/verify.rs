@@ -5,7 +5,7 @@ use serde::Deserialize;
 use rand::RngCore;
 use serde::Serialize;
 
-use crate::db;
+use crate::db::tables::auth_otp;
 use crate::net::http::error;
 use crate::net::http::response::json::JsonBuilder;
 use crate::security::{initiator, otp};
@@ -29,7 +29,7 @@ pub async fn handle_post(
     let mut conn = db.pool.get().await?;
     let posted = posted.into_inner();
 
-    let Some(otp) = db::auth_otp::AuthOtp::find_users_id(&*conn, &initiator.user.id).await? else {
+    let Some(otp) = auth_otp::AuthOtp::find_users_id(&*conn, &initiator.user.id).await? else {
         return Err(error::Error::new()
             .set_status(http::StatusCode::NOT_FOUND)
             .set_name("TotpNotFound")

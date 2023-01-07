@@ -1,10 +1,9 @@
 use actix_web::{web, http, HttpRequest, Responder};
 use serde::Deserialize;
 
-use crate::db;
-
 pub mod tag_id;
 
+use crate::db::tables::tags;
 use crate::security::{initiator, Initiator};
 use crate::net::http::error;
 use crate::net::http::response;
@@ -47,7 +46,7 @@ pub async fn handle_get(
     }
 
     JsonBuilder::new(http::StatusCode::OK)
-        .build(Some(db::tags::find_from_owner(conn, owner).await?))
+        .build(Some(tags::find_from_owner(conn, owner).await?))
 }
 
 #[derive(Deserialize)]
@@ -73,7 +72,7 @@ pub async fn handle_post(
     transaction.commit().await?;
 
     JsonBuilder::new(http::StatusCode::OK)
-        .build(Some(db::tags::Tag {
+        .build(Some(tags::Tag {
             id: result.get(0),
             title: posted.title.clone(),
             color: posted.color.clone(),

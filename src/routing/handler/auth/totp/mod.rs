@@ -5,7 +5,7 @@ use crate::net::http::error;
 use crate::net::http::response::json::JsonBuilder;
 use crate::security::{self, initiator};
 use crate::state;
-use crate::db::auth_otp;
+use crate::db::tables::auth_otp;
 
 pub mod verify;
 

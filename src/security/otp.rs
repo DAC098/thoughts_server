@@ -3,7 +3,7 @@
 use std::convert::{TryInto, TryFrom};
 
 use super::mac;
-use crate::{db, util};
+use crate::{db::tables::auth_otp, util};
 
 /// default step for totp
 pub const _DEFAULT_STEP: u64 = 30;
@@ -17,22 +17,22 @@ pub enum Algo {
     SHA512
 }
 
-impl From<db::auth_otp::Algo> for Algo {
-    fn from(algo: db::auth_otp::Algo) -> Self {
+impl From<auth_otp::Algo> for Algo {
+    fn from(algo: auth_otp::Algo) -> Self {
         match algo {
-            db::auth_otp::Algo::SHA1 => Algo::SHA1,
-            db::auth_otp::Algo::SHA256 => Algo::SHA256,
-            db::auth_otp::Algo::SHA512 => Algo::SHA512
+            auth_otp::Algo::SHA1 => Algo::SHA1,
+            auth_otp::Algo::SHA256 => Algo::SHA256,
+            auth_otp::Algo::SHA512 => Algo::SHA512
         }
     }
 }
 
-impl From<&db::auth_otp::Algo> for Algo {
-    fn from(algo: &db::auth_otp::Algo) -> Self {
+impl From<&auth_otp::Algo> for Algo {
+    fn from(algo: &auth_otp::Algo) -> Self {
         match algo {
-            db::auth_otp::Algo::SHA1 => Algo::SHA1,
-            db::auth_otp::Algo::SHA256 => Algo::SHA256,
-            db::auth_otp::Algo::SHA512 => Algo::SHA512
+            auth_otp::Algo::SHA1 => Algo::SHA1,
+            auth_otp::Algo::SHA256 => Algo::SHA256,
+            auth_otp::Algo::SHA512 => Algo::SHA512
         }
     }
 }
@@ -137,10 +137,10 @@ pub enum FromError {
     FromIntError
 }
 
-impl TryFrom<db::auth_otp::AuthOtp> for TotpSettings {
+impl TryFrom<auth_otp::AuthOtp> for TotpSettings {
     type Error = FromError;
 
-    fn try_from(value: db::auth_otp::AuthOtp) -> Result<Self, Self::Error> {
+    fn try_from(value: auth_otp::AuthOtp) -> Result<Self, Self::Error> {
         let Ok(digits) = TryInto::try_into(value.digits) else {
             return Err(FromError::FromIntError);
         };
@@ -159,10 +159,10 @@ impl TryFrom<db::auth_otp::AuthOtp> for TotpSettings {
     }
 }
 
-impl TryFrom<&db::auth_otp::AuthOtp> for TotpSettings {
+impl TryFrom<&auth_otp::AuthOtp> for TotpSettings {
     type Error = FromError;
 
-    fn try_from(value: &db::auth_otp::AuthOtp) -> Result<Self, Self::Error> {
+    fn try_from(value: &auth_otp::AuthOtp) -> Result<Self, Self::Error> {
         let Ok(digits) = TryInto::try_into(value.digits.clone()) else {
             return Err(FromError::FromIntError);
         };

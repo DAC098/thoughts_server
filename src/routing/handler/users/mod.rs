@@ -6,7 +6,15 @@ use lettre::message::Mailbox;
 
 pub mod user_id;
 
-use crate::db::query::QueryParams;
+use crate::db::{
+    self, 
+    query::QueryParams,
+    tables::{
+        permissions,
+        users,
+        user_data
+    }
+};
 use crate::security::Initiator;
 use crate::security::initiator;
 use crate::net::http::error;
@@ -14,7 +22,6 @@ use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
 use crate::security;
 use crate::state;
-use crate::db;
 use crate::email;
 use crate::util;
 
@@ -313,9 +320,9 @@ pub async fn handle_post(
     if !security::permissions::has_permission(
         conn, 
         &initiator.user.id, 
-        db::permissions::rolls::USERS, 
+        permissions::rolls::USERS, 
         &[
-            db::permissions::abilities::READ_WRITE
+            permissions::abilities::READ_WRITE
         ],
         None
     ).await? {
@@ -324,7 +331,7 @@ pub async fn handle_post(
         ))
     }
 
-    let (found_username, found_email) = db::users::check_username_email(
+    let (found_username, found_email) = users::check_username_email(
         conn, &posted.user.username, &posted.user.email
     ).await?;
 
@@ -409,7 +416,7 @@ pub async fn handle_post(
             ]
         ).await?;
 
-        db::user_data::UserData {
+        user_data::UserData {
             owner: user_id,
             prefix, suffix,
             first_name, last_name, middle_name,
@@ -422,7 +429,7 @@ pub async fn handle_post(
     JsonBuilder::new(http::StatusCode::OK)
         .set_message("created account")
         .build(Some(db::composed::ComposedFullUser {
-            user: db::users::User {
+            user: users::User {
                 id: user_result.get(0),
                 username: posted.user.username.clone(),
                 email: email_value,

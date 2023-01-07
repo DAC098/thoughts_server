@@ -1,8 +1,7 @@
 use actix_web::{web, http, Responder};
 use serde::Deserialize;
 
-use crate::db;
-
+use crate::db::{self, tables::entry_comments};
 use crate::state;
 use crate::net::http::error;
 use crate::net::http::response::json::JsonBuilder;
@@ -45,7 +44,7 @@ pub async fn handle_put(
 
     let transaction = conn.transaction().await?;
 
-    if let Some(original) = db::entry_comments::find_from_id(&transaction, &path.comment_id).await? {
+    if let Some(original) = entry_comments::find_from_id(&transaction, &path.comment_id).await? {
         if original.owner != owner {
             return Err(error::build::permission_denied(
                 format!("you are not the owner of this comment. you cannot modify another users comment")
@@ -68,7 +67,7 @@ pub async fn handle_put(
         JsonBuilder::new(http::StatusCode::OK)
             .build(Some(db::composed::ComposedEntryComment {
                 user: initiator.into(),
-                comment: db::entry_comments::EntryComment {
+                comment: entry_comments::EntryComment {
                     id: original.id,
                     entry: original.entry,
                     owner: original.owner,

@@ -1,9 +1,9 @@
 use std::{fmt};
 
-use crate::db::{custom_fields, custom_field_entries, error};
+use crate::db::{tables::{custom_fields, custom_field_entries}, error};
 
-use custom_fields::{CustomFieldType};
-use custom_field_entries::{CustomFieldEntryType};
+use custom_fields::CustomFieldType;
+use custom_field_entries::CustomFieldEntryType;
 
 fn verify_range<T>(value: &T, minimum: &Option<T>, maximum: &Option<T>) -> error::Result<()>
 where

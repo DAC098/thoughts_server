@@ -2,8 +2,14 @@ use actix_web::{web, http, HttpRequest, Responder};
 use serde::Deserialize;
 use lettre::message::Mailbox;
 
-use crate::db;
-
+use crate::db::{
+    self,
+    tables::{
+        permissions,
+        users,
+        user_data
+    }
+};
 use crate::security::{initiator, Initiator};
 use crate::net::http::error;
 use crate::net::http::response;
@@ -39,10 +45,10 @@ pub async fn handle_get(
     if !security::permissions::has_permission(
         conn, 
         &initiator.user.id, 
-        db::permissions::rolls::USERS, 
+        permissions::rolls::USERS, 
         &[
-            db::permissions::abilities::READ,
-            db::permissions::abilities::READ_WRITE
+            permissions::abilities::READ,
+            permissions::abilities::READ_WRITE
         ],
         Some(&path.user_id)
     ).await? {
@@ -51,7 +57,7 @@ pub async fn handle_get(
         ))
     }
 
-    if let Some(user) = db::users::find_from_id(conn, &path.user_id).await? {
+    if let Some(user) = users::find_from_id(conn, &path.user_id).await? {
         JsonBuilder::new(http::StatusCode::OK)
             .build(Some(user))
     } else {
@@ -97,9 +103,9 @@ pub async fn handle_put(
     if !security::permissions::has_permission(
         conn, 
         &initiator.user.id, 
-        db::permissions::rolls::USERS, 
+        permissions::rolls::USERS, 
         &[
-            db::permissions::abilities::READ_WRITE
+            permissions::abilities::READ_WRITE
         ],
         Some(&path.user_id)
     ).await? {
@@ -108,7 +114,7 @@ pub async fn handle_put(
         ));
     }
 
-    let original = db::users::find_from_id(conn, &path.user_id).await?;
+    let original = users::find_from_id(conn, &path.user_id).await?;
 
     if original.is_none() {
         return Err(error::build::user_id_not_found(&path.user_id));
@@ -200,7 +206,7 @@ pub async fn handle_put(
             ]
         ).await?;
 
-        db::user_data::UserData {
+        user_data::UserData {
             owner: path.user_id,
             prefix, suffix,
             first_name, last_name, middle_name,
@@ -212,7 +218,7 @@ pub async fn handle_put(
 
     JsonBuilder::new(http::StatusCode::OK)
         .build(Some(db::composed::ComposedFullUser {
-            user: db::users::User {
+            user: users::User {
                 id: path.user_id,
                 username: result.get(1),
                 level: result.get(2),
@@ -234,9 +240,9 @@ pub async fn handle_delete(
     if !security::permissions::has_permission(
         conn, 
         &initiator.user.id, 
-        db::permissions::rolls::USERS, 
+        permissions::rolls::USERS, 
         &[
-            db::permissions::abilities::READ_WRITE
+            permissions::abilities::READ_WRITE
         ],
         Some(&path.user_id)
     ).await? {

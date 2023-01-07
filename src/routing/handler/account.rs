@@ -2,8 +2,7 @@ use actix_web::{web, http, Responder, HttpRequest};
 use serde::Deserialize;
 use lettre::message::Mailbox;
 
-use crate::db;
-
+use crate::db::tables::users;
 use crate::net::http::error;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
@@ -99,7 +98,7 @@ pub async fn handle_put(
     transaction.commit().await?;
     
     JsonBuilder::new(http::StatusCode::OK)
-        .build(Some(db::users::User {
+        .build(Some(users::User {
             id: initiator.user.id,
             username: posted.username,
             level: initiator.user.level,

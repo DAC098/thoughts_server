@@ -2,10 +2,14 @@ use actix_web::HttpRequest;
 use actix_web::{web, http, Responder};
 use serde::{Serialize, Deserialize};
 
+use crate::db::tables::{
+    permissions,
+    groups
+};
 use crate::net::http::error;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
-use crate::{security, db, routing, components};
+use crate::{security, routing, components};
 use crate::routing::path;
 use crate::state;
 
@@ -58,10 +62,10 @@ pub async fn handle_get(
     if !security::permissions::has_permission(
         conn,
         &initiator.user.id,
-        db::permissions::rolls::GROUPS,
+        permissions::rolls::GROUPS,
         &[
-            db::permissions::abilities::READ,
-            db::permissions::abilities::READ_WRITE
+            permissions::abilities::READ,
+            permissions::abilities::READ_WRITE
         ],
         None
     ).await? {
@@ -70,7 +74,7 @@ pub async fn handle_get(
         ))
     }
 
-    let group = match db::groups::find_id(conn, &path.group_id).await? {
+    let group = match groups::find_id(conn, &path.group_id).await? {
         Some(group) => group,
         None => {
             return Err(error::build::group_not_found(&path.group_id))
@@ -147,9 +151,9 @@ pub async fn handle_put(
     if !security::permissions::has_permission(
         conn, 
         &initiator.user.id, 
-        db::permissions::rolls::GROUPS, 
+        permissions::rolls::GROUPS, 
         &[
-            db::permissions::abilities::READ_WRITE
+            permissions::abilities::READ_WRITE
         ],
         None
     ).await? {
@@ -160,7 +164,7 @@ pub async fn handle_put(
 
     let transaction = conn.transaction().await?;
 
-    let _group = match db::groups::find_id(&transaction, &path.group_id).await? {
+    let _group = match groups::find_id(&transaction, &path.group_id).await? {
         Some(g) => g,
         None => {
             return Err(error::build::group_not_found(&path.group_id))
@@ -177,7 +181,7 @@ pub async fn handle_put(
     if let Some(permissions) = posted.permissions {
         let result = security::permissions::update_subject_permissions(
             &transaction,
-            db::permissions::tables::GROUPS,
+            permissions::tables::GROUPS,
             &path.group_id,
             permissions
         ).await?;
@@ -221,9 +225,9 @@ pub async fn handle_delete(
     if !security::permissions::has_permission(
         conn, 
         &initiator.user.id, 
-        db::permissions::rolls::GROUPS, 
+        permissions::rolls::GROUPS, 
         &[
-            db::permissions::abilities::READ_WRITE
+            permissions::abilities::READ_WRITE
         ],
         None
     ).await? {
@@ -234,7 +238,7 @@ pub async fn handle_delete(
 
     let transaction = conn.transaction().await?;
 
-    let _group_check = match db::groups::find_id(&transaction, &path.group_id).await? {
+    let _group_check = match groups::find_id(&transaction, &path.group_id).await? {
         Some(group) => group,
         None => {
             return Err(error::build::group_not_found(&path.group_id))

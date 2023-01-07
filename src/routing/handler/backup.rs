@@ -3,8 +3,13 @@ use std::collections::HashMap;
 use actix_web::{web, http, HttpRequest, Responder};
 use serde::{Serialize, Deserialize};
 
-use crate::db;
-
+use crate::db::{
+    self,
+    tables::{
+        custom_fields,
+        tags,
+    }
+};
 use crate::security::{self, initiator, Initiator};
 use crate::net::http::error;
 use crate::net::http::response;
@@ -13,8 +18,8 @@ use crate::state;
 
 #[derive(Serialize, Deserialize)]
 pub struct BackupDataJson {
-    custom_fields: Vec<db::custom_fields::CustomField>,
-    tags: Vec<db::tags::Tag>,
+    custom_fields: Vec<custom_fields::CustomField>,
+    tags: Vec<tags::Tag>,
     entries: Vec<db::composed::ComposedEntry>
 }
 
@@ -45,8 +50,8 @@ pub async fn handle_get(
 
     let initiator = lookup.try_into()?;
     let data = BackupDataJson {
-        custom_fields: db::custom_fields::find_from_owner(conn, &initiator.user.id).await?, 
-        tags: db::tags::find_from_owner(conn, initiator.user.id).await?, 
+        custom_fields: custom_fields::find_from_owner(conn, &initiator.user.id).await?, 
+        tags: tags::find_from_owner(conn, initiator.user.id).await?, 
         entries: Vec::new()
     };
 
@@ -67,7 +72,7 @@ pub async fn handle_post(
     let conn = &mut *db.get_conn().await?;
 
     let mut custom_field_mapping: HashMap<i32, i32> = HashMap::with_capacity(json_data.data.custom_fields.len());
-    let mut custom_field_config_mapping: HashMap<i32, db::custom_fields::CustomFieldType> = HashMap::with_capacity(json_data.data.custom_fields.len());
+    let mut custom_field_config_mapping: HashMap<i32, custom_fields::CustomFieldType> = HashMap::with_capacity(json_data.data.custom_fields.len());
     let mut tags_mapping: HashMap<i32, i32> = HashMap::with_capacity(json_data.data.tags.len());
 
     let transaction = conn.transaction().await?;

@@ -124,7 +124,7 @@ pub async fn update_subject_permissions(
 ) -> Result<Option<FailedPermissions>> {
     let mut first = true;
     let mut invalid = false;
-    let rolls = db::permissions::RollDictionary::new();
+    let rolls = db::tables::permissions::RollDictionary::new();
     // error collection
     let mut failed = FailedPermissions {
         unknown_roll: Vec::new(),
@@ -201,7 +201,7 @@ pub async fn update_subject_permissions(
             }
 
             match resource_table.as_str() {
-                db::permissions::tables::USERS => {
+                db::tables::permissions::tables::USERS => {
                     let check = conn.execute(
                         "select id from users where id = $1",
                         &[resource_id]
@@ -215,7 +215,7 @@ pub async fn update_subject_permissions(
                         continue;
                     }
                 },
-                db::permissions::tables::GROUPS => {
+                db::tables::permissions::tables::GROUPS => {
                     // check to make sure that id exists
                     let check = conn.execute(
                         "select id from groups where id = $1",

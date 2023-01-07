@@ -4,11 +4,20 @@ use actix_web::{web, http, HttpRequest, Responder};
 use serde::Deserialize;
 use chrono::serde::ts_seconds;
 
-use crate::db;
-
 pub mod comments;
 pub mod audio;
 
+use crate::db::{
+    self, 
+    tables::{
+        permissions,
+        entries, 
+        custom_field_entries, 
+        text_entries,
+        entries2tags,
+        entry_markers
+    }
+};
 use crate::net::http::error;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
@@ -28,7 +37,7 @@ pub struct PutTextEntry {
 #[derive(Deserialize)]
 pub struct PutCustomFieldEntry {
     field: i32,
-    value: db::custom_field_entries::CustomFieldEntryType,
+    value: custom_field_entries::CustomFieldEntryType,
     comment: Option<String>
 }
 
@@ -92,8 +101,8 @@ pub async fn handle_get(
         if !security::permissions::has_permission(
             &*conn, 
             &initiator.user.id, 
-            db::permissions::rolls::USERS_ENTRIES, 
-            &[db::permissions::abilities::READ], 
+            permissions::rolls::USERS_ENTRIES, 
+            &[permissions::abilities::READ], 
             Some(&user_id)
         ).await? {
             return Err(error::build::permission_denied(
@@ -107,10 +116,10 @@ pub async fn handle_get(
         if !security::permissions::has_permission(
             &*conn, 
             &initiator.user.id, 
-            db::permissions::rolls::ENTRIES, 
+            permissions::rolls::ENTRIES, 
             &[
-                db::permissions::abilities::READ,
-                db::permissions::abilities::READ_WRITE
+                permissions::abilities::READ,
+                permissions::abilities::READ_WRITE
                 ],
             None
         ).await? {
@@ -155,9 +164,9 @@ pub async fn handle_put(
     if !security::permissions::has_permission(
         &*conn, 
         &initiator.user.id,
-        db::permissions::rolls::ENTRIES,
+        permissions::rolls::ENTRIES,
         &[
-            db::permissions::abilities::READ_WRITE
+            permissions::abilities::READ_WRITE
         ],
         None
     ).await? {
@@ -176,7 +185,7 @@ pub async fn handle_put(
     ).await?;
 
     let mut rtn = db::composed::ComposedEntry {
-        entry: db::entries::Entry {
+        entry: entries::Entry {
             id: path.entry_id,
             day: created,
             owner: initiator.user.id
@@ -211,7 +220,7 @@ pub async fn handle_put(
             ).await?;
 
             ids.push(field.id);
-            rtn.custom_field_entries.insert(field.id, db::custom_field_entries::CustomFieldEntry {
+            rtn.custom_field_entries.insert(field.id, custom_field_entries::CustomFieldEntry {
                 field: field.id,
                 value: custom_field_entry.value,
                 comment: util::clone_option(&custom_field_entry.comment),
@@ -224,7 +233,7 @@ pub async fn handle_put(
             &[&path.entry_id, &ids]
         ).await?;
     } else {
-        rtn.custom_field_entries = db::custom_field_entries::find_from_entry_hashmap(&transaction, &path.entry_id).await?;
+        rtn.custom_field_entries = custom_field_entries::find_from_entry_hashmap(&transaction, &path.entry_id).await?;
     }
 
     if let Some(t) = posted.text_entries {
@@ -242,7 +251,7 @@ pub async fn handle_put(
                 }
 
                 ids.push(id);
-                rtn.text_entries.push(db::text_entries::TextEntry {
+                rtn.text_entries.push(text_entries::TextEntry {
                     id,
                     thought: text_entry.thought,
                     entry: path.entry_id,
@@ -255,7 +264,7 @@ pub async fn handle_put(
                 ).await?;
 
                 ids.push(result.get(0));
-                rtn.text_entries.push(db::text_entries::TextEntry {
+                rtn.text_entries.push(text_entries::TextEntry {
                     id: result.get(0),
                     thought: text_entry.thought,
                     entry: path.entry_id,
@@ -270,7 +279,7 @@ pub async fn handle_put(
         ).await?;
     } else {
         let is_private = None;
-        rtn.text_entries = db::text_entries::find_from_entry(&transaction, &path.entry_id, &is_private).await?;
+        rtn.text_entries = text_entries::find_from_entry(&transaction, &path.entry_id, &is_private).await?;
     }
 
     if let Some(tags) = posted.tags {
@@ -292,7 +301,7 @@ pub async fn handle_put(
 
         rtn.tags = tags;
     } else {
-        rtn.tags = db::entries2tags::find_id_from_entry(&transaction, &path.entry_id).await?;
+        rtn.tags = entries2tags::find_id_from_entry(&transaction, &path.entry_id).await?;
     }
 
     if let Some(markers) = posted.markers {
@@ -310,7 +319,7 @@ pub async fn handle_put(
                 }
 
                 ids.push(id);
-                rtn.markers.push(db::entry_markers::EntryMarker {
+                rtn.markers.push(entry_markers::EntryMarker {
                     id,
                     title: marker.title,
                     comment: marker.comment,
@@ -326,7 +335,7 @@ pub async fn handle_put(
                 ).await?;
 
                 ids.push(result.get(0));
-                rtn.markers.push(db::entry_markers::EntryMarker {
+                rtn.markers.push(entry_markers::EntryMarker {
                     id: result.get(0),
                     title: marker.title,
                     comment: marker.comment,
@@ -340,7 +349,7 @@ pub async fn handle_put(
             &[&path.entry_id, &ids]
         ).await?;
     } else {
-        rtn.markers = db::entry_markers::find_from_entry(&transaction, &path.entry_id).await?;
+        rtn.markers = entry_markers::find_from_entry(&transaction, &path.entry_id).await?;
     }
 
     transaction.commit().await?;
@@ -362,9 +371,9 @@ pub async fn handle_delete(
     if !security::permissions::has_permission(
         &*conn, 
         &initiator.user.id, 
-        db::permissions::rolls::ENTRIES, 
+        permissions::rolls::ENTRIES, 
         &[
-            db::permissions::abilities::READ_WRITE
+            permissions::abilities::READ_WRITE
         ], 
         None
     ).await? {

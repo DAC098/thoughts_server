@@ -6,10 +6,9 @@ use futures_util::stream::StreamExt;
 use actix_web::{web, web::Buf, http, HttpRequest, Responder};
 use serde::Deserialize;
 
-use crate::db;
-
 pub mod audio_id;
 
+use crate::db::tables::{permissions, audio_entries};
 use crate::net::http::error;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
@@ -53,9 +52,9 @@ pub async fn handle_get(
         if !security::permissions::has_permission(
             &*conn, 
             &initiator.user.id, 
-            db::permissions::rolls::USERS_ENTRIES, 
+            permissions::rolls::USERS_ENTRIES, 
             &[
-                db::permissions::abilities::READ
+                permissions::abilities::READ
             ],
             Some(&user_id)
         ).await? {
@@ -70,10 +69,10 @@ pub async fn handle_get(
         if !security::permissions::has_permission(
             &*conn, 
             &initiator.user.id, 
-            db::permissions::rolls::ENTRIES, 
+            permissions::rolls::ENTRIES, 
             &[
-                db::permissions::abilities::READ,
-                db::permissions::abilities::READ_WRITE
+                permissions::abilities::READ,
+                permissions::abilities::READ_WRITE
             ], 
             None
         ).await? {
@@ -88,7 +87,7 @@ pub async fn handle_get(
 
     security::assert::is_owner_of_entry(&*conn, &owner, &path.entry_id).await?;
 
-    let entry = db::audio_entries::find_from_entry(
+    let entry = audio_entries::find_from_entry(
         &*conn, 
         &path.entry_id, 
         &is_private
@@ -247,9 +246,9 @@ pub async fn handle_post(
     if !security::permissions::has_permission(
         &*conn, 
         &initiator.user.id, 
-        db::permissions::rolls::ENTRIES, 
+        permissions::rolls::ENTRIES, 
         &[
-            db::permissions::abilities::READ_WRITE
+            permissions::abilities::READ_WRITE
         ],
         None
     ).await? {
@@ -318,7 +317,7 @@ pub async fn handle_post(
     transaction.commit().await?;
 
     JsonBuilder::new(http::StatusCode::OK)
-        .build(Some(db::audio_entries::AudioEntry {
+        .build(Some(audio_entries::AudioEntry {
             id,
             private: audio_entry.private,
             comment: audio_entry.comment,
