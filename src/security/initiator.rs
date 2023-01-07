@@ -21,6 +21,27 @@ impl Initiator {
     }
 }
 
+impl FromRequest for Initiator {
+    type Error = error::Error;
+    type Future = Pin<Box<dyn Future<Output = std::result::Result<Self, Self::Error>>>>;
+
+    fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
+        let db = req.app_data::<web::Data<state::DBState>>().unwrap().clone();
+        let security = req.app_data::<web::Data<SecurityState>>().unwrap().clone();
+        let cookies = CookieMap::from(req.headers());
+
+        Box::pin(async move {
+            let db = db.into_inner();
+            let security = security.into_inner();
+            let conn = db.get_conn().await?;
+
+            InitiatorLookup::from_cookie_map(&security, &*conn, &cookies)
+                .await?
+                .try_into()
+        })
+    }
+}
+
 pub enum InitiatorLookup {
     Found(Initiator),
     InvalidFormat,
@@ -34,6 +55,82 @@ pub enum InitiatorLookup {
 }
 
 impl InitiatorLookup {
+
+    pub async fn from_cookie_map(
+        security: &SecurityState,
+        conn: &impl GenericClient,
+        cookies: &CookieMap
+    ) -> std::result::Result<InitiatorLookup, db::error::Error> 
+    {
+        if let Some(value) = cookies.get_value_ref("session_id") {
+            let split = value.split_once('.');
+
+            if split.is_none() {
+                return Ok(InitiatorLookup::InvalidFormat)
+            }
+
+            let (token, mac) = split.unwrap();
+            let decoded_mac = match base64::decode_config(mac, base64::URL_SAFE) {
+                Ok(d) => d,
+                Err(_err) => {
+                    return Ok(InitiatorLookup::InvalidMAC)
+                }
+            };
+
+            match mac::algo_one_off_verify(
+                security.get_signing(), 
+                security.get_secret(), 
+                &token, 
+                &decoded_mac
+            ) {
+                Ok(valid) => {
+                    if !valid {
+                        return Ok(InitiatorLookup::VerifyFailed)
+                    }
+                },
+                Err(_error) => {
+                    return Ok(InitiatorLookup::InvalidMAC)
+                }
+            }
+
+            if let Some(session_record) =  UserSession::find_from_token(conn, token).await? {
+                let now = chrono::Utc::now();
+
+                if session_record.dropped || session_record.expires < now {
+                    return Ok(InitiatorLookup::SessionExpired(session_record));
+                }
+
+                if !session_record.verified {
+                    return Ok(InitiatorLookup::SessionUnverified(session_record));
+                }
+
+                if let Some(user_record) = users::find_from_id(conn, &session_record.owner).await? {
+                    Ok(InitiatorLookup::Found(Initiator {
+                        user: user_record,
+                        session: session_record
+                    }))
+                } else {
+                    Ok(InitiatorLookup::UserNotFound(session_record))
+                }
+            } else {
+                Ok(InitiatorLookup::SessionNotFound(token.into()))
+            }
+        } else {
+            Ok(InitiatorLookup::CookieNotFound)
+        }
+    }
+
+    pub async fn from_request(
+        security: &SecurityState,
+        conn: &impl GenericClient,
+        req: &HttpRequest
+    ) -> std::result::Result<Self, db::error::Error>
+    {
+        let cookies = CookieMap::from(req);
+
+        InitiatorLookup::from_cookie_map(security, conn, &cookies).await
+    }
+
     pub fn is_valid(&self) -> bool {
         match self {
             InitiatorLookup::Found(_) => true,
@@ -104,101 +201,5 @@ impl InitiatorLookup {
             InitiatorLookup::Found(initiator) => Ok(initiator),
             _ => Err(self.get_error().unwrap()),
         }
-    }
-}
-
-pub async fn from_cookie_map(
-    security: &SecurityState,
-    conn: &impl GenericClient,
-    cookies: &CookieMap
-) -> std::result::Result<InitiatorLookup, db::error::Error> 
-{
-    if let Some(value) = cookies.get_value_ref("session_id") {
-        let split = value.split_once('.');
-
-        if split.is_none() {
-            return Ok(InitiatorLookup::InvalidFormat)
-        }
-
-        let (token, mac) = split.unwrap();
-        let decoded_mac = match base64::decode_config(mac, base64::URL_SAFE) {
-            Ok(d) => d,
-            Err(_err) => {
-                return Ok(InitiatorLookup::InvalidMAC)
-            }
-        };
-
-        match mac::algo_one_off_verify(
-            security.get_signing(), 
-            security.get_secret(), 
-            &token, 
-            &decoded_mac
-        ) {
-            Ok(valid) => {
-                if !valid {
-                    return Ok(InitiatorLookup::VerifyFailed)
-                }
-            },
-            Err(_error) => {
-                return Ok(InitiatorLookup::InvalidMAC)
-            }
-        }
-
-        if let Some(session_record) =  UserSession::find_from_token(conn, token).await? {
-            let now = chrono::Utc::now();
-
-            if session_record.dropped || session_record.expires < now {
-                return Ok(InitiatorLookup::SessionExpired(session_record));
-            }
-
-            if !session_record.verified {
-                return Ok(InitiatorLookup::SessionUnverified(session_record));
-            }
-
-            if let Some(user_record) = users::find_from_id(conn, &session_record.owner).await? {
-                Ok(InitiatorLookup::Found(Initiator {
-                    user: user_record,
-                    session: session_record
-                }))
-            } else {
-                Ok(InitiatorLookup::UserNotFound(session_record))
-            }
-        } else {
-            Ok(InitiatorLookup::SessionNotFound(token.into()))
-        }
-    } else {
-        Ok(InitiatorLookup::CookieNotFound)
-    }
-}
-
-pub async fn from_request(
-    security: &SecurityState,
-    conn: &impl GenericClient,
-    req: &HttpRequest
-) -> std::result::Result<InitiatorLookup, db::error::Error>
-{
-    let cookies = CookieMap::from(req);
-
-    from_cookie_map(security, conn, &cookies).await
-}
-
-impl FromRequest for Initiator {
-    type Error = error::Error;
-    type Future = Pin<Box<dyn Future<Output = std::result::Result<Self, Self::Error>>>>;
-
-    fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
-        let db = req.app_data::<web::Data<state::DBState>>().unwrap().clone();
-        let security = req.app_data::<web::Data<SecurityState>>().unwrap().clone();
-        let cookies = CookieMap::from(req.headers());
-
-        Box::pin(async move {
-            let db = db.into_inner();
-            let security = security.into_inner();
-            let conn = db.get_conn().await?;
-
-            from_cookie_map(&security, &*conn, &cookies)
-                .await?
-                .try_into()
-        })
     }
 }

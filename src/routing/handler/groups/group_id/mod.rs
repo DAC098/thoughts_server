@@ -9,8 +9,9 @@ use crate::db::tables::{
 use crate::net::http::error;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
-use crate::{security, routing, components};
-use crate::routing::path;
+use crate::security::{self, InitiatorLookup, Initiator};
+use crate::components;
+use crate::routing::{self, path};
 use crate::state;
 
 #[derive(Serialize)]
@@ -44,7 +45,7 @@ pub async fn handle_get(
 ) -> error::Result<impl Responder> {
     let conn = &*db.pool.get().await?;
     let accept_html = response::try_check_if_html_req(&req);
-    let lookup = security::initiator::from_request(&security, conn, &req).await?;
+    let lookup = InitiatorLookup::from_request(&security, conn, &req).await?;
 
     if accept_html {
         return if lookup.is_some() {
@@ -140,7 +141,7 @@ pub struct UpdateGroup {
 }
 
 pub async fn handle_put(
-    initiator: security::Initiator,
+    initiator: Initiator,
     db: state::WebDbState,
     path: web::Path<path::params::GroupPath>,
     posted: web::Json<UpdateGroup>,

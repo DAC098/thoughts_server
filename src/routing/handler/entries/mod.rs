@@ -27,15 +27,13 @@ use crate::db::{
         ComposedEntry
     },
 };
-
 use crate::net::http::error;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
 use crate::routing;
 use crate::state;
-use crate::security::{initiator, Initiator};
+use crate::security::{self, InitiatorLookup, Initiator};
 use crate::components;
-use crate::security;
 
 #[derive(Deserialize)]
 pub struct PostTextEntryJson {
@@ -101,7 +99,7 @@ pub async fn handle_get(
     let info = info.into_inner();
     let pool_conn = db.pool.get().await?;
     let accept_html = response::try_check_if_html_req(&req);
-    let lookup = initiator::from_request(&security, &*pool_conn, &req).await?;
+    let lookup = InitiatorLookup::from_request(&security, &*pool_conn, &req).await?;
 
     if accept_html {
         return if lookup.is_some() {

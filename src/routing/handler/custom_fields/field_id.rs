@@ -2,7 +2,7 @@ use actix_web::{web, http, HttpRequest, Responder};
 use serde::Deserialize;
 
 use crate::db::tables::custom_fields;
-use crate::security::{initiator, Initiator};
+use crate::security::{InitiatorLookup, Initiator};
 use crate::net::http::error;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
@@ -24,7 +24,7 @@ pub async fn handle_get(
 ) -> error::Result<impl Responder> {
     let accept_html = response::try_check_if_html_req(&req);
     let conn = &*db.get_conn().await?;
-    let lookup = initiator::from_request(&security, conn, &req).await?;
+    let lookup = InitiatorLookup::from_request(&security, conn, &req).await?;
 
     if accept_html {
         return if lookup.is_some() {

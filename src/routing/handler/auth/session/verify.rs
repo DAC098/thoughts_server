@@ -5,7 +5,7 @@ use serde::Deserialize;
 
 use crate::net::http::error;
 use crate::net::http::response::json::JsonBuilder;
-use crate::security::{self, otp, initiator, initiator::InitiatorLookup};
+use crate::security::{self, otp, initiator::InitiatorLookup};
 use crate::state;
 use crate::db::{self, tables::users};
 
@@ -30,7 +30,7 @@ pub async fn handle_post(
     let session;
 
     {
-        let lookup = initiator::from_request(&security, &*conn, &req).await?;
+        let lookup = InitiatorLookup::from_request(&security, &*conn, &req).await?;
 
         match lookup {
             InitiatorLookup::Found(_) => {

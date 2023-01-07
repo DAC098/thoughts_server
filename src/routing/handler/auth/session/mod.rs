@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::db::{tables::{users, user_sessions}, self};
 use crate::security::state::SecurityState;
-use crate::security::{self, initiator, InitiatorLookup};
+use crate::security::{self, Initiator, InitiatorLookup};
 use crate::net::http::error;
 use crate::net::http::cookie;
 use crate::net::http::response;
@@ -25,7 +25,7 @@ pub async fn handle_get(
     let conn = db.get_conn().await?;
 
     if response::try_check_if_html_req(&req) {
-        let lookup = initiator::from_request(&security, &*conn, &req).await?;
+        let lookup = InitiatorLookup::from_request(&security, &*conn, &req).await?;
 
         if lookup.is_valid() {
             Ok(response::redirect_to_path("/entries"))
@@ -105,7 +105,7 @@ pub async fn handle_post(
     let mut conn = db.pool.get().await?;
 
     {
-        let lookup = security::initiator::from_request(&security, &*conn, &req).await?;
+        let lookup = InitiatorLookup::from_request(&security, &*conn, &req).await?;
 
         match lookup {
             InitiatorLookup::Found(_) => {
@@ -204,10 +204,10 @@ pub async fn handle_delete(
     let mut conn = db.pool.get().await?;
 
     {
-        let lookup = initiator::from_request(&security, &*conn, &req).await?;
+        let lookup = InitiatorLookup::from_request(&security, &*conn, &req).await?;
 
         match lookup {
-            InitiatorLookup::Found(initiator::Initiator {session, user: _}) |
+            InitiatorLookup::Found(Initiator {session, user: _}) |
             InitiatorLookup::SessionExpired(session) |
             InitiatorLookup::SessionUnverified(session) => {
                 let transaction = conn.transaction().await?;
