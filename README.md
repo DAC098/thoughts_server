@@ -31,7 +31,7 @@ more features to come as the server progresses with some planned in the futre.
 
 The main server is written in Rust and uses the Actix framework to handle the server capabilities. PostgreSQL is use for the database and uses Tokio Postgres for communication.
 
- - Rust `1.51.0`
+ - Rust `1.65.0`
  - OpenSSL `1.1.1f`
  - PostgreSQL `13`
 
@@ -61,13 +61,14 @@ email/
 
 ### File Storage
 
-
+TBD
 
 ### Building
 
-This will require the OpenSSL libraries and header files. The [docs](https://docs.rs/openssl/0.10.34/openssl/) for the rust package talks about how to download the headers and libraries.
+The server is capable of running without TLS if it is not needed (termination happening at a proxy and then forwarded to the server for example). It can have Rustls or OpenSSL enabled to allow for TLS. For OpenSSL to work the libraries and header files will be required to work. The [docs](https://docs.rs/openssl/0.10.34/openssl/) for the rust package talks about how to download the headers and libraries.
 
 As stated above this has currently only been built on Ubuntu Linux. Once you have the OpenSSL requirements run
+
 ```bash
 # development
 $ cargo build --workspace --bins
@@ -82,6 +83,12 @@ The server should be ready to go by this point
 Command line arguments are currently limited. You will need to specify configuration files to setup the server. Specifying multiple config files and will be loaded in the order given with later files overriding earlier values. A configuration is as follows:
 
 ```yaml
+# if you want to include other config files without adding them
+# to the command line then this will help to facilitate that
+# order is depth first and will be loaded after the current file
+include:
+  - "./path/to/config.yaml"
+  - "../path/to/other/config.yaml"
 # any relative path will be resolved using the directory of
 # the current config file
 bind:
@@ -120,10 +127,16 @@ security:
   session:
     # used in cookie sessions to restrict cookies to a
     # specific domain
-    domain: ""
+    domain: "example.com"
 
-  #currently not used
-  secret: ""
+  # used for signing cookies
+  secret: "secret"
+
+  # the signing algorithm used for signing cookies
+  # current values are "blake3", "sha224", "sha256",
+  # "sha384", "sha512". defaults to "blake3", this may
+  # change in the future
+  signing_algo: ""
 
 db:
   username: "postgres"
@@ -192,5 +205,3 @@ No idea. If you are interested in helping out with this then sweet!
 **THIS IS A WORK IN PROGRESS**
 
 **PLEASE DO NOT USE THIS FOR PRODUCTION PURPOSES YET**
-
-First personal project like this so bear with me as I figure this stuff out.
