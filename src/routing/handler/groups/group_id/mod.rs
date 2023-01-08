@@ -13,6 +13,7 @@ use crate::security::{self, InitiatorLookup, Initiator};
 use crate::components;
 use crate::routing::{self, path};
 use crate::state;
+use crate::template;
 
 #[derive(Serialize)]
 struct GroupUser {
@@ -40,7 +41,7 @@ pub async fn handle_get(
     req: HttpRequest,
     security: security::state::WebSecurityState,
     db: state::WebDbState,
-    template: state::WebTemplateState<'_>,
+    template: template::WebTemplateState<'_>,
     path: web::Path<path::params::GroupPath>
 ) -> error::Result<impl Responder> {
     let conn = &*db.pool.get().await?;

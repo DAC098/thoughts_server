@@ -1,7 +1,5 @@
 mod db;
 pub use db::*;
-mod template;
-pub use template::*;
 mod email;
 pub use email::*;
 mod server_info;

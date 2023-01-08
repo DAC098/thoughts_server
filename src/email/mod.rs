@@ -6,7 +6,8 @@ use tokio_postgres::GenericClient;
 
 use crate::net::http::error;
 use crate::{security, util};
-use crate::state::{TemplateState, EmailState, ServerInfoState};
+use crate::template::state::TemplateState;
+use crate::state::{EmailState, ServerInfoState};
 
 pub fn parse_email_address(email: &str) -> error::Result<Address> {
     match email.parse::<Address>() {

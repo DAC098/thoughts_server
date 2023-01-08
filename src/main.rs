@@ -83,7 +83,7 @@ async fn server_runner(config: config::ServerConfig) -> Result<()> {
             PostgresConnectionManager::new(db_config, NoTls)
         ).await?
     ));
-    let template_state_ref = web::Data::new(state::TemplateState::new(
+    let template_state_ref = web::Data::new(template::state::TemplateState::new(
         template::get_built_registry(config.template)?
     ));
     let email_state_ref = web::Data::new(state::EmailState::new(

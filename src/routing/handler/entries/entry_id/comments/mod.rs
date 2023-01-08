@@ -10,6 +10,7 @@ use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
 use crate::security::{self, InitiatorLookup, Initiator};
 use crate::util;
+use crate::template;
 
 #[derive(Deserialize)]
 pub struct EntryPath {
@@ -21,7 +22,7 @@ pub async fn handle_get(
     req: HttpRequest,
     security: security::state::WebSecurityState,
     db: state::WebDbState,
-    template: state::WebTemplateState<'_>,
+    template: template::WebTemplateState<'_>,
     path: web::Path<EntryPath>,
 ) -> error::Result<impl Responder> {
     let path = path.into_inner();

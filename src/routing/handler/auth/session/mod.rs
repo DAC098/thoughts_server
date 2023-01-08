@@ -10,6 +10,7 @@ use crate::net::http::cookie;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
 use crate::state;
+use crate::template;
 
 pub mod verify;
 
@@ -20,7 +21,7 @@ pub async fn handle_get(
     req: HttpRequest,
     security: security::state::WebSecurityState,
     db: state::WebDbState,
-    template: state::WebTemplateState<'_>
+    template: template::WebTemplateState<'_>
 ) -> error::Result<impl Responder> {
     let conn = db.get_conn().await?;
 

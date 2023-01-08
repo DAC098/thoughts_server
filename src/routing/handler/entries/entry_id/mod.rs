@@ -25,6 +25,7 @@ use crate::state;
 use crate::security::{self, InitiatorLookup, Initiator};
 use crate::util;
 use crate::components;
+use crate::template;
 
 #[derive(Deserialize)]
 pub struct PutTextEntry {
@@ -77,7 +78,7 @@ pub async fn handle_get(
     req: HttpRequest,
     security: security::state::WebSecurityState,
     db: state::WebDbState,
-    template: state::WebTemplateState<'_>,
+    template: template::WebTemplateState<'_>,
     path: web::Path<EntryPath>
 ) -> error::Result<impl Responder> {
     let conn = &*db.get_conn().await?;

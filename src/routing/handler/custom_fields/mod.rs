@@ -4,12 +4,12 @@ use serde::Deserialize;
 pub mod field_id;
 
 use crate::db::tables::custom_fields;
-use crate::security::{InitiatorLookup, Initiator};
+use crate::security::{self, InitiatorLookup, Initiator};
 use crate::net::http::error;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
 use crate::state;
-use crate::security;
+use crate::template;
 
 #[derive(Deserialize)]
 pub struct CustomFieldsPath {
@@ -20,7 +20,7 @@ pub async fn handle_get(
     req: HttpRequest,
     security: security::state::WebSecurityState,
     db: state::WebDbState,
-    template: state::WebTemplateState<'_>,
+    template: template::WebTemplateState<'_>,
     path: web::Path<CustomFieldsPath>,
 ) -> error::Result<impl Responder> {
     let accept_html = response::try_check_if_html_req(&req);

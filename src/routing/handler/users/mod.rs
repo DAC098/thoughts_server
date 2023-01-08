@@ -22,6 +22,7 @@ use crate::security::{self, InitiatorLookup, Initiator};
 use crate::state;
 use crate::email;
 use crate::util;
+use crate::template;
 
 #[derive(Serialize, Eq)]
 pub struct UserJson {
@@ -58,7 +59,7 @@ pub async fn handle_get(
     req: HttpRequest,
     security: security::state::WebSecurityState,
     db: state::WebDbState,
-    template: state::WebTemplateState<'_>,
+    template: template::WebTemplateState<'_>,
 ) -> error::Result<impl Responder> {
     let accept_html = response::try_check_if_html_req(&req);
     let conn = &*db.get_conn().await?;
@@ -305,7 +306,7 @@ pub struct PostUserJson {
 pub async fn handle_post(
     initiator: Initiator,
     db: state::WebDbState,
-    template: state::WebTemplateState<'_>,
+    template: template::WebTemplateState<'_>,
     email: state::WebEmailState,
     server_info: state::WebServerInfoState,
     posted: web::Json<PostUserJson>,

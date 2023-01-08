@@ -9,6 +9,8 @@ use crate::config::TemplateConfig;
 use crate::error;
 
 pub mod helpers;
+pub mod state;
+pub use state::*;
 
 struct WorkingItem {
     iter: ReadDir,

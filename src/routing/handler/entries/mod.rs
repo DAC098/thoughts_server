@@ -34,6 +34,7 @@ use crate::routing;
 use crate::state;
 use crate::security::{self, InitiatorLookup, Initiator};
 use crate::components;
+use crate::template;
 
 #[derive(Deserialize)]
 pub struct PostTextEntryJson {
@@ -92,7 +93,7 @@ pub async fn handle_get(
     req: HttpRequest,
     security: security::state::WebSecurityState,
     db: state::WebDbState,
-    template: state::WebTemplateState<'_>,
+    template: template::WebTemplateState<'_>,
     info: web::Query<EntriesQuery>,
     path: web::Path<EntriesPath>,
 ) -> error::Result<impl Responder> {

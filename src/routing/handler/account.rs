@@ -9,12 +9,13 @@ use crate::net::http::response::json::JsonBuilder;
 use crate::state;
 use crate::security::{self, InitiatorLookup, Initiator};
 use crate::email;
+use crate::template;
 
 pub async fn handle_get(
     req: HttpRequest,
     security: security::state::WebSecurityState,
     db: state::WebDbState,
-    template: state::WebTemplateState<'_>,
+    template: template::WebTemplateState<'_>,
 ) -> error::Result<impl Responder> {
     let accept_html = response::try_check_if_html_req(&req);
     let conn = &*db.get_conn().await?;
@@ -43,7 +44,7 @@ pub struct PutAccountJson {
 pub async fn handle_put(
     initiator: Initiator,
     db: state::WebDbState,
-    template: state::WebTemplateState<'_>,
+    template: template::WebTemplateState<'_>,
     email: state::WebEmailState,
     server_info: state::WebServerInfoState,
     posted_json: web::Json<PutAccountJson>,

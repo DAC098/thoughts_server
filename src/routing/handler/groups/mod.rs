@@ -11,6 +11,7 @@ use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
 use crate::state;
 use crate::security::{self, InitiatorLookup};
+use crate::template;
 
 pub mod group_id;
 
@@ -18,7 +19,7 @@ pub async fn handle_get(
     req: HttpRequest,
     security: security::state::WebSecurityState,
     db: state::WebDbState,
-    template: state::WebTemplateState<'_>
+    template: template::WebTemplateState<'_>
 ) -> std::result::Result<impl Responder, error::Error> {
     let conn = &*db.pool.get().await?;
     let accept_html = response::try_check_if_html_req(&req);
