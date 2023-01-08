@@ -1,10 +1,16 @@
-use std::pin::Pin;
+use std::{pin::Pin, convert::TryFrom};
 
 use actix_web::{web, http::StatusCode, dev::Payload, FromRequest, HttpRequest};
 use tokio_postgres::GenericClient;
 use futures::Future;
 
-use crate::db::{self, tables::{user_sessions::UserSession, users}};
+use crate::db::{
+    self,
+    tables::{
+        user_sessions::UserSession,
+        users
+    }
+};
 use crate::state;
 use crate::net::http::error;
 use crate::net::http::cookie::CookieMap;
@@ -42,6 +48,17 @@ impl FromRequest for Initiator {
     }
 }
 
+impl TryFrom<InitiatorLookup> for Initiator {
+    type Error = error::Error;
+    
+    fn try_from(value: InitiatorLookup) -> Result<Self, Self::Error> {
+        match value {
+            InitiatorLookup::Found(initiator) => Ok(initiator),
+            _ => Err(value.get_error().unwrap()),
+        }
+    }
+}
+
 pub enum InitiatorLookup {
     Found(Initiator),
     InvalidFormat,
@@ -63,34 +80,25 @@ impl InitiatorLookup {
     ) -> std::result::Result<InitiatorLookup, db::error::Error> 
     {
         if let Some(value) = cookies.get_value_ref("session_id") {
-            let split = value.split_once('.');
-
-            if split.is_none() {
-                return Ok(InitiatorLookup::InvalidFormat)
-            }
-
-            let (token, mac) = split.unwrap();
-            let decoded_mac = match base64::decode_config(mac, base64::URL_SAFE) {
-                Ok(d) => d,
-                Err(_err) => {
-                    return Ok(InitiatorLookup::InvalidMAC)
-                }
+            let Some((token, mac)) = value.split_once('.') else {
+                return Ok(InitiatorLookup::InvalidFormat);
             };
 
-            match mac::algo_one_off_verify(
-                security.get_signing(), 
-                security.get_secret(), 
-                &token, 
+            let Ok(decoded_mac) = base64::decode_config(mac, base64::URL_SAFE) else {
+                return Ok(InitiatorLookup::InvalidMAC)
+            };
+
+            if let Ok(valid) = mac::algo_one_off_verify(
+                security.get_signing(),
+                security.get_secret(),
+                &token,
                 &decoded_mac
             ) {
-                Ok(valid) => {
-                    if !valid {
-                        return Ok(InitiatorLookup::VerifyFailed)
-                    }
-                },
-                Err(_error) => {
-                    return Ok(InitiatorLookup::InvalidMAC)
+                if !valid {
+                    return Ok(InitiatorLookup::VerifyFailed)
                 }
+            } else {
+                return Ok(InitiatorLookup::InvalidMAC)
             }
 
             if let Some(session_record) =  UserSession::find_from_token(conn, token).await? {
