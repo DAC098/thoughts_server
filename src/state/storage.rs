@@ -9,7 +9,7 @@ use crate::config::StorageConfig;
 use crate::error;
 
 pub struct StorageState {
-    audio: PathBuf,
+    dir: PathBuf,
     tmp: PathBuf
 }
 
@@ -32,36 +32,29 @@ impl StorageState {
     }
 
     pub fn new(conf: StorageConfig) -> error::Result<StorageState> {
-        let mut audio = conf.directory.clone();
-        audio.push("audio");
-        let mut tmp = conf.directory.clone();
-        tmp.push("tmp");
+        StorageState::check_create_dir("data", &conf.directory)?;
+        StorageState::check_create_dir("tmp", &conf.temp)?;
 
-        StorageState::check_create_dir("audio", &audio)?;
-        StorageState::check_create_dir("tmp", &tmp)?;
-        
-        Ok(StorageState { audio, tmp })
+        Ok(StorageState {
+            dir: conf.directory,
+            tmp: conf.temp
+        })
     }
-
-    // pub fn get_audio_dir(&self) -> PathBuf {
-    //     self.audio.clone()
-    // }
-
-    // pub fn get_tmp_dir(&self) -> PathBuf {
-    //     self.tmp.clone()
-    // }
 
     pub fn get_tmp_dir_ref(&self) -> &PathBuf {
         &self.tmp
     }
-    
+
     pub fn get_audio_file_path<E>(&self, user_id: &i32, entry_id: &i32, audio_id: &i32, extension: E) -> PathBuf
     where
         E: AsRef<OsStr>
      {
-        let mut audio_file = self.audio.clone();
+        let mut audio_file = self.dir.clone();
+        audio_file.push("users");
         audio_file.push(user_id.to_string());
+        audio_file.push("entries");
         audio_file.push(entry_id.to_string());
+        audio_file.push("audio");
         audio_file.set_file_name(audio_id.to_string());
         audio_file.set_extension(extension);
 

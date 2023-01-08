@@ -181,12 +181,14 @@ impl MapShape for FileServingConfigShape {
 
 #[derive(Debug, Deserialize)]
 pub struct StorageConfigShape {
-    pub directory: Option<PathBuf>
+    pub directory: Option<PathBuf>,
+    pub temp: Option<PathBuf>
 }
 
 impl MapShape for StorageConfigShape {
     fn map_shape(&mut self, rhs: Self) {
         self.directory.map_shape(rhs.directory);
+        self.temp.map_shape(rhs.temp);
     }
 }
 

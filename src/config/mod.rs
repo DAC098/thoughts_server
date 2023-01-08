@@ -254,7 +254,8 @@ impl TryFrom<Option<shapes::FileServingConfigShape>> for FileServingConfig {
 
 #[derive(Debug, Clone)]
 pub struct StorageConfig {
-    pub directory: PathBuf
+    pub directory: PathBuf,
+    pub temp: PathBuf
 }
 
 impl TryFrom<Option<shapes::StorageConfigShape>> for StorageConfig {
@@ -263,14 +264,18 @@ impl TryFrom<Option<shapes::StorageConfigShape>> for StorageConfig {
     fn try_from(value: Option<shapes::StorageConfigShape>) -> Result<Self, Self::Error> {
         let mut default_dir = std::env::current_dir()?;
         default_dir.push("storage");
+        let mut default_temp = std::env::current_dir()?;
+        default_temp.push("temp");
 
         if let Some(storage) = value {
             Ok(StorageConfig {
-                directory: storage.directory.unwrap_or(default_dir)
+                directory: storage.directory.unwrap_or(default_dir),
+                temp: storage.temp.unwrap_or(default_temp)
             })
         } else {
             Ok(StorageConfig {
-                directory: default_dir
+                directory: default_dir,
+                temp: default_temp
             })
         }
     }
