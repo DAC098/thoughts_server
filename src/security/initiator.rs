@@ -14,7 +14,7 @@ use crate::db::{
 use crate::state;
 use crate::net::http::error;
 use crate::net::http::cookie::CookieMap;
-use super::{mac, state::SecurityState};
+use super::{state::SecurityState, session};
 
 pub struct Initiator {
     pub user: users::User,
@@ -80,26 +80,18 @@ impl InitiatorLookup {
     ) -> std::result::Result<InitiatorLookup, db::error::Error> 
     {
         if let Some(value) = cookies.get_value_ref("session_id") {
-            let Some((token, mac)) = value.split_once('.') else {
-                return Ok(InitiatorLookup::InvalidFormat);
-            };
-
-            let Ok(decoded_mac) = base64::decode_config(mac, base64::URL_SAFE) else {
-                return Ok(InitiatorLookup::InvalidMAC)
-            };
-
-            if let Ok(valid) = mac::algo_one_off_verify(
-                security.get_signing(),
-                security.get_secret(),
-                &token,
-                &decoded_mac
-            ) {
-                if !valid {
-                    return Ok(InitiatorLookup::VerifyFailed)
+            let token = match session::retrieve_session_id(security, value) {
+                Ok(check) => {
+                    if let Some(t) = check {
+                        t
+                    } else {
+                        return Ok(InitiatorLookup::VerifyFailed)
+                    }
+                },
+                Err(err) => {
+                    return Ok(err.into())
                 }
-            } else {
-                return Ok(InitiatorLookup::InvalidMAC)
-            }
+            };
 
             if let Some(session_record) =  UserSession::find_from_token(conn, token).await? {
                 let now = chrono::Utc::now();
@@ -208,6 +200,15 @@ impl InitiatorLookup {
         match self {
             InitiatorLookup::Found(initiator) => Ok(initiator),
             _ => Err(self.get_error().unwrap()),
+        }
+    }
+}
+
+impl From<session::RetrievError> for InitiatorLookup {
+    fn from(v: session::RetrievError) -> Self {
+        match v {
+            session::RetrievError::InvalidFormat => Self::InvalidFormat,
+            session::RetrievError::InvalidMac => Self::InvalidMAC
         }
     }
 }

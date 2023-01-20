@@ -89,7 +89,7 @@ pub async fn handle_post(
         let encoded = data_encoding::BASE32.encode(&bytes);
         bytes.fill(0);
 
-        transaction.execute(
+        let inserted = transaction.execute(
             "\
             insert into auth_otp_codes (auth_otp_id, hash) values \
             ($1, $2) \
@@ -97,8 +97,10 @@ pub async fn handle_post(
             &[&otp.id, &encoded]
         ).await?;
 
-        hashes.push(encoded);
-        created += 1;
+        if inserted == 1 {
+            hashes.push(encoded);
+            created += 1;
+        }
     }
 
     transaction.commit().await?;

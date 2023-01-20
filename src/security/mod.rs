@@ -6,6 +6,8 @@ use crate::net::http::error;
 pub mod mac;
 pub mod otp;
 
+pub mod session;
+
 pub mod initiator;
 pub use initiator::*;
 

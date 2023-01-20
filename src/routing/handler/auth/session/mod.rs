@@ -3,10 +3,8 @@ use actix_web::{web, http, Responder};
 use serde::{Deserialize, Serialize};
 
 use crate::db::{tables::{users, user_sessions}, self};
-use crate::security::state::SecurityState;
-use crate::security::{self, Initiator, InitiatorLookup};
+use crate::security::{self, Initiator, InitiatorLookup, session};
 use crate::net::http::error;
-use crate::net::http::cookie;
 use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
 use crate::state;
@@ -52,45 +50,6 @@ pub enum VerifyOption {
 pub struct LoginBodyJSON {
     username: String,
     password: String
-}
-
-/// generates session_id cookie with given duration and value
-/// 
-/// - domain information is pulled from the security state session object
-/// - the path is set to root
-/// - max age is set to the duration specified
-/// - same site is strict
-/// - http only is set to true
-fn create_session_cookie<V>(security: &SecurityState, duration: chrono::Duration, value: V) -> cookie::SetCookie
-where
-    V: Into<String>
-{
-    let mut session_cookie = cookie::SetCookie::new("session_id", value);
-    session_cookie.set_domain(security.get_session().get_domain());
-    session_cookie.set_path("/");
-    session_cookie.set_max_age(duration);
-    session_cookie.set_same_site(cookie::SameSite::Strict);
-    session_cookie.set_http_only(true);
-
-    session_cookie
-}
-
-/// generates random token and signed token
-/// 
-/// generates a random 64 byte base64 token and the signs it will the security 
-/// state information returning the regular token and the signed token
-fn create_token_and_cookie_value(security: &SecurityState) -> error::Result<(String, String)> {
-    let bytes = security::get_rand_bytes(36)?;
-    let token = base64::encode_config(bytes.as_slice(), base64::URL_SAFE);
-
-    let value = security::mac::algo_sign_value(
-        security.get_signing(),
-        security.get_secret(),
-        &token,
-        "."
-    )?;
-
-    Ok((token, value))
 }
 
 /// POST /auth/session
@@ -141,16 +100,35 @@ pub async fn handle_post(
     }
 
     let transaction = conn.transaction().await?;
+    let token;
+
+    loop {
+        let gen = session::create_session_id()?;
+
+        let check = transaction.execute(
+            "select * from user_sessions where token = $1",
+            &[&gen]
+        ).await?;
+
+        if check == 0 {
+            token = gen;
+            break;
+        }
+    }
 
     let owner: i32 = row.get(0);
-    let duration = chrono::Duration::days(7);
-    let (token, signed_token) = create_token_and_cookie_value(&security)?;
-    let session_cookie = create_session_cookie(&security, duration.clone(), signed_token);
-
     let issued_on = chrono::Utc::now();
+    let duration = chrono::Duration::days(7);
+    let session_cookie = session::create_cookie(
+        &security, 
+        duration.clone(), 
+        session::create_signed(&security, &token)?
+    );
+
     let expires = issued_on.clone()
         .checked_add_signed(duration)
-        .unwrap();
+        .ok_or(error::Error::new().set_source("session issued on overflowed"))?;
+
     let mut verified = true;
     let mut verify_option: Option<VerifyOption> = None;
 
@@ -221,7 +199,7 @@ pub async fn handle_delete(
         }
     }
 
-    let session_cookie = create_session_cookie(&security, chrono::Duration::seconds(0), "");
+    let session_cookie = session::create_cookie(&security, chrono::Duration::seconds(0), "");
 
     JsonBuilder::new(http::StatusCode::OK)
         .insert_header(session_cookie)

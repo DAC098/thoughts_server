@@ -2,6 +2,7 @@ use tokio_postgres::GenericClient;
 
 use crate::db::error;
 
+#[derive(Clone)]
 pub struct UserSession {
     pub token: String,
     pub owner: i32,

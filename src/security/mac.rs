@@ -181,27 +181,3 @@ where
         Algorithm::BLAKE3 => one_off_verify_blake3(secret, data, mac)
     }
 }
-
-/// creates a signed string using the given data
-/// 
-/// signs the given data with the specified algorithm and delimiter. returns a
-/// strimg with the format of "{data}{delimiter}{mac}". the delimiter will
-/// default to "."
-pub fn algo_sign_value<S,D,L>(algo: &Algorithm, secret: S, data: D, dlm: L) -> Result<String>
-where
-    S: AsRef<[u8]>,
-    D: AsRef<str>,
-    L: AsRef<str>,
-{
-    let dlm = dlm.as_ref();
-    let data = data.as_ref();
-    let mac = algo_one_off(algo, secret, data.as_bytes())?;
-    let base64_mac = base64::encode_config(mac, base64::URL_SAFE);
-
-    let mut signed = String::with_capacity(data.len() + dlm.len() + base64_mac.len());
-    signed.push_str(data);
-    signed.push_str(dlm);
-    signed.push_str(&base64_mac);
-
-    Ok(signed)
-}
