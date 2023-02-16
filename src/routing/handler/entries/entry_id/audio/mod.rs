@@ -117,12 +117,9 @@ async fn handle_multipart_form(
     let mut audio_file_path: Option<PathBuf> = None;
 
     while let Some(item) = body.next().await {
-        let mut field = item.map_err(
-            |e| error::Error::new()
-                .set_name("InternalError")
-                .set_message("errore when parsing multipart form")
-                .set_source(e)
-            )?;
+        let mut field = item.map_err(|e| error::Error::new()
+            .set_message("error when parsing multipart form")
+            .set_source(e))?;
         let content_type = field.content_type();
 
         if content_type.type_() == "application" {
@@ -130,17 +127,11 @@ async fn handle_multipart_form(
                 let mut string_data = String::new();
 
                 while let Some(field_item) = field.next().await {
-                    match field_item {
-                        Ok(chunk) => {
-                            chunk.reader().read_to_string(&mut string_data)?;
-                        },
-                        Err(e) => {
-                            return Err(error::Error::new()
-                                .set_name("InternalError")
-                                .set_message("problem when reading data from request body")
-                                .set_source(e));
-                        }
-                    }
+                    let chunk = field_item.map_err(|e| error::Error::new()
+                        .set_message("problem when reading data from request body")
+                        .set_source(e))?;
+
+                    chunk.reader().read_to_string(&mut string_data)?;
                 }
 
                 audio_entry = Some(serde_json::from_str(string_data.as_str())?);
@@ -159,26 +150,24 @@ async fn handle_multipart_form(
                     file = audio_file.unwrap();
                     file.rewind()?;
                 } else {
-                    tmp_path = util::file::get_tmp_path(storage.get_tmp_dir_ref(), "webm");
+                    tmp_path = util::file::get_tmp_path(storage.get_tmp_dir_ref(), "webm")?;
                     file = File::create(&tmp_path)?;
                 }
 
                 while let Some(field_item) = field.next().await {
-                    match field_item {
-                        Ok(chunk) => {
-                            file.write(&chunk)?;
-                        },
-                        Err(e) => {
-                            return Err(error::Error::new()
-                                .set_name("InternalError")
-                                .set_message("problem with reading file from request")
-                                .set_source(e));
-                        }
-                    }
+                    let chunk = field_item.map_err(|e| error::Error::new()
+                        .set_message("problem with reading file from request")
+                        .set_source(e))?;
+
+                    file.write(&chunk)?;
                 }
 
                 audio_file = Some(file);
                 audio_file_path = Some(tmp_path);
+            } else {
+                return Err(error::build::bad_request(
+                    "invalid content-type given for audio group. only accepts audio/webm"
+                ));
             }
         }
     }
@@ -205,24 +194,18 @@ struct AudioWebmResult {
 }
 
 async fn handle_audio_webm(
-    storage: &state::WebStorageState, 
+    storage: &state::WebStorageState,
     mut body: web::Payload
 ) -> error::Result<AudioWebmResult> {
-    let audio_file_path = util::file::get_tmp_path(storage.get_tmp_dir_ref(), "webm");
+    let audio_file_path = util::file::get_tmp_path(storage.get_tmp_dir_ref(), "webm")?;
     let mut audio_file = File::create(&audio_file_path)?;
 
     while let Some(item) = body.next().await {
-        match item {
-            Ok(chunk) => {
-                audio_file.write(&chunk)?;
-            },
-            Err(e) => {
-                return Err(error::Error::new()
-                    .set_name("InternalError")
-                    .set_message("problem with reading file from request")
-                    .set_source(e))
-            }
-        }
+        let chunk = item.map_err(|e| error::Error::new()
+            .set_message("problem with reading file from request")
+            .set_source(e))?;
+
+        audio_file.write(&chunk)?;
     }
 
     Ok(AudioWebmResult {
@@ -284,7 +267,7 @@ pub async fn handle_post(
         } else {
             if let Ok(header_value) = content_type_value.to_str() {
                 return Err(error::build::bad_request(
-                    format!("invalid content-type given. expect: multipart/form-data | given: {}", header_value)
+                    format!("invalid content-type given. expect: multipart/form-data,audio/webm | given: {}", header_value)
                 ));
             } else {
                 return Err(error::build::bad_request(
@@ -310,6 +293,15 @@ pub async fn handle_post(
     let id: i32 = result.get(0);
 
     let new_path = storage.get_audio_file_path(&initiator.user.id, &path.entry_id, &id, "webm");
+
+    {
+        let parent = new_path.parent().unwrap();
+
+        if !parent.try_exists()? {
+            std::fs::create_dir_all(parent)?;
+        }
+    }
+
     util::file::copy_file(&audio_file, new_path)?;
     std::fs::remove_file(audio_file_path)?;
 
