@@ -9,12 +9,13 @@ use super::{state::SecurityState, get_rand_bytes, mac};
 pub const SESSION_ID_BYTES: usize = 48;
 pub const SESSION_ID_LEN: usize = 64;
 
+#[allow(dead_code)]
 pub struct MemoryStorage {
     data: RwLock<HashMap<String, UserSession>>
 }
 
 impl MemoryStorage {
-    pub async fn get(&self, token: &String) -> Option<UserSession> {
+    pub async fn _get(&self, token: &String) -> Option<UserSession> {
         let reader = self.data.read().await;
 
         if let Some(session) = reader.get(token) {
@@ -24,13 +25,13 @@ impl MemoryStorage {
         }
     }
 
-    pub async fn add(&mut self, token: String, session: UserSession) -> () {
+    pub async fn _add(&mut self, token: String, session: UserSession) -> () {
         let mut writer = self.data.write().await;
 
         writer.insert(token, session);
     }
 
-    pub async fn drop(&mut self, token: &String) -> bool {
+    pub async fn _drop(&mut self, token: &String) -> bool {
         let mut writer = self.data.write().await;
 
         writer.remove(token).is_some()
