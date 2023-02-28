@@ -1,3 +1,5 @@
+//! handling audio data for a given entry
+
 use std::io::{Write, Read, Seek};
 use std::fs::File;
 use std::path::PathBuf;
@@ -22,6 +24,10 @@ pub struct EntryIdAudioPath {
     entry_id: i32
 }
 
+/// retrieves audio entry data for a given entry id
+///
+/// GET /entries/{entry_id}/audio
+/// GET /users/{user_id}/entries/{entry_id}/audio 
 pub async fn handle_get(
     req: HttpRequest,
     security: security::state::WebSecurityState,
@@ -108,6 +114,7 @@ struct MultipartResult {
     audio_file_path: PathBuf
 }
 
+/// handles multipart form submissions when creating a new audio entry
 async fn handle_multipart_form(
     storage: &state::WebStorageState,
     mut body: actix_multipart::Multipart
@@ -193,6 +200,7 @@ struct AudioWebmResult {
     audio_file_path: PathBuf
 }
 
+/// handles creating new audio entries when given a audio webm file
 async fn handle_audio_webm(
     storage: &state::WebStorageState,
     mut body: web::Payload
@@ -214,6 +222,11 @@ async fn handle_audio_webm(
     })
 }
 
+/// handles creating new audio entries for a given entry id
+///
+/// POST /entries/{entry_id}/audio
+///
+/// can handle either multipar forms or webm audio files directly
 pub async fn handle_post(
     req: HttpRequest,
     initiator: Initiator,

@@ -1,3 +1,5 @@
+//! handles working with audio entries on a singular basis
+
 use actix_web::{web, http, HttpRequest, Responder};
 use actix_files::NamedFile;
 use serde::Deserialize;
@@ -21,6 +23,10 @@ pub struct EntryIdAudioIdquery {
     json: Option<String>
 }
 
+/// retrieves a single audio entry with the given entry and audio id
+///
+/// GET /entries/{entry_id}/audio/{audio_id}
+/// GET /users/{user_id}/entries/{entry_id}/audio/{audio_id}
 pub async fn handle_get(
     req: HttpRequest,
     security: security::state::WebSecurityState,
@@ -100,6 +106,9 @@ pub struct PutAudioEntry {
     comment: Option<String>,
 }
 
+/// updates an single audio id
+///
+/// PUT /entries/{entry_id}/audio/{audio_id}
 pub async fn handle_put(
     initiator: Initiator,
     db: state::WebDbState,

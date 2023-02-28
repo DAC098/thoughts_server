@@ -1,3 +1,5 @@
+//! handling listing and creating entries
+
 use std::fmt::Write;
 use std::collections::HashMap;
 //use std::pin::{Pin};
@@ -84,11 +86,15 @@ pub struct EntriesQuery {
     to_marker: Option<i32>,
 }
 
-/**
- * GET /entries
- * returns the root html if requesting html. otherwise will send back a list of
- * available and allowed entries for the current user from the session
- */
+/// searches entries for a user
+///
+/// GET /entries
+/// GET /users/{user_id}/entries
+///
+/// returns the root html if requesting html. otherwise will send back a list of
+/// available and allowed entries for the current user from the session. if
+/// attempting to access another users entries auth checks will be performed
+/// to see if they are allowed to view this information.
 pub async fn handle_get(
     req: HttpRequest,
     security: security::state::WebSecurityState,
@@ -331,7 +337,7 @@ pub async fn handle_get(
         let mut text_entries_vec: Vec<text_entries::TextEntry> = Vec::new();
         let mut tags_vec: Vec<i32> = Vec::new();
 
-        if let Some (refer) = next_custom_field_entry.as_ref() {
+        if let Some(refer) = next_custom_field_entry.as_ref() {
             if refer.entry == row.id {
                 custom_field_entries_vec.insert(refer.field, next_custom_field_entry.take().unwrap());
             }
@@ -432,11 +438,12 @@ pub async fn handle_get(
         .build(Some(rtn))
 }
 
-/**
- * POST /entries
- * creates a new entry when given a date for the current user from the session.
- * will also create text and mood entries if given as well
- */
+/// posts entries for a given user
+///
+/// POST /entries
+///
+/// creates a new entry when given a date for the current user from the 
+/// session. 
 pub async fn handle_post(
     initiator: Initiator,
     db: state::WebDbState,

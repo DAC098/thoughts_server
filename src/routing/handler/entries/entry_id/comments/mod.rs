@@ -1,3 +1,7 @@
+//! handles comments for a desired entry
+//!
+//! still a work in progress
+
 use actix_web::{web, http, HttpRequest, Responder};
 use serde::Deserialize;
 

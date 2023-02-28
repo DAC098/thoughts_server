@@ -1,3 +1,7 @@
+//! handles working with a single comment for a given entry
+//!
+//! still a workin in progress
+
 use actix_web::{web, http, Responder};
 use serde::Deserialize;
 

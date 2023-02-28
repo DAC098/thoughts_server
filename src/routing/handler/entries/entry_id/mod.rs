@@ -1,3 +1,5 @@
+//! handling individual entries based on id
+
 use std::collections::HashMap;
 
 use actix_web::{web, http, HttpRequest, Responder};
@@ -69,11 +71,14 @@ pub struct EntryPath {
     entry_id: i32
 }
 
-/**
- * GET /entries/{id}
- * returns the requested entry with additional information for the current user
- * given the session
- */
+/// retrieves a single entry for user when given an id
+/// 
+/// GET /entries/{id}
+/// GET /users/{user_id}/entries/{id}
+///
+/// returns the requested entry with additional information for the current 
+/// user based on the session. auth checks will be performed if reqesting an
+/// entry for a nother user
 pub async fn handle_get(
     req: HttpRequest,
     security: security::state::WebSecurityState,
@@ -146,11 +151,12 @@ pub async fn handle_get(
     }
 }
 
-/**
- * PUT /entries/{id}
- * updates the requested entry with mood or text entries for the current
- * user
- */
+/// updates a given entry with new information
+///
+/// PUT /entries/{id}
+/// 
+/// updates the requested entry with new information. it will assume that the
+/// new information is the final form and will add/remove/update accordingly
 pub async fn handle_put(
     initiator: Initiator,
     db: state::WebDbState,
@@ -358,9 +364,13 @@ pub async fn handle_put(
         .build(Some(rtn))
 }
 
-/**
- * DELETE /entries/{id}
- */
+/// deletes the given entry id
+/// 
+/// DELETE /entries/{id}
+///
+/// checks to make sure that the entry is owned by the current user before
+/// deleting. all data associated with the entry will be removed first and
+/// then the actual entry will be deleted
 pub async fn handle_delete(
     initiator: Initiator,
     db: state::WebDbState,
