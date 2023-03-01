@@ -1,3 +1,9 @@
+//! contains all http request handlers
+//!
+//! each file or folder is a path segment that can handle an http request. in
+//! each file contains a handle_{method} to indicate what http method it is
+//! designed to handle.
+
 use std::path::PathBuf;
 use std::time::Instant;
 

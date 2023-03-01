@@ -17,12 +17,7 @@ use crate::net::http::response::json::JsonBuilder;
 use crate::state;
 use crate::security::{self, InitiatorLookup, Initiator};
 use crate::util;
-
-#[derive(Deserialize)]
-pub struct EntryIdAudioPath {
-    user_id: Option<i32>,
-    entry_id: i32
-}
+use crate::routing;
 
 /// retrieves audio entry data for a given entry id
 ///
@@ -32,7 +27,7 @@ pub async fn handle_get(
     req: HttpRequest,
     security: security::state::WebSecurityState,
     db: state::WebDbState,
-    path: web::Path<EntryIdAudioPath>
+    path: web::Path<routing::path::params::EntryAudioPath>
 ) -> error::Result<impl Responder> {
     let path = path.into_inner();
     let conn = db.get_conn().await?;
@@ -232,7 +227,7 @@ pub async fn handle_post(
     initiator: Initiator,
     db: state::WebDbState,
     storage: state::WebStorageState,
-    path: web::Path<EntryIdAudioPath>,
+    path: web::Path<routing::path::params::EntryAudioPath>,
     body: web::Payload,
 ) -> error::Result<impl Responder> {
     let path = path.into_inner();

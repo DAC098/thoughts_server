@@ -12,13 +12,7 @@ use crate::net::http::response::json::JsonBuilder;
 use crate::security::Initiator;
 use crate::security;
 use crate::util;
-
-#[derive(Deserialize)]
-pub struct EntryCommentPath {
-    user_id: Option<i32>,
-    entry_id: i32,
-    comment_id: i32,
-}
+use crate::routing;
 
 #[derive(Deserialize)]
 pub struct PutEntryComment {
@@ -28,7 +22,7 @@ pub struct PutEntryComment {
 pub async fn handle_put(
     initiator: Initiator,
     db: state::WebDbState,
-    path: web::Path<EntryCommentPath>,
+    path: web::Path<routing::path::params::EntryCommentPath>,
     posted: web::Json<PutEntryComment>,
 ) -> error::Result<impl Responder> {
     let initiator = initiator.into_user();

@@ -28,6 +28,7 @@ use crate::security::{self, InitiatorLookup, Initiator};
 use crate::util;
 use crate::components;
 use crate::template;
+use crate::routing;
 
 #[derive(Deserialize)]
 pub struct PutTextEntry {
@@ -65,12 +66,6 @@ pub struct PutComposedEntry {
     text_entries: Option<Vec<PutTextEntry>>
 }
 
-#[derive(Deserialize)]
-pub struct EntryPath {
-    user_id: Option<i32>,
-    entry_id: i32
-}
-
 /// retrieves a single entry for user when given an id
 /// 
 /// GET /entries/{id}
@@ -84,7 +79,7 @@ pub async fn handle_get(
     security: security::state::WebSecurityState,
     db: state::WebDbState,
     template: template::WebTemplateState<'_>,
-    path: web::Path<EntryPath>
+    path: web::Path<routing::path::params::EntryPath>
 ) -> error::Result<impl Responder> {
     let conn = &*db.get_conn().await?;
     let accept_html = response::try_check_if_html_req(&req);
@@ -160,7 +155,7 @@ pub async fn handle_get(
 pub async fn handle_put(
     initiator: Initiator,
     db: state::WebDbState,
-    path: web::Path<EntryPath>,
+    path: web::Path<routing::path::params::EntryPath>,
     posted: web::Json<PutComposedEntry>
 ) -> error::Result<impl Responder> {
     let posted = posted.into_inner();
@@ -374,7 +369,7 @@ pub async fn handle_put(
 pub async fn handle_delete(
     initiator: Initiator,
     db: state::WebDbState,
-    path: web::Path<EntryPath>
+    path: web::Path<routing::path::params::EntryPath>
 ) -> error::Result<impl Responder> {
     let conn = &mut *db.get_conn().await?;
 

@@ -15,19 +15,14 @@ use crate::net::http::response::json::JsonBuilder;
 use crate::security::{self, InitiatorLookup, Initiator};
 use crate::util;
 use crate::template;
-
-#[derive(Deserialize)]
-pub struct EntryPath {
-    user_id: Option<i32>,
-    entry_id: i32
-}
+use crate::routing;
 
 pub async fn handle_get(
     req: HttpRequest,
     security: security::state::WebSecurityState,
     db: state::WebDbState,
     template: template::WebTemplateState<'_>,
-    path: web::Path<EntryPath>,
+    path: web::Path<routing::path::params::EntryPath>,
 ) -> error::Result<impl Responder> {
     let path = path.into_inner();
     let conn = &*db.get_conn().await?;
@@ -69,7 +64,7 @@ pub struct PostEntryComment {
 pub async fn handle_post(
     initiator: Initiator,
     db: state::WebDbState,
-    path: web::Path<EntryPath>,
+    path: web::Path<routing::path::params::EntryPath>,
     posted: web::Json<PostEntryComment>,
 ) -> error::Result<impl Responder> {
     let initiator = initiator.into_user();

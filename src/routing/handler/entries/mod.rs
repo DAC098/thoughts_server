@@ -73,11 +73,6 @@ pub struct PostEntryJson {
 }
 
 #[derive(Deserialize)]
-pub struct EntriesPath {
-    user_id: Option<i32>
-}
-
-#[derive(Deserialize)]
 pub struct EntriesQuery {
     from: Option<String>,
     to: Option<String>,
@@ -101,7 +96,7 @@ pub async fn handle_get(
     db: state::WebDbState,
     template: template::WebTemplateState<'_>,
     info: web::Query<EntriesQuery>,
-    path: web::Path<EntriesPath>,
+    path: web::Path<routing::path::params::OptUserPath>,
 ) -> error::Result<impl Responder> {
     let info = info.into_inner();
     let pool_conn = db.pool.get().await?;
