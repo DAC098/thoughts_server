@@ -1,3 +1,5 @@
+//! handles creating totp 2FA for accounts
+
 use actix_web::{web, http, Responder};
 use serde::{Deserialize, Serialize};
 
@@ -24,6 +26,13 @@ pub struct TotpData {
     secret: String
 }
 
+/// handles creating the desired totp 2FA process
+///
+/// POST /auth/totp
+///
+/// allows SHA1, SHA256, SHA512 hashing algorithms; 1 - 10 digits; and step 
+/// greater than 0. once it has been created it will need to be verified to
+/// take effect
 pub async fn handle_post(
     initiator: initiator::Initiator,
     db: state::WebDbState,
@@ -46,10 +55,10 @@ pub async fn handle_post(
 
     let digits = {
         if let Some(given) = posted.digits {
-            if given > 0 {
+            if given > 0 && given <= 10 {
                 given
             } else {
-                return Err(error::build::validation("invalid digits value. value must be greater than 0"));
+                return Err(error::build::validation("invalid digits value. value must be greater than 0 and less than 11"));
             }
         } else {
             6

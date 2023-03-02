@@ -1,3 +1,5 @@
+//! handles verifying totp
+
 use std::convert::TryFrom;
 
 use actix_web::{web, http, Responder};
@@ -21,6 +23,13 @@ pub struct TotpVerified {
     hashes: Vec<String>
 }
 
+/// handles totp verify step
+///
+/// POST /auth/totp/verify
+///
+/// when a user requests to use totp for 2FA they will have to verify that
+/// it is working properly before being activated for login. once verified
+/// this will return with 10 recovery codes
 pub async fn handle_post(
     initiator: initiator::Initiator,
     db: state::WebDbState,

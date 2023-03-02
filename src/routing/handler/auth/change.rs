@@ -1,3 +1,5 @@
+//! handles changing passwords
+
 use actix_web::{web, http, Responder};
 use serde::Deserialize;
 
@@ -13,6 +15,9 @@ pub struct ChangePasswordJson {
     new_password: String
 }
 
+/// updates password for currently authorized user
+///
+/// POST /auth/change
 pub async fn handle_post(
     initiator: Initiator,
     db: state::WebDbState,

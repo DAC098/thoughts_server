@@ -1,3 +1,5 @@
+//! handles user session authorization
+
 use actix_web::HttpRequest;
 use actix_web::{web, http, Responder};
 use serde::{Deserialize, Serialize};
@@ -12,9 +14,11 @@ use crate::template;
 
 pub mod verify;
 
+/// handles session requests
+///
 /// GET /auth/session
 /// 
-/// currently will only serve the html
+/// currently will only serve the html otherwise responds with json no-op
 pub async fn handle_get(
     req: HttpRequest,
     security: security::state::WebSecurityState,
@@ -52,6 +56,8 @@ pub struct LoginBodyJSON {
     password: String
 }
 
+/// start of session process
+///
 /// POST /auth/session
 /// 
 /// receives the login information from a user request. if accepted then it will
@@ -169,6 +175,8 @@ pub async fn handle_post(
     }
 }
 
+/// drops current session if present
+///
 /// DELETE /auth/session
 /// 
 /// as you can guess it will delete the current session from the database and

@@ -1,3 +1,5 @@
+//! handles verify email requests
+
 use actix_web::http;
 use actix_web::{web, Responder};
 use serde::Deserialize;
@@ -12,6 +14,11 @@ pub struct QueryOptions {
     id: String
 }
 
+/// handles a verify email token
+/// 
+/// GET /auth/verify_email
+///
+/// currently setup to handle a verify email token via get requests.
 pub async fn handle_get(
     db: state::WebDbState,
     email: state::WebEmailState,

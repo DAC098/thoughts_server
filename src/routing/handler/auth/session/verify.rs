@@ -1,3 +1,5 @@
+//! handles verifying session tokens
+
 use std::convert::TryFrom;
 
 use actix_web::{web, http, HttpRequest, Responder};
@@ -20,6 +22,13 @@ pub enum VerifyMethod {
     }
 }
 
+/// handles specified verify method for session
+///
+/// POST /auth/session/verify
+///
+/// currently the only verify process is with totp or totp backup codes. once
+/// a session has been given if an account has 2FA enabled then this will be
+/// what verifies the session with the requested 2FA method.
 pub async fn handle_post(
     req: HttpRequest,
     security: security::state::WebSecurityState,
