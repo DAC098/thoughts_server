@@ -1,3 +1,7 @@
+//! server configuration
+//!
+//! contains the final configuration structs for the server.
+
 use std::{
     path::PathBuf, 
     convert::{TryFrom, TryInto}, 

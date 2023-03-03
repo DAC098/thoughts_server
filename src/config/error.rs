@@ -1,3 +1,5 @@
+//! error struct for config methods
+
 use std::{fmt};
 use std::convert::{From};
 use std::ffi::{OsString};
@@ -8,7 +10,7 @@ pub enum Error {
 
     UnknownFileExtension,
     InvalidFileExtension(OsString),
-    
+
     JsonError(serde_json::Error),
     YamlError(serde_yaml::Error),
 
@@ -46,7 +48,7 @@ impl Error {
             Error::IOError(err) => format!("{:?}", err)
         }
     }
-    
+
 }
 
 impl fmt::Display for Error {

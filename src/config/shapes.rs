@@ -1,3 +1,7 @@
+//! server configuration shapes
+//!
+//! these structs are what is expected when loading a file.
+
 use std::collections::HashMap;
 use std::fs::canonicalize;
 use std::{path::{Path, PathBuf}, convert::TryFrom};
