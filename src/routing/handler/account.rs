@@ -1,3 +1,7 @@
+//! handles account related requests
+//!
+//! this functionality might be moved to a different request in the future
+
 use actix_web::{web, http, Responder, HttpRequest};
 use serde::Deserialize;
 use lettre::message::Mailbox;

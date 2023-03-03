@@ -5,7 +5,40 @@ use crate::db::{error::Result, self};
 
 /// checks to see if the given user has the roll with specified abilities.
 /// 
-/// can optionally check it against a specific user as well
+/// can optionally check it against a specific user as well. example:
+///
+/// ```
+/// use actix_web::{HttpRequest, Responder};
+/// 
+/// use crate::net::http::error;
+/// use crate::security::{self, InitiatorLookup, Initiator};
+/// use crate::state;
+/// use crate::db::tables::permissions;
+///
+/// async fn handle_request(
+///     db: state::WebDbState,
+///     security: security::state::WebSecurityState,
+/// ) -> error::Result<impl Responder> {
+///     let conn = db.pool.get().await?;
+///     let lookup = InitiatorLookup::from_request(&security, &*conn, &req).await?;
+///     let initiator = lookup.try_into()?;
+///     // optional user if checking
+///     let user_id = 1;
+/// 
+///     if security::permissions::has_permission(
+///         &*conn,
+///         &initiator.user.id,
+///         permissions::rolls::USERS_ENTRIES,
+///         &[permissions::abilities::READ],
+///         Some(&user_id)
+///     ).await? {
+///         // user has ability
+///         Ok("you have permission")
+///     } else {
+///         Ok("you do not have permission")
+///     }
+/// }
+/// ```
 pub async fn has_permission(
     conn: &impl GenericClient,
     users_id: &i32,

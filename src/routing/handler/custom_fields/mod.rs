@@ -1,27 +1,27 @@
+//! handles custom fields
+
 use actix_web::{web, http, HttpRequest, Responder};
 use serde::Deserialize;
 
 pub mod field_id;
 
-use crate::db::tables::custom_fields;
+use crate::db::tables::{custom_fields, permissions};
 use crate::security::{self, InitiatorLookup, Initiator};
-use crate::net::http::error;
-use crate::net::http::response;
-use crate::net::http::response::json::JsonBuilder;
+use crate::net::http::{error, response::{self, json::JsonBuilder}};
 use crate::state;
 use crate::template;
+use crate::routing;
 
-#[derive(Deserialize)]
-pub struct CustomFieldsPath {
-    user_id: Option<i32>
-}
-
+/// retrieves custom fields
+///
+/// GET /custom_fields
+/// GET /users/{user_id}/custom_fields
 pub async fn handle_get(
     req: HttpRequest,
     security: security::state::WebSecurityState,
     db: state::WebDbState,
     template: template::WebTemplateState<'_>,
-    path: web::Path<CustomFieldsPath>,
+    path: web::Path<routing::path::params::OptUserPath>,
 ) -> error::Result<impl Responder> {
     let accept_html = response::try_check_if_html_req(&req);
     let conn = &*db.get_conn().await?;
@@ -39,9 +39,35 @@ pub async fn handle_get(
     let owner: i32;
 
     if let Some(user_id) = path.user_id {
-        security::assert::permission_to_read(conn, &initiator.user.id, &user_id).await?;
+        if !security::permissions::has_permission(
+            conn,
+            &initiator.user.id,
+            permissions::rolls::USERS_ENTRIES,
+            &[permissions::abilities::READ],
+            Some(&user_id)
+        ).await? {
+            return Err(error::build::permission_denied(
+                "you do not have permission to read this users custom fields"
+            ));
+        }
+
         owner = user_id;
     } else {
+        if !security::permissions::has_permission(
+            conn,
+            &initiator.user.id,
+            permissions::rolls::ENTRIES,
+            &[
+                permissions::abilities::READ,
+                permissions::abilities::READ_WRITE
+            ],
+            None
+        ).await? {
+            return Err(error::build::permission_denied(
+                "you do not have permission to read custom fields"
+            ));
+        }
+
         owner = initiator.user.id;
     }
 
@@ -57,6 +83,9 @@ pub struct PostCustomFieldJson {
     order: i32
 }
 
+/// creates a new custom field
+///
+/// POST /custom_fields
 pub async fn handle_post(
     initiator: Initiator,
     db: state::WebDbState,
@@ -64,6 +93,20 @@ pub async fn handle_post(
 ) -> error::Result<impl Responder> {
     let conn = &*db.get_conn().await?;
     let posted = posted.into_inner();
+
+    if !security::permissions::has_permission(
+        conn,
+        &initiator.user.id,
+        permissions::rolls::ENTRIES,
+        &[
+            permissions::abilities::READ_WRITE,
+        ],
+        None
+    ).await? {
+        return Err(error::build::permission_denied(
+            "you do not have permission to write custom fields"
+        ));
+    }
 
     let check = conn.query(
         "select id from custom_fields where name = $1 and owner = $2",

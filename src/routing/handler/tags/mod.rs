@@ -1,27 +1,27 @@
+//! handles user tags
+
 use actix_web::{web, http, HttpRequest, Responder};
 use serde::Deserialize;
 
 pub mod tag_id;
 
-use crate::db::tables::tags;
+use crate::db::tables::{tags, permissions};
 use crate::security::{self, InitiatorLookup, Initiator};
-use crate::net::http::error;
-use crate::net::http::response;
-use crate::net::http::response::json::JsonBuilder;
+use crate::net::http::{error, response::{self, json::JsonBuilder}};
+use crate::routing;
 use crate::state;
 use crate::template;
 
-#[derive(Deserialize)]
-pub struct TagsPath {
-    user_id: Option<i32>
-}
-
+/// sends back all user tags
+///
+/// GET /tags
+/// GET /user/{user_id}/tags
 pub async fn handle_get(
     req: HttpRequest,
     security: security::state::WebSecurityState,
     db: state::WebDbState,
     template: template::WebTemplateState<'_>,
-    path: web::Path<TagsPath>,
+    path: web::Path<routing::path::params::OptUserPath>,
 ) -> error::Result<impl Responder> {
     let accept_html = response::try_check_if_html_req(&req);
     let conn = &*db.get_conn().await?;
@@ -39,9 +39,35 @@ pub async fn handle_get(
     let owner: i32;
 
     if let Some(user_id) = path.user_id {
-        security::assert::permission_to_read(conn, &initiator.user.id, &user_id).await?;
+        if !security::permissions::has_permission(
+            conn,
+            &initiator.user.id,
+            &permissions::rolls::USERS_ENTRIES,
+            &[permissions::abilities::READ],
+            Some(&user_id)
+        ).await? {
+            return Err(error::build::permission_denied(
+                "you do not have permissions to view this users tags"
+            ));
+        }
+
         owner = user_id;
     } else {
+        if !security::permissions::has_permission(
+            conn,
+            &initiator.user.id,
+            permissions::rolls::ENTRIES,
+            &[
+                permissions::abilities::READ,
+                permissions::abilities::READ_WRITE
+            ],
+            None
+        ).await? {
+            return Err(error::build::permission_denied(
+                "you do not have permissions to read tags"
+            ));
+        }
+
         owner = initiator.user.id;
     }
 
@@ -56,6 +82,11 @@ pub struct PostTagJson {
     comment: Option<String>
 }
 
+/// creates a new tag
+///
+/// POST /tags
+///
+/// only creates a single tag for the current user 
 pub async fn handle_post(
     initiator: Initiator,
     db: state::WebDbState,
@@ -63,6 +94,18 @@ pub async fn handle_post(
 ) -> error::Result<impl Responder> {
     let conn = &mut *db.get_conn().await?;
     let transaction = conn.transaction().await?;
+
+    if !security::permissions::has_permission(
+        &transaction,
+        &initiator.user.id,
+        permissions::rolls::ENTRIES,
+        &[permissions::abilities::READ_WRITE],
+        None
+    ).await? {
+        return Err(error::build::permission_denied(
+            "you do not have permission to create tags"
+        ));
+    }
 
     let result = transaction.query_one(
         "insert into tags (title, color, comment, owner) values ($1, $2, $3, $4) returning id",

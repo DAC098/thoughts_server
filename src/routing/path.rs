@@ -62,4 +62,13 @@ pub mod params {
         pub entry_id: i32,
         pub comment_id: i32,
     }
+
+    /// path params for custom fields
+    ///
+    /// optionally handles user_id if possible
+    #[derive(Deserialize)]
+    pub struct CustomFieldPath {
+        pub user_id: Option<i32>,
+        pub field_id: i32,
+    }
 }

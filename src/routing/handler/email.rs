@@ -1,3 +1,8 @@
+//! handles email related tasks
+//!
+//! currently more for testing purposes in trying out if email is properly
+//! working
+
 use actix_web::{Responder, http};
 use lettre::{Message, Transport};
 use lettre::message::Mailbox;
@@ -7,6 +12,13 @@ use crate::net::http::error;
 use crate::net::http::response::json::JsonBuilder;
 use crate::state;
 
+/// sends test email to current user
+///
+/// GET /email
+///
+/// should probably be a post request. will attempt to send a simple text email
+/// to the users current verified email address if email is enabled and all
+/// required information for sending an email is provided
 pub async fn handle_get(
     initiator: Initiator,
     email: state::WebEmailState,
@@ -24,18 +36,28 @@ pub async fn handle_get(
                 .build(None::<()>);
         }
 
-        let to_address_result = initiator.user.email.unwrap().parse::<Mailbox>();
+        let to_address = {
+            let Some(user_email) = initiator.user.email else {
+                return Err(error::Error::new()
+                    .set_name("MissingUserEmail")
+                    .set_source("initiator user email is missing when expected"));
+            };
 
-        if to_address_result.is_err() {
-            return JsonBuilder::new(http::StatusCode::OK)
-                .set_message("invalid user email")
-                .build(None::<()>);
-        }
+            match user_email.parse::<Mailbox>() {
+                Ok(rtn) => rtn,
+                Err(err) => {
+                    return Err(error::Error::new()
+                        .set_name("InvalidEmail")
+                        .set_message("current user email is not a valid format")
+                        .set_source(err));
+                }
+            }
+        };
 
         if email.has_credentials() && email.has_relay() && email.has_from() {
             let email_message = Message::builder()
                 .from(email.get_from())
-                .to(to_address_result.unwrap())
+                .to(to_address)
                 .subject("test email")
                 .body("test email being sent".to_owned())?;
 

@@ -1,26 +1,25 @@
+//! handles working on single custom fields
+
 use actix_web::{web, http, HttpRequest, Responder};
 use serde::Deserialize;
 
-use crate::db::tables::custom_fields;
+use crate::db::tables::{custom_fields, permissions};
 use crate::security::{self, InitiatorLookup, Initiator};
-use crate::net::http::error;
-use crate::net::http::response;
-use crate::net::http::response::json::JsonBuilder;
+use crate::net::http::{error, response::{self, json::JsonBuilder}};
 use crate::state;
 use crate::template;
+use crate::routing;
 
-#[derive(Deserialize)]
-pub struct CustomFieldPath {
-    user_id: Option<i32>,
-    field_id: i32
-}
-
+/// retrieves a single custom field
+/// 
+/// GET /custom_fields/{field_id}
+/// GET /users/{user_id}/custom_fields/{field_id}
 pub async fn handle_get(
     req: HttpRequest,
     security: security::state::WebSecurityState,
     db: state::WebDbState,
     template: template::WebTemplateState<'_>,
-    path: web::Path<CustomFieldPath>
+    path: web::Path<routing::path::params::CustomFieldPath>
 ) -> error::Result<impl Responder> {
     let accept_html = response::try_check_if_html_req(&req);
     let conn = &*db.get_conn().await?;
@@ -39,9 +38,35 @@ pub async fn handle_get(
     let owner: i32;
 
     if let Some(user_id) = path.user_id {
-        security::assert::permission_to_read(conn, &initiator.user.id, &user_id).await?;
+        if !security::permissions::has_permission(
+            conn,
+            &initiator.user.id,
+            permissions::rolls::USERS_ENTRIES,
+            &[permissions::abilities::READ],
+            Some(&user_id)
+        ).await? {
+            return Err(error::build::permission_denied(
+                "you do not have permission to read this users custom fields"
+            ));
+        }
+
         owner = user_id;
     } else {
+        if !security::permissions::has_permission(
+            conn,
+            &initiator.user.id,
+            permissions::rolls::ENTRIES,
+            &[
+                permissions::abilities::READ,
+                permissions::abilities::READ_WRITE,
+            ],
+            None
+        ).await? {
+            return Err(error::build::permission_denied(
+                "you do not have permission to read custom fields"
+            ));
+        }
+
         owner = initiator.user.id;
     }
 
@@ -67,16 +92,31 @@ pub struct PutCustomFieldJson {
     order: i32
 }
 
+/// updates a single custom field
+///
+/// PUT /custom_fields/{field_id}
 pub async fn handle_put(
     initiator: Initiator,
     db: state::WebDbState,
-    path: web::Path<CustomFieldPath>,
+    path: web::Path<routing::path::params::CustomFieldPath>,
     posted: web::Json<PutCustomFieldJson>,
 ) -> error::Result<impl Responder> {
     let conn = db.pool.get().await?;
     let posted = posted.into_inner();
 
-    security::assert::is_owner_for_custom_field(&*conn, &path.field_id, &initiator.user.id).await?;
+    if !security::permissions::has_permission(
+        &*conn,
+        &initiator.user.id,
+        permissions::rolls::ENTRIES,
+        &[
+            permissions::abilities::READ_WRITE,
+        ],
+        None
+    ).await? {
+        return Err(error::build::permission_denied(
+            "you do not have permission to write custom_fields"
+        ));
+    }
 
     let config_json = serde_json::to_value(posted.config.clone())?;
     let _result = conn.execute(
@@ -111,13 +151,27 @@ pub async fn handle_put(
         .build(Some(rtn))
 }
 
+/// deletes a single field
+///
+/// DELETE /custom_fields/{field_id}
 pub async fn handle_delete(
     initiator: Initiator,
     db: state::WebDbState,
-    path: web::Path<CustomFieldPath>,
+    path: web::Path<routing::path::params::CustomFieldPath>,
 ) -> error::Result<impl Responder> {
     let conn = &*db.get_conn().await?;
-    security::assert::is_owner_for_custom_field(conn, &path.field_id, &initiator.user.id).await?;
+
+    if !security::permissions::has_permission(
+        conn,
+        &initiator.user.id,
+        permissions::rolls::ENTRIES,
+        &[permissions::abilities::READ_WRITE],
+        None,
+    ).await? {
+        return Err(error::build::permission_denied(
+            "you do not have permission to write custom fields"
+        ));
+    }
 
     let _custom_field_entries_result = conn.execute(
         "delete from custom_field_entries where field = $1",

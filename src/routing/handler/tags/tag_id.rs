@@ -1,7 +1,9 @@
+//! handles working with single tags
+
 use actix_web::{web, http, HttpRequest, Responder};
 use serde::Deserialize;
 
-use crate::db::tables::tags;
+use crate::db::tables::{tags, permissions};
 use crate::security::{self, InitiatorLookup, Initiator};
 use crate::net::http::error;
 use crate::net::http::response;
@@ -14,6 +16,9 @@ pub struct TagIdPath {
     tag_id: i32
 }
 
+/// retrieves a single tag
+///
+/// GET /tags/{tag_id}
 pub async fn handle_get(
     req: HttpRequest,
     security: security::state::WebSecurityState,
@@ -29,12 +34,27 @@ pub async fn handle_get(
         return if lookup.is_some() {
             Ok(response::respond_index_html(&template.into_inner(), Some(lookup.unwrap().user))?)
         } else {
-            let redirect = format!("/auth/login?jump_to=/tags/{}", path.tag_id);
+            let redirect = format!("/auth/session?jump_to=/tags/{}", path.tag_id);
             Ok(response::redirect_to_path(redirect.as_str()))
         }
     }
 
     let initiator = lookup.try_into()?;
+
+    if !security::permissions::has_permission(
+        conn,
+        &initiator.user.id,
+        permissions::rolls::ENTRIES,
+        &[
+            permissions::abilities::READ,
+            permissions::abilities::READ_WRITE
+        ],
+        None
+    ).await? {
+        return Err(error::build::permission_denied(
+            "you do not have permission to read tags"
+        ));
+    }
 
     if let Some(tag) = tags::find_from_id(conn, path.tag_id).await? {
         if tag.owner != initiator.user.id {
@@ -57,6 +77,9 @@ pub struct PutTagJson {
     comment: Option<String>
 }
 
+/// updates a single tag
+///
+/// PUT /tags/{tag_id}
 pub async fn handle_put(
     initiator: Initiator,
     db: state::WebDbState,

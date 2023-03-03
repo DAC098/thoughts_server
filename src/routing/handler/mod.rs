@@ -4,11 +4,10 @@
 //! each file contains a handle_{method} to indicate what http method it is
 //! designed to handle.
 
-
-use actix_web::{HttpRequest, Responder};
+use actix_web::{http, HttpRequest, Responder};
 
 use crate::security::{self, InitiatorLookup};
-use crate::net::http::{error, response};
+use crate::net::http::{error, response::{self, json::JsonBuilder}};
 use crate::state;
 
 pub mod ping;
@@ -23,18 +22,31 @@ pub mod email;
 pub mod global;
 pub mod groups;
 
+/// handles root requests
+///
+/// GET /
+///
+/// redirects to either /entries or /auth/session if an html. otherwise will
+/// respond no-op json
 pub async fn handle_get(
     req: HttpRequest,
     security: security::state::WebSecurityState,
     db: state::WebDbState,
 ) -> error::Result<impl Responder> {
     let conn = &*db.get_conn().await?;
+    let accept_html = response::try_check_if_html_req(&req);
     let lookup = InitiatorLookup::from_request(&security, conn, &req).await?;
 
-    if lookup.is_valid() {
-        Ok(response::redirect_to_path("/entries"))
+    if accept_html {
+        if lookup.is_valid() {
+            Ok(response::redirect_to_path("/entries"))
+        } else {
+            Ok(response::redirect_to_path("/auth/session"))
+        }
     } else {
-        Ok(response::redirect_to_path("/auth/session"))
+        JsonBuilder::new(http::StatusCode::OK)
+            .set_message("no-op")
+            .build(None::<()>)
     }
 }
 

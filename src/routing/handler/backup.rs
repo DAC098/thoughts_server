@@ -1,3 +1,7 @@
+//! handles backup request process
+//!
+//! a work in progress
+
 use std::collections::HashMap;
 
 use actix_web::{web, http, HttpRequest, Responder};
@@ -31,6 +35,15 @@ pub struct BackupJson {
     data: BackupDataJson
 }
 
+/// handles backup request
+///
+/// GET /backup
+///
+/// this is out of date from previous updates. needs to be reworked to send
+/// back all relevant data for a user. entries, tags, custom fields, audio
+/// video, files. it will be a fairly intensive process depending on how
+/// much data there is for a single user so it might need to handle running
+/// in the background.
 pub async fn handle_get(
     req: HttpRequest,
     security: security::state::WebSecurityState,
