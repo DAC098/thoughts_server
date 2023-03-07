@@ -1,10 +1,10 @@
 //! handling individual entries based on id
 
-use std::collections::HashMap;
+use std::iter::Extend;
 
 use actix_web::{web, http, HttpRequest, Responder};
 use serde::Deserialize;
-use chrono::serde::ts_seconds;
+use chrono::{Utc, serde::ts_seconds};
 
 pub mod comments;
 pub mod audio;
@@ -13,11 +13,11 @@ use crate::db::{
     self, 
     tables::{
         permissions,
-        entries, 
         custom_field_entries, 
         text_entries,
         entries2tags,
-        entry_markers
+        entry_markers,
+        audio_entries,
     }
 };
 use crate::net::http::error;
@@ -25,49 +25,12 @@ use crate::net::http::response;
 use crate::net::http::response::json::JsonBuilder;
 use crate::state;
 use crate::security::{self, InitiatorLookup, Initiator};
-use crate::util;
-use crate::components;
+use crate::components::{self, entries::schema};
 use crate::template;
 use crate::routing;
 
-#[derive(Deserialize)]
-pub struct PutTextEntry {
-    id: Option<i32>,
-    thought: String,
-    private: bool
-}
-
-#[derive(Deserialize)]
-pub struct PutCustomFieldEntry {
-    field: i32,
-    value: custom_field_entries::CustomFieldEntryType,
-    comment: Option<String>
-}
-
-#[derive(Deserialize)]
-pub struct PutEntryMarker {
-    id: Option<i32>,
-    title: String,
-    comment: Option<String>
-}
-
-#[derive(Deserialize)]
-pub struct PutEntry {
-    #[serde(with = "ts_seconds")]
-    day: chrono::DateTime<chrono::Utc>
-}
-
-#[derive(Deserialize)]
-pub struct PutComposedEntry {
-    entry: PutEntry,
-    tags: Option<Vec<i32>>,
-    markers: Option<Vec<PutEntryMarker>>,
-    custom_field_entries: Option<Vec<PutCustomFieldEntry>>,
-    text_entries: Option<Vec<PutTextEntry>>
-}
-
 /// retrieves a single entry for user when given an id
-/// 
+///
 /// GET /entries/{id}
 /// GET /users/{user_id}/entries/{id}
 ///
@@ -92,7 +55,7 @@ pub async fn handle_get(
             Ok(response::redirect_to_login(&req))
         }
     }
-    
+
     let initiator = lookup.try_into()?;
     let is_private: Option<bool>;
     let owner: i32;
@@ -132,18 +95,91 @@ pub async fn handle_get(
         owner = initiator.user.id;
     }
 
-    if let Some(record) = db::composed::ComposedEntry::find_from_entry(conn, &path.entry_id, &is_private).await? {
-        if record.entry.owner == owner {
-            JsonBuilder::new(http::StatusCode::OK)
-                .build(Some(record))
-        } else {
-            Err(error::build::permission_denied(
-                format!("entry owner mis-match. requested entry is not owned by {}", owner)
-            ))
-        }
+    if let Some(record) = db::tables::entries::from_user_and_id(conn, &owner, &path.entry_id).await? {
+        let mut rtn = schema::Entry {
+            id: record.id,
+            day: record.day,
+            created: record.created,
+            updated: record.updated,
+            deleted: record.deleted,
+            owner: record.owner,
+            tags: Vec::new(),
+            markers: Vec::new(),
+            fields: Vec::new(),
+            text: Vec::new(),
+            audio: Vec::new()
+        };
+
+        rtn.tags.extend(entries2tags::find_id_from_entry(conn, &path.entry_id).await?);
+        rtn.markers.extend(entry_markers::find_from_entry(conn, &path.entry_id).await?
+            .into_iter()
+            .map(|m| schema::Marker {
+                id: m.id,
+                title: m.title,
+                comment: m.comment,
+            }));
+        rtn.fields.extend(custom_field_entries::find_from_entry(conn, &path.entry_id).await?
+            .into_iter()
+            .map(|f| schema::CustomField {
+                field: f.field,
+                value: f.value,
+                comment: f.comment,
+            }));
+        rtn.text.extend(text_entries::find_from_entry(conn, &path.entry_id, &is_private).await?
+            .into_iter()
+            .map(|t| schema::Text {
+                id: t.id,
+                thought: t.thought,
+                private: t.private,
+            }));
+        rtn.audio.extend(audio_entries::find_from_entry(conn, &path.entry_id, &is_private).await?
+            .into_iter()
+            .map(|a| schema::Audio {
+                id: a.id,
+                private: a.private,
+            }));
+
+        JsonBuilder::new(http::StatusCode::OK)
+            .build(Some(rtn))
     } else {
         Err(error::build::entry_not_found(&path.entry_id))
     }
+}
+
+#[derive(Deserialize)]
+pub struct PutTextEntry {
+    id: Option<i32>,
+    thought: String,
+    private: bool
+}
+
+#[derive(Deserialize)]
+pub struct PutCustomFieldEntry {
+    field: i32,
+    value: custom_field_entries::CustomFieldEntryType,
+    comment: Option<String>
+}
+
+#[derive(Deserialize)]
+pub struct PutEntryMarker {
+    id: Option<i32>,
+    title: String,
+    comment: Option<String>
+}
+
+#[derive(Deserialize)]
+pub struct PutEntry {
+    #[serde(with = "ts_seconds")]
+    day: chrono::DateTime<chrono::Utc>
+}
+
+#[derive(Deserialize)]
+pub struct PutComposedEntry {
+    entry: PutEntry,
+    tags: Option<Vec<i32>>,
+    markers: Option<Vec<PutEntryMarker>>,
+    custom_field_entries: Option<Vec<PutCustomFieldEntry>>,
+    text_entries: Option<Vec<PutTextEntry>>
 }
 
 /// updates a given entry with new information
@@ -160,7 +196,6 @@ pub async fn handle_put(
 ) -> error::Result<impl Responder> {
     let posted = posted.into_inner();
     let conn = &mut *db.get_conn().await?;
-    let created = posted.entry.day.clone();
 
     if !security::permissions::has_permission(
         &*conn, 
@@ -176,29 +211,38 @@ pub async fn handle_put(
         ));
     }
 
-    security::assert::is_owner_for_entry(conn, &path.entry_id, &initiator.user.id).await?;
+    let Some(original) = db::tables::entries::from_user_and_id(
+        conn, 
+        &path.entry_id, 
+        &initiator.user.id
+    ).await? else {
+        return Err(error::build::entry_not_found(&path.entry_id));
+    };
 
     let transaction = conn.transaction().await?;
 
+    let updated = Utc::now();
     let _result = transaction.execute(
         "update entries set day = $1 where id = $2 returning day",
-        &[&created, &path.entry_id]
+        &[&posted.entry.day, &path.entry_id]
     ).await?;
 
-    let mut rtn = db::composed::ComposedEntry {
-        entry: entries::Entry {
-            id: path.entry_id,
-            day: created,
-            owner: initiator.user.id
-        },
-        tags: vec!(),
-        markers: vec!(),
-        custom_field_entries: HashMap::new(),
-        text_entries: vec!(),
+    let mut rtn = schema::Entry {
+        id: path.entry_id,
+        day: posted.entry.day.clone(),
+        created: original.created,
+        updated: Some(updated),
+        deleted: original.deleted,
+        owner: initiator.user.id,
+        tags: Vec::new(),
+        markers: Vec::new(),
+        fields: Vec::new(),
+        text: Vec::new(),
+        audio: Vec::new(),
     };
 
     if let Some(m) = posted.custom_field_entries {
-        let mut ids: Vec<i32> = vec!();
+        let mut ids: Vec<i32> = Vec::new();
 
         for custom_field_entry in m {
             let field = components::custom_fields::get_via_id(
@@ -221,11 +265,10 @@ pub async fn handle_put(
             ).await?;
 
             ids.push(field.id);
-            rtn.custom_field_entries.insert(field.id, custom_field_entries::CustomFieldEntry {
+            rtn.fields.push(schema::CustomField {
                 field: field.id,
                 value: custom_field_entry.value,
-                comment: util::clone_option(&custom_field_entry.comment),
-                entry: path.entry_id
+                comment: custom_field_entry.comment,
             });
         }
 
@@ -234,7 +277,13 @@ pub async fn handle_put(
             &[&path.entry_id, &ids]
         ).await?;
     } else {
-        rtn.custom_field_entries = custom_field_entries::find_from_entry_hashmap(&transaction, &path.entry_id).await?;
+        rtn.fields.extend(custom_field_entries::find_from_entry(&transaction, &path.entry_id).await?
+            .into_iter()
+            .map(|f| schema::CustomField {
+                field: f.field,
+                value: f.value,
+                comment: f.comment,
+            }));
     }
 
     if let Some(t) = posted.text_entries {
@@ -252,11 +301,10 @@ pub async fn handle_put(
                 }
 
                 ids.push(id);
-                rtn.text_entries.push(text_entries::TextEntry {
+                rtn.text.push(schema::Text {
                     id,
                     thought: text_entry.thought,
-                    entry: path.entry_id,
-                    private: text_entry.private
+                    private: text_entry.private,
                 });
             } else {
                 let result = transaction.query_one(
@@ -265,12 +313,11 @@ pub async fn handle_put(
                 ).await?;
 
                 ids.push(result.get(0));
-                rtn.text_entries.push(text_entries::TextEntry {
+                rtn.text.push(schema::Text {
                     id: result.get(0),
                     thought: text_entry.thought,
-                    entry: path.entry_id,
-                    private: text_entry.private
-                })
+                    private: text_entry.private,
+                });
             }
         }
 
@@ -280,7 +327,13 @@ pub async fn handle_put(
         ).await?;
     } else {
         let is_private = None;
-        rtn.text_entries = text_entries::find_from_entry(&transaction, &path.entry_id, &is_private).await?;
+        rtn.text.extend(text_entries::find_from_entry(&transaction, &path.entry_id, &is_private).await?
+            .into_iter()
+            .map(|t| schema::Text {
+                id: t.id,
+                thought: t.thought,
+                private: t.private,
+            }));
     }
 
     if let Some(tags) = posted.tags {
@@ -306,7 +359,7 @@ pub async fn handle_put(
     }
 
     if let Some(markers) = posted.markers {
-        let mut ids: Vec<i32> = vec!();
+        let mut ids: Vec<i32> = Vec::new();
 
         for marker in markers {
             if let Some(id) = marker.id {
@@ -320,11 +373,10 @@ pub async fn handle_put(
                 }
 
                 ids.push(id);
-                rtn.markers.push(entry_markers::EntryMarker {
+                rtn.markers.push(schema::Marker {
                     id,
                     title: marker.title,
                     comment: marker.comment,
-                    entry: path.entry_id
                 });
             } else {
                 let result = transaction.query_one(
@@ -336,11 +388,10 @@ pub async fn handle_put(
                 ).await?;
 
                 ids.push(result.get(0));
-                rtn.markers.push(entry_markers::EntryMarker {
+                rtn.markers.push(schema::Marker {
                     id: result.get(0),
                     title: marker.title,
                     comment: marker.comment,
-                    entry: path.entry_id
                 });
             }
         }
@@ -350,11 +401,26 @@ pub async fn handle_put(
             &[&path.entry_id, &ids]
         ).await?;
     } else {
-        rtn.markers = entry_markers::find_from_entry(&transaction, &path.entry_id).await?;
+        rtn.markers.extend(entry_markers::find_from_entry(&transaction, &path.entry_id).await?
+            .into_iter()
+            .map(|m| schema::Marker {
+                id: m.id,
+                title: m.title,
+                comment: m.comment,
+            }));
     }
 
+    let is_private = None;
+    rtn.audio.extend(audio_entries::find_from_entry(&transaction, &path.entry_id, &is_private).await?
+        .into_iter()
+        .map(|a| schema::Audio {
+            id: a.id,
+            private: a.private,
+        }));
+
+
     transaction.commit().await?;
-    
+
     JsonBuilder::new(http::StatusCode::OK)
         .build(Some(rtn))
 }
@@ -369,6 +435,7 @@ pub async fn handle_put(
 pub async fn handle_delete(
     initiator: Initiator,
     db: state::WebDbState,
+    storage: state::WebStorageState,
     path: web::Path<routing::path::params::EntryPath>
 ) -> error::Result<impl Responder> {
     let conn = &mut *db.get_conn().await?;
@@ -395,6 +462,25 @@ pub async fn handle_delete(
     ).await? else {
         return Err(error::build::entry_not_found(&path.entry_id));
     };
+
+    let is_private = None;
+    let audio = audio_entries::find_from_entry(&transaction, &path.entry_id, &is_private).await?;
+
+    for a in audio {
+        let file_path = storage.get_audio_file_path(
+            &initiator.user.id,
+            &path.entry_id,
+            &a.id,
+            ".webm"
+        );
+
+        std::fs::remove_file(&file_path)?;
+    }
+
+    let _audio_result = transaction.execute(
+        "delete from audio_entries where entry = $1",
+        &[&path.entry_id]
+    ).await?;
 
     let _text_result = transaction.execute(
         "delete from text_entries where entry = $1",

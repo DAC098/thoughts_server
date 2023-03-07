@@ -1,7 +1,6 @@
 //! handling listing and creating entries
 
 use std::fmt::Write;
-use std::collections::HashMap;
 //use std::pin::{Pin};
 //use std::task::{Context, Poll};
 
@@ -9,7 +8,7 @@ use actix_web::{web, http, HttpRequest, Responder};
 use serde::Deserialize;
 use chrono::{DateTime, Utc};
 use chrono::serde::ts_seconds;
-//use tokio_postgres::{Client, RowStream};
+use tokio_postgres::GenericClient;
 //use futures::{pin_mut, Stream, TryStreamExt, future};
 use futures::future;
 
@@ -20,57 +19,14 @@ use crate::db::{
     tables::{
         permissions,
         custom_field_entries,
-        entries,
-        entry_markers,
-        text_entries,
-    },
-    composed::{
-        self,
-        ComposedEntry
     },
 };
-use crate::net::http::error;
-use crate::net::http::response;
-use crate::net::http::response::json::JsonBuilder;
+use crate::net::http::{error, response::{self, json::JsonBuilder}};
 use crate::routing;
 use crate::state;
 use crate::security::{self, InitiatorLookup, Initiator};
-use crate::components;
+use crate::components::{self, entries::schema};
 use crate::template;
-
-#[derive(Deserialize)]
-pub struct PostTextEntryJson {
-    thought: String,
-    private: bool
-}
-
-#[derive(Deserialize)]
-pub struct PostCustomFieldEntryJson {
-    field: i32,
-    value: custom_field_entries::CustomFieldEntryType,
-    comment: Option<String>
-}
-
-#[derive(Deserialize)]
-pub struct PostEntryMarker {
-    title: String,
-    comment: Option<String>
-}
-
-#[derive(Deserialize)]
-pub struct PostEntry {
-    #[serde(with = "ts_seconds")]
-    day: chrono::DateTime<chrono::Utc>
-}
-
-#[derive(Deserialize)]
-pub struct PostEntryJson {
-    entry: PostEntry,
-    tags: Option<Vec<i32>>,
-    custom_field_entries: Option<Vec<PostCustomFieldEntryJson>>,
-    text_entries: Option<Vec<PostTextEntryJson>>,
-    markers: Option<Vec<PostEntryMarker>>
-}
 
 #[derive(Deserialize)]
 pub struct EntriesQuery {
@@ -79,6 +35,28 @@ pub struct EntriesQuery {
     tags: Option<String>,
     from_marker: Option<i32>,
     to_marker: Option<i32>,
+}
+
+/// retrieves entry date from marker id
+pub async fn get_marker_date(
+    conn: &impl GenericClient,
+    owner: &i32,
+    marker: &i32,
+) -> error::Result<Option<DateTime<Utc>>> {
+    let marker_check = conn.query(
+        "\
+        select entries.day \
+        from entries \
+        join entry_markers on entries.id = entry_markers.entry \
+        where entry_markers.id = $1 and entries.owner = $2",
+        &[marker, owner]
+    ).await?;
+
+    if marker_check.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(marker_check[0].get::<usize, DateTime<Utc>>(0)))
+    }
 }
 
 /// searches entries for a user
@@ -110,7 +88,7 @@ pub async fn handle_get(
             Ok(response::redirect_to_login(&req))
         }
     }
-    
+
     let owner: i32;
     let is_private: Option<bool>;
     let initiator = lookup.try_into()?;
@@ -156,45 +134,25 @@ pub async fn handle_get(
         write!(&mut entries_where, "entries.owner = {}", owner)?;
 
         if let Some(from_marker) = info.from_marker {
-            let marker_check = (*pool_conn).query(
-                "\
-                select entries.day \
-                from entries \
-                join entry_markers on entries.id = entry_markers.entry \
-                where entry_markers.id = $1 and entries.owner = $2",
-                &[&from_marker, &owner]
-            ).await?;
-
-            if marker_check.is_empty() {
+            let Some(day) = get_marker_date(&*pool_conn, &owner, &from_marker).await? else {
                 return Err(error::build::bad_request(
-                    format!("from maker id given does not exist: {}", from_marker)
+                    format!("from makrer id given does not exist: {}", from_marker)
                 ));
-            } else {
-                let day: DateTime<Utc> = marker_check[0].get(0);
-                write!(&mut entries_where, " and entries.day >= '{}'", day.to_rfc3339())?;
-            }
+            };
+
+            write!(&mut entries_where, " and entries.day >= '{}'", day.to_rfc3339())?;
         } else if let Some(from) = routing::query::get_date(&info.from)? {
             write!(&mut entries_where, " and entries.day >= '{}'", from.to_rfc3339())?;
         }
 
         if let Some(to_marker) = info.to_marker {
-            let marker_check = (*pool_conn).query(
-                "\
-                select entries.day \
-                from entries \
-                join entry_markers on entries.id = entry_markers.entry \
-                where entry_markers.id = $1 and entries.owner = $2",
-                &[&to_marker, &owner]
-            ).await?;
-
-            if marker_check.is_empty() {
+            let Some(day) = get_marker_date(&*pool_conn, &owner, &to_marker).await? else {
                 return Err(error::build::bad_request(
                     format!("to marker id given does not exist: {}", to_marker)
                 ));
-            } else {
-                let day: DateTime<Utc> = marker_check[0].get(0);
-                write!(&mut entries_where, " and entries.day <= '{}'", day.to_rfc3339())?;
-            }
+            };
+
+            write!(&mut entries_where, "and entries.day <= '{}'", day.to_rfc3339())?;
         } else if let Some(to) = routing::query::get_date(&info.to)? {
             write!(&mut entries_where, " and entries.day <= '{}'", to.to_rfc3339())?;
         }
@@ -209,7 +167,12 @@ pub async fn handle_get(
 
         let rows_statement = format!(
             "\
-            select id, day, owner \
+            select id, \
+                   day, \
+                   created, \
+                   updated, \
+                   deleted, \
+                   owner \
             from entries \
             where {} \
             order by day desc",
@@ -219,9 +182,8 @@ pub async fn handle_get(
         let custom_field_entries_statement = format!(
             "\
             select custom_field_entries.field, \
-                    custom_field_entries.value, \
-                    custom_field_entries.comment, \
-                    custom_field_entries.entry \
+                   custom_field_entries.value, \
+                   custom_field_entries.entry \
             from custom_field_entries \
             join entries on custom_field_entries.entry = entries.id \
             join custom_fields on custom_field_entries.field = custom_fields.id \
@@ -233,9 +195,8 @@ pub async fn handle_get(
         let entry_markers_statement = format!(
             "\
             select entry_markers.id, \
-                    entry_markers.title, \
-                    entry_markers.comment, \
-                    entry_markers.entry \
+                   entry_markers.title, \
+                   entry_markers.entry \
             from entry_markers \
             join entries on entry_markers.entry = entries.id \
             where {} \
@@ -243,13 +204,23 @@ pub async fn handle_get(
             entries_where
         );
 
+        let tags_statement = format!(
+            "\
+            select entries2tags.tag, \
+                   entries2tags.entry \
+            from entries2tags \
+            join entries on entries2tags.entry = entries.id \
+            where {} \
+            order by entries.day desc",
+            entries_where
+        );
+
+
         let text_entries_statement = {
             let mut query_str = format!(
                 "\
-                select text_entries.id, \
-                        text_entries.thought, \
-                        text_entries.private, \
-                        text_entries.entry \
+                select text_entries.entry, \
+                       count(text_entries.id) \
                 from text_entries \
                 join entries on text_entries.entry = entries.id \
                 where {}",
@@ -260,91 +231,182 @@ pub async fn handle_get(
                 write!(&mut query_str, " and text_entries.private = {}", if is_private { "true" } else { "false" })?;
             }
 
-            write!(&mut query_str, " order by entries.day desc, text_entries.id")?;
+            write!(
+                &mut query_str,
+                " \
+                group by text_entries.entry \
+                order by entries.day desc, text_entries.id"
+            )?;
 
             query_str
         };
 
-        let tags_statement = format!(
-            "\
-            select entries2tags.tag, \
-                    entries2tags.entry \
-            from entries2tags \
-            join entries on entries2tags.entry = entries.id \
-            where {} \
-            order by entries.day desc",
-            entries_where
-        );
+        let audio_entries_statement = {
+            let mut query_str = format!(
+                "\
+                select audio_entries.entry, \
+                       count(audio_entries.id) \
+                from audio_entries \
+                join entries on audio_entries.entry = entries.id \
+                where {}",
+                entries_where
+            );
+
+            if let Some(is_private) = is_private {
+                write!(&mut query_str, " and audio_entries.private = {}", if is_private { "true" } else { "false" })?;
+            }
+
+            write!(
+                &mut query_str,
+                " \
+                group by audio_entries.entry \
+                order by entries.day desc"
+            )?;
+
+            query_str
+        };
+
+        // video entries
+
+        // files
 
         future::try_join_all(vec![
             (*pool_conn).query(rows_statement.as_str(), &[]),
             (*pool_conn).query(custom_field_entries_statement.as_str(), &[]),
             (*pool_conn).query(entry_markers_statement.as_str(), &[]),
+            (*pool_conn).query(tags_statement.as_str(), &[]),
             (*pool_conn).query(text_entries_statement.as_str(), &[]),
-            (*pool_conn).query(tags_statement.as_str(), &[])
+            (*pool_conn).query(audio_entries_statement.as_str(), &[]),
         ]).await?
     };
 
-    let tags = results.pop().unwrap();
-    let mut tags_iter = tags.iter().map(|row| (row.get::<usize, i32>(0), row.get::<usize, i32>(1)));
-    let text_entries = results.pop().unwrap();
-    let mut text_entries_iter = text_entries.iter().map(|row| text_entries::TextEntry {
-        id: row.get(0),
-        thought: row.get(1),
-        private: row.get(2),
-        entry: row.get(3)
-    });
-    let entry_markers = results.pop().unwrap();
-    let mut entry_markers_iter = entry_markers.iter().map(|row| entry_markers::EntryMarker {
-        id: row.get(0),
-        title: row.get(1),
-        comment: row.get(2),
-        entry: row.get(3)
-    });
-    let custom_field_entries = results.pop().unwrap();
-    let mut custom_field_entries_iter = custom_field_entries.iter().map(|row| custom_field_entries::CustomFieldEntry {
-        field: row.get(0),
-        value: serde_json::from_value(row.get(1)).unwrap(),
-        comment: row.get(2),
-        entry: row.get(3)
-    });
-    let rows = results.pop().unwrap();
-    let rows_iter = rows.iter().map(|row| entries::Entry {
-        id: row.get(0),
-        day: row.get(1),
-        owner: row.get(2)
-    });
+    let audio = results.pop()
+        .unwrap();
+    let mut audio_iter = audio.iter()
+        .map(|row| (
+            row.get::<usize, i32>(0), 
+            row.get::<usize, i64>(1)
+        ));
+    let text = results.pop()
+        .unwrap();
+    let mut text_iter = text.iter()
+        .map(|row| (
+            row.get::<usize, i32>(0),
+            row.get::<usize, i64>(1)
+        ));
 
-    let mut rtn: Vec<ComposedEntry> = Vec::with_capacity(rows.len());
+    let tags = results.pop()
+        .unwrap();
+    let mut tags_iter = tags.iter()
+        .map(|row| (
+            row.get::<usize, i32>(0),
+            row.get::<usize, i32>(1)
+        ));
+    let entry_markers = results.pop()
+        .unwrap();
+    let mut entry_markers_iter = entry_markers.iter()
+        .map(|row| (
+            row.get::<usize, i32>(2),
+            schema::ListMarker {
+                id: row.get(0),
+                title: row.get(1),
+            }
+        ));
+    let custom_field_entries = results.pop()
+        .unwrap();
+    let mut custom_field_entries_iter = custom_field_entries.iter()
+        .map(|row| (
+            row.get::<usize, i32>(2),
+            schema::ListCustomField {
+                field: row.get(0),
+                value: serde_json::from_value(row.get(1)).unwrap(),
+            }
+        ));
+    let rows = results.pop()
+        .unwrap();
+    let rows_iter = rows.iter()
+        .map(|row| schema::ListEntry {
+            id: row.get(0),
+            day: row.get(1),
+            created: row.get(2),
+            updated: row.get(3),
+            deleted: row.get(4),
+            owner: row.get(5),
+            tags: Vec::new(),
+            markers: Vec::new(),
+            fields: Vec::new(),
+            text: 0,
+            audio: 0,
+            video: 0,
+            files: 0,
+        });
 
+    let mut rtn = Vec::with_capacity(rows.len());
+
+    let mut audio_done = false;
     let mut fields_done = false;
     let mut markers_done = false;
     let mut text_done = false;
     let mut tags_done = false;
-    let mut next_custom_field_entry: Option<custom_field_entries::CustomFieldEntry> = None;
-    let mut next_entry_marker: Option<entry_markers::EntryMarker> = None;
-    let mut next_text_entry: Option<text_entries::TextEntry> = None;
+    let mut next_audio_count: Option<(i32, i64)> = None;
+    let mut next_text_count: Option<(i32, i64)> = None;
+    let mut next_custom_field_entry: Option<(i32, schema::ListCustomField)> = None;
+    let mut next_entry_marker: Option<(i32, schema::ListMarker)> = None;
     let mut next_tag: Option<(i32, i32)> = None;
 
-    for row in rows_iter {
-        let mut custom_field_entries_vec: HashMap<i32, custom_field_entries::CustomFieldEntry> = HashMap::new();
-        let mut entry_markers_vec: Vec<entry_markers::EntryMarker> = Vec::new();
-        let mut text_entries_vec: Vec<text_entries::TextEntry> = Vec::new();
-        let mut tags_vec: Vec<i32> = Vec::new();
+    for mut row in rows_iter {
+        if let Some(refer) = next_audio_count.as_ref() {
+            if refer.0 == row.id {
+                let taken = next_audio_count.take().unwrap();
+                row.audio = taken.1;
+            }
+        }
+
+        if !audio_done && next_audio_count.is_none() {
+            if let Some(count) = audio_iter.next() {
+                if count.0 == row.id {
+                    row.audio = count.1;
+                } else {
+                    next_audio_count = Some(count);
+                }
+            } else {
+                audio_done = true;
+            }
+        }
+
+        if let Some(refer) = next_text_count.as_ref() {
+            if refer.0 == row.id {
+                let taken = next_text_count.take().unwrap();
+                row.text = taken.1;
+            }
+        }
+
+        if !text_done && next_text_count.is_none() {
+            if let Some(count) = text_iter.next() {
+                if count.0 == row.id {
+                    row.text = count.1;
+                } else {
+                    next_text_count = Some(count);
+                }
+            } else {
+                text_done = true;
+            }
+        }
 
         if let Some(refer) = next_custom_field_entry.as_ref() {
-            if refer.entry == row.id {
-                custom_field_entries_vec.insert(refer.field, next_custom_field_entry.take().unwrap());
+            if refer.0 == row.id {
+                let taken = next_custom_field_entry.take().unwrap();
+                row.fields.push(taken.1);
             }
         }
 
         if !fields_done && next_custom_field_entry.is_none() {
             loop {
-                if let Some(field) = custom_field_entries_iter.next() {
-                    if field.entry == row.id {
-                        custom_field_entries_vec.insert(field.field, field);
+                if let Some(tup) = custom_field_entries_iter.next() {
+                    if tup.0 == row.id {
+                        row.fields.push(tup.1);
                     } else {
-                        next_custom_field_entry = Some(field);
+                        next_custom_field_entry = Some(tup);
                         break;
                     }
                 } else {
@@ -355,18 +417,19 @@ pub async fn handle_get(
         }
 
         if let Some(refer) = next_entry_marker.as_ref() {
-            if refer.entry == row.id {
-                entry_markers_vec.push(next_entry_marker.take().unwrap());
+            if refer.0 == row.id {
+                let taken = next_entry_marker.take().unwrap();
+                row.markers.push(taken.1);
             }
         }
 
         if !markers_done && next_entry_marker.is_none() {
             loop {
-                if let Some(marker) = entry_markers_iter.next() {
-                    if marker.entry == row.id {
-                        entry_markers_vec.push(marker);
+                if let Some(tup) = entry_markers_iter.next() {
+                    if tup.0 == row.id {
+                        row.markers.push(tup.1);
                     } else {
-                        next_entry_marker = Some(marker);
+                        next_entry_marker = Some(tup);
                         break;
                     }
                 } else {
@@ -376,31 +439,9 @@ pub async fn handle_get(
             }
         }
 
-        if let Some(refer) = next_text_entry.as_ref() {
-            if refer.entry == row.id {
-                text_entries_vec.push(next_text_entry.take().unwrap());
-            }
-        }
-
-        if !text_done && next_text_entry.is_none() {
-            loop {
-                if let Some(text) = text_entries_iter.next() {
-                    if text.entry == row.id {
-                        text_entries_vec.push(text);
-                    } else {
-                        next_text_entry = Some(text);
-                        break;
-                    }
-                } else {
-                    text_done = true;
-                    break;
-                }
-            }
-        }
-
         if let Some(refer) = next_tag.as_ref() {
             if refer.1 == row.id {
-                tags_vec.push(next_tag.take().unwrap().0);
+                row.tags.push(next_tag.take().unwrap().0);
             }
         }
 
@@ -408,7 +449,7 @@ pub async fn handle_get(
             loop {
                 if let Some(tag) = tags_iter.next() {
                     if tag.1 == row.id {
-                        tags_vec.push(tag.0);
+                        row.tags.push(tag.0);
                     } else {
                         next_tag = Some(tag);
                         break;
@@ -420,17 +461,45 @@ pub async fn handle_get(
             }
         }
 
-        rtn.push(ComposedEntry {
-            entry: row,
-            custom_field_entries: custom_field_entries_vec.drain().collect(),
-            text_entries: text_entries_vec.drain(..).collect(),
-            markers: entry_markers_vec.drain(..).collect(),
-            tags: tags_vec.drain(..).collect()
-        });
+        rtn.push(row);
     }
 
     JsonBuilder::new(http::StatusCode::OK)
         .build(Some(rtn))
+}
+
+#[derive(Deserialize)]
+pub struct PostTextEntryJson {
+    thought: String,
+    private: bool
+}
+
+#[derive(Deserialize)]
+pub struct PostCustomFieldEntryJson {
+    field: i32,
+    value: custom_field_entries::CustomFieldEntryType,
+    comment: Option<String>
+}
+
+#[derive(Deserialize)]
+pub struct PostEntryMarker {
+    title: String,
+    comment: Option<String>
+}
+
+#[derive(Deserialize)]
+pub struct PostEntry {
+    #[serde(with = "ts_seconds")]
+    day: chrono::DateTime<chrono::Utc>
+}
+
+#[derive(Deserialize)]
+pub struct PostEntryJson {
+    entry: PostEntry,
+    tags: Option<Vec<i32>>,
+    custom_field_entries: Option<Vec<PostCustomFieldEntryJson>>,
+    text_entries: Option<Vec<PostTextEntryJson>>,
+    markers: Option<Vec<PostEntryMarker>>
 }
 
 /// posts entries for a given user
@@ -471,15 +540,20 @@ pub async fn handle_post(
     }
 
     let transaction = conn.transaction().await?;
+    let created = Utc::now();
+
     let result = transaction.query_one(
-        "insert into entries (day, owner) values ($1, $2) returning id, day, owner",
-        &[&posted.entry.day, &initiator.user.id]
+        "insert into entries (day, owner, created) values ($1, $2) returning id",
+        &[&posted.entry.day, &initiator.user.id, &created]
     ).await?;
+
     let entry_id: i32 = result.get(0);
 
-    let mut custom_field_entries: HashMap<i32, custom_field_entries::CustomFieldEntry> = HashMap::new();
+    let mut custom_field_entries = Vec::new();
 
     if let Some(m) = posted.custom_field_entries {
+        custom_field_entries.reserve(m.len());
+
         for custom_field_entry in m {
             let field = components::custom_fields::get_via_id(
                 &transaction, 
@@ -497,36 +571,38 @@ pub async fn handle_post(
                 &[&field.id, &value_json, &custom_field_entry.comment, &entry_id]
             ).await?;
 
-            custom_field_entries.insert(field.id, custom_field_entries::CustomFieldEntry {
+            custom_field_entries.push(schema::CustomField {
                 field: field.id,
                 value: custom_field_entry.value,
                 comment: custom_field_entry.comment,
-                entry: entry_id
             });
         }
     }
 
-    let mut text_entries: Vec<text_entries::TextEntry> = vec!();
+    let mut text_entries = Vec::new();
 
     if let Some(t) = posted.text_entries {
+        text_entries.reserve(t.len());
+
         for text_entry in t {
             let result = transaction.query_one(
                 "insert into text_entries (thought, private, entry) values ($1, $2, $3) returning id",
                 &[&text_entry.thought, &text_entry.private, &entry_id]
             ).await?;
 
-            text_entries.push(text_entries::TextEntry {
+            text_entries.push(schema::Text {
                 id: result.get(0),
                 thought: text_entry.thought,
-                entry: entry_id,
                 private: text_entry.private
             });
         }
     }
 
-    let mut entry_tags: Vec<i32> = vec!();
+    let mut entry_tags: Vec<i32> = Vec::new();
 
     if let Some(tags) = posted.tags {
+        entry_tags.reserve(tags.len());
+
         for tag_id in tags {
             let _result = transaction.execute(
                 "insert into entries2tags (tag, entry) values ($1, $2)",
@@ -537,9 +613,11 @@ pub async fn handle_post(
         }
     }
 
-    let mut entry_markers: Vec<entry_markers::EntryMarker> = vec!();
+    let mut entry_markers = Vec::new();
 
     if let Some(markers) = posted.markers {
+        entry_markers.reserve(markers.len());
+
         for marker in markers {
             let result = transaction.query_one(
                 "\
@@ -549,11 +627,10 @@ pub async fn handle_post(
                 &[&marker.title, &marker.comment, &entry_id]
             ).await?;
 
-            entry_markers.push(entry_markers::EntryMarker {
+            entry_markers.push(schema::Marker {
                 id: result.get(0),
                 title: marker.title,
                 comment: marker.comment,
-                entry: entry_id
             });
         }
     }
@@ -561,15 +638,17 @@ pub async fn handle_post(
     transaction.commit().await?;
 
     JsonBuilder::new(http::StatusCode::OK)
-        .build(Some(composed::ComposedEntry {
-            entry: entries::Entry {
-                id: result.get(0),
-                day: result.get(1),
-                owner: initiator.user.id,
-            },
+        .build(Some(schema::Entry {
+            id: result.get(0),
+            day: posted.entry.day,
+            created,
+            updated: None,
+            deleted: None,
+            owner: initiator.user.id.clone(),
             tags: entry_tags,
             markers: entry_markers,
-            custom_field_entries,
-            text_entries
+            fields: custom_field_entries,
+            text: text_entries,
+            audio: Vec::new(),
         }))
 }
