@@ -13,7 +13,6 @@ use crate::db::{
         entry_markers,
         custom_field_entries,
         text_entries,
-        entries2tags,
         entry_comments,
 }
 };
@@ -25,35 +24,6 @@ pub struct ComposedEntry {
     pub markers: Vec<entry_markers::EntryMarker>,
     pub custom_field_entries: HashMap<i32, custom_field_entries::CustomFieldEntry>,
     pub text_entries: Vec<text_entries::TextEntry>
-}
-
-impl ComposedEntry {
-
-    pub async fn find_from_entry(
-        conn: &impl GenericClient,
-        entry: &i32,
-        is_private: &Option<bool>,
-    ) -> error::Result<Option<ComposedEntry>> {
-        if let Some(entry_rec) = entries::find_from_id(conn, entry).await? {
-            let results = custom_field_entries::find_from_entry(conn, entry).await?;
-            let mut custom_field_map: HashMap<i32, custom_field_entries::CustomFieldEntry> = HashMap::with_capacity(results.len());
-    
-            for record in results {
-                custom_field_map.insert(record.field, record);
-            }
-    
-            Ok(Some(ComposedEntry {
-                entry: entry_rec,
-                tags: entries2tags::find_id_from_entry(conn, entry).await?,
-                markers: entry_markers::find_from_entry(conn, entry).await?,
-                custom_field_entries: custom_field_map,
-                text_entries: text_entries::find_from_entry(conn, entry, is_private).await?,
-            }))
-        } else {
-            Ok(None)
-        }
-    }
-
 }
 
 #[derive(Serialize, Deserialize)]

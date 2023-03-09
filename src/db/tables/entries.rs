@@ -16,36 +16,6 @@ pub struct Entry {
     pub owner: i32,
 }
 
-/// finds an entry based on the entry id
-pub async fn find_from_id(
-    conn: &impl GenericClient,
-    id: &i32
-) -> error::Result<Option<Entry>> {
-    if let Some(result) = conn.query_opt(
-        "\
-        select id, \
-               day, \
-               created, \
-               updated, \
-               deleted, \
-               owner \
-        from entries \
-        where id = $1",
-        &[id]
-    ).await? {
-        Ok(Some(Entry {
-            id: result.get(0),
-            day: result.get(1),
-            created: result.get(2),
-            updated: result.get(3),
-            deleted: result.get(4),
-            owner: result.get(5)
-        }))
-    } else {
-        Ok(None)
-    }
-}
-
 /// finds an entry based on the user id and entry id
 pub async fn from_user_and_id(
     conn: &impl GenericClient,

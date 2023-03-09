@@ -2,7 +2,12 @@ pub mod schema {
     use chrono::{DateTime, Utc};
     use serde::Serialize;
 
-    use crate::db::tables::custom_field_entries::CustomFieldEntryType;
+    use crate::db::tables::{
+        custom_field_entries::{CustomFieldEntry, CustomFieldEntryType},
+        audio_entries::AudioEntry,
+        text_entries::TextEntry,
+        entry_markers::EntryMarker,
+    };
 
     /// full data for an entry marker
     #[derive(Serialize)]
@@ -10,6 +15,16 @@ pub mod schema {
         pub id: i32,
         pub title: String,
         pub comment: Option<String>,
+    }
+
+    impl From<EntryMarker> for Marker {
+        fn from(v: EntryMarker) -> Marker {
+            Marker {
+                id: v.id,
+                title: v.title,
+                comment: v.comment,
+            }
+        }
     }
 
     /// full data for a custom field entry
@@ -20,6 +35,16 @@ pub mod schema {
         pub comment: Option<String>,
     }
 
+    impl From<CustomFieldEntry> for CustomField {
+        fn from(v: CustomFieldEntry) -> CustomField {
+            CustomField {
+                field: v.field,
+                value: v.value,
+                comment: v.comment,
+            }
+        }
+    }
+
     /// full data for a text entry
     #[derive(Serialize)]
     pub struct Text {
@@ -28,11 +53,34 @@ pub mod schema {
         pub private: bool,
     }
 
+    impl From<TextEntry> for Text {
+        fn from(v: TextEntry) -> Text {
+            Text {
+                id: v.id,
+                thought: v.thought,
+                private: v.private,
+            }
+        }
+    }
+
     /// full data for an audio entry
     #[derive(Serialize)]
     pub struct Audio {
         pub id: i32,
         pub private: bool,
+        pub mime: String,
+        pub size: i64,
+    }
+
+    impl From<AudioEntry> for Audio {
+        fn from(v: AudioEntry) -> Audio {
+            Audio {
+                id: v.id,
+                private: v.private,
+                mime: format!("{}/{}", v.mime_type, v.mime_subtype),
+                size: v.file_size,
+            }
+        }
     }
 
     /// full data for an entry
@@ -58,11 +106,29 @@ pub mod schema {
         pub value: CustomFieldEntryType,
     }
 
+    impl From<CustomFieldEntry> for ListCustomField {
+        fn from(v: CustomFieldEntry) -> ListCustomField {
+            ListCustomField {
+                field: v.field,
+                value: v.value,
+            }
+        }
+    }
+
     /// partial data for list entry marker
     #[derive(Serialize)]
     pub struct ListMarker {
         pub id: i32,
         pub title: String,
+    }
+
+    impl From<EntryMarker> for ListMarker {
+        fn from(v: EntryMarker) -> ListMarker {
+            ListMarker {
+                id: v.id,
+                title: v.title,
+            }
+        }
     }
 
     /// partial data for list entry

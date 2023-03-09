@@ -1,12 +1,12 @@
 //! handling audio data for a given entry
 
-use std::io::{Write, Read, Seek};
+use std::io::Write;
 use std::fs::File;
 use std::path::PathBuf;
+use std::convert::TryInto;
 
 use futures_util::stream::StreamExt;
-use actix_web::{web, web::Buf, http, HttpRequest, Responder};
-use serde::Deserialize;
+use actix_web::{web, http, HttpRequest, Responder};
 
 pub mod audio_id;
 
@@ -43,7 +43,7 @@ pub async fn handle_get(
             Ok(response::redirect_to_login_with(redirect_to.as_str()))
         }
     }
-    
+
     let initiator = lookup.try_into()?;
     let is_private: Option<bool>;
     let owner: i32;
@@ -97,102 +97,10 @@ pub async fn handle_get(
         .build(Some(entry))
 }
 
-#[derive(Deserialize)]
-pub struct PostAudioEntry {
-    private: bool,
-    comment: Option<String>
-}
-
-struct MultipartResult {
-    audio_entry: PostAudioEntry,
-    audio_file: File,
-    audio_file_path: PathBuf
-}
-
-/// handles multipart form submissions when creating a new audio entry
-async fn handle_multipart_form(
-    storage: &state::WebStorageState,
-    mut body: actix_multipart::Multipart
-) -> error::Result<MultipartResult> {
-    let mut audio_entry: Option<PostAudioEntry> = None;
-    let mut audio_file: Option<File> = None;
-    let mut audio_file_path: Option<PathBuf> = None;
-
-    while let Some(item) = body.next().await {
-        let mut field = item.map_err(|e| error::Error::new()
-            .set_message("error when parsing multipart form")
-            .set_source(e))?;
-        let content_type = field.content_type();
-
-        if content_type.type_() == "application" {
-            if content_type.subtype() == "json" {
-                let mut string_data = String::new();
-
-                while let Some(field_item) = field.next().await {
-                    let chunk = field_item.map_err(|e| error::Error::new()
-                        .set_message("problem when reading data from request body")
-                        .set_source(e))?;
-
-                    chunk.reader().read_to_string(&mut string_data)?;
-                }
-
-                audio_entry = Some(serde_json::from_str(string_data.as_str())?);
-            } else {
-                return Err(error::build::bad_request(
-                    "invalid content-type given for application group. only accepts application/json"
-                ));
-            }
-        } else if content_type.type_() == "audio" {
-            if content_type.subtype() == "webm" {
-                let mut file;
-                let tmp_path;
-
-                if audio_file.is_some() {
-                    tmp_path = audio_file_path.unwrap();
-                    file = audio_file.unwrap();
-                    file.rewind()?;
-                } else {
-                    tmp_path = util::file::get_tmp_path(storage.get_tmp_dir_ref(), "webm")?;
-                    file = File::create(&tmp_path)?;
-                }
-
-                while let Some(field_item) = field.next().await {
-                    let chunk = field_item.map_err(|e| error::Error::new()
-                        .set_message("problem with reading file from request")
-                        .set_source(e))?;
-
-                    file.write(&chunk)?;
-                }
-
-                audio_file = Some(file);
-                audio_file_path = Some(tmp_path);
-            } else {
-                return Err(error::build::bad_request(
-                    "invalid content-type given for audio group. only accepts audio/webm"
-                ));
-            }
-        }
-    }
-
-    if audio_file.is_none() {
-        return Err(error::build::bad_request(
-            "missing required audio file in multipart form body."
-        ));
-    }
-
-    Ok(MultipartResult {
-        audio_entry: audio_entry.unwrap_or(PostAudioEntry {
-            private: false,
-            comment: None
-        }),
-        audio_file: audio_file.unwrap(),
-        audio_file_path: audio_file_path.unwrap()
-    })
-}
-
 struct AudioWebmResult {
-    audio_file: File,
-    audio_file_path: PathBuf
+    size: i64,
+    file: File,
+    path: PathBuf
 }
 
 /// handles creating new audio entries when given a audio webm file
@@ -200,20 +108,26 @@ async fn handle_audio_webm(
     storage: &state::WebStorageState,
     mut body: web::Payload
 ) -> error::Result<AudioWebmResult> {
-    let audio_file_path = util::file::get_tmp_path(storage.get_tmp_dir_ref(), "webm")?;
-    let mut audio_file = File::create(&audio_file_path)?;
+    let path = util::file::get_tmp_path(storage.get_tmp_dir_ref(), "webm")?;
+    let mut file = File::create(&path)?;
+    let mut size = 0;
 
     while let Some(item) = body.next().await {
         let chunk = item.map_err(|e| error::Error::new()
             .set_message("problem with reading file from request")
             .set_source(e))?;
 
-        audio_file.write(&chunk)?;
+        file.write(&chunk)?;
+
+        if let Ok(cast) = TryInto::<i64>::try_into(chunk.len()) {
+            size += cast;
+        }
     }
 
     Ok(AudioWebmResult {
-        audio_file,
-        audio_file_path,
+        size,
+        file,
+        path,
     })
 }
 
@@ -237,9 +151,7 @@ pub async fn handle_post(
         &*conn, 
         &initiator.user.id, 
         permissions::rolls::ENTRIES, 
-        &[
-            permissions::abilities::READ_WRITE
-        ],
+        &[permissions::abilities::READ_WRITE],
         None
     ).await? {
         return Err(error::build::permission_denied(
@@ -249,33 +161,28 @@ pub async fn handle_post(
 
     security::assert::is_owner_for_entry(&*conn, &path.entry_id, &initiator.user.id).await?;
 
-    let audio_entry;
+    let private = false;
+    let mime_type: &str;
+    let mime_subtype: &str;
+    let file_ext: &str;
     let audio_file;
+    let audio_file_size;
     let audio_file_path;
 
     if let Some(content_type_value) = req.headers().get("content-type") {
-        if content_type_value == "multipart/form-data" {
-            let results = handle_multipart_form(
-                &storage, 
-                actix_multipart::Multipart::new(req.headers(), body)
-            ).await?;
-
-            audio_entry = results.audio_entry;
-            audio_file = results.audio_file;
-            audio_file_path = results.audio_file_path
-        } else if content_type_value == "audio/webm" {
+        if content_type_value == "audio/webm" {
             let results = handle_audio_webm(&storage, body).await?;
 
-            audio_entry = PostAudioEntry {
-                private: false,
-                comment: None
-            };
-            audio_file = results.audio_file;
-            audio_file_path = results.audio_file_path;
+            mime_type = "audio";
+            mime_subtype = "webm";
+            file_ext = "webm";
+            audio_file = results.file;
+            audio_file_size = results.size;
+            audio_file_path = results.path;
         } else {
             if let Ok(header_value) = content_type_value.to_str() {
                 return Err(error::build::bad_request(
-                    format!("invalid content-type given. expect: multipart/form-data,audio/webm | given: {}", header_value)
+                    format!("invalid content-type given. expect: audio/webm | given: {}", header_value)
                 ));
             } else {
                 return Err(error::build::bad_request(
@@ -293,14 +200,20 @@ pub async fn handle_post(
 
     let result = transaction.query_one(
         "\
-        insert into audio_entries (entry, private, comment) \
+        insert into audio_entries (entry, private, mime_type, mime_subtype, file_size) \
         values ($1, $2, $3) \
         returning id",
-        &[&path.entry_id, &audio_entry.private, &audio_entry.comment]
+        &[
+            &path.entry_id, 
+            &private, 
+            &mime_type,
+            &mime_subtype,
+            &audio_file_size,
+        ]
     ).await?;
-    let id: i32 = result.get(0);
 
-    let new_path = storage.get_audio_file_path(&initiator.user.id, &path.entry_id, &id, "webm");
+    let id: i32 = result.get(0);
+    let new_path = storage.get_audio_file_path(&initiator.user.id, &path.entry_id, &id, file_ext);
 
     {
         let parent = new_path.parent().unwrap();
@@ -316,10 +229,5 @@ pub async fn handle_post(
     transaction.commit().await?;
 
     JsonBuilder::new(http::StatusCode::OK)
-        .build(Some(audio_entries::AudioEntry {
-            id,
-            private: audio_entry.private,
-            comment: audio_entry.comment,
-            entry: path.entry_id
-        }))
+        .build(None::<()>)
 }

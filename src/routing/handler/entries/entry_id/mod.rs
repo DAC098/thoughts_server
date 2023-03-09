@@ -113,31 +113,16 @@ pub async fn handle_get(
         rtn.tags.extend(entries2tags::find_id_from_entry(conn, &path.entry_id).await?);
         rtn.markers.extend(entry_markers::find_from_entry(conn, &path.entry_id).await?
             .into_iter()
-            .map(|m| schema::Marker {
-                id: m.id,
-                title: m.title,
-                comment: m.comment,
-            }));
+            .map(|m| m.into()));
         rtn.fields.extend(custom_field_entries::find_from_entry(conn, &path.entry_id).await?
             .into_iter()
-            .map(|f| schema::CustomField {
-                field: f.field,
-                value: f.value,
-                comment: f.comment,
-            }));
+            .map(|f| f.into()));
         rtn.text.extend(text_entries::find_from_entry(conn, &path.entry_id, &is_private).await?
             .into_iter()
-            .map(|t| schema::Text {
-                id: t.id,
-                thought: t.thought,
-                private: t.private,
-            }));
+            .map(|t| t.into()));
         rtn.audio.extend(audio_entries::find_from_entry(conn, &path.entry_id, &is_private).await?
             .into_iter()
-            .map(|a| schema::Audio {
-                id: a.id,
-                private: a.private,
-            }));
+            .map(|a| a.into()));
 
         JsonBuilder::new(http::StatusCode::OK)
             .build(Some(rtn))
@@ -279,11 +264,7 @@ pub async fn handle_put(
     } else {
         rtn.fields.extend(custom_field_entries::find_from_entry(&transaction, &path.entry_id).await?
             .into_iter()
-            .map(|f| schema::CustomField {
-                field: f.field,
-                value: f.value,
-                comment: f.comment,
-            }));
+            .map(|f| f.into()));
     }
 
     if let Some(t) = posted.text_entries {
@@ -329,11 +310,7 @@ pub async fn handle_put(
         let is_private = None;
         rtn.text.extend(text_entries::find_from_entry(&transaction, &path.entry_id, &is_private).await?
             .into_iter()
-            .map(|t| schema::Text {
-                id: t.id,
-                thought: t.thought,
-                private: t.private,
-            }));
+            .map(|t| t.into()));
     }
 
     if let Some(tags) = posted.tags {
@@ -413,10 +390,7 @@ pub async fn handle_put(
     let is_private = None;
     rtn.audio.extend(audio_entries::find_from_entry(&transaction, &path.entry_id, &is_private).await?
         .into_iter()
-        .map(|a| schema::Audio {
-            id: a.id,
-            private: a.private,
-        }));
+        .map(|a| a.into()));
 
 
     transaction.commit().await?;

@@ -4,6 +4,9 @@ pub mod time;
 pub mod string;
 pub mod file;
 
+/// clones the internal value of an option and returns a new option
+#[allow(dead_code)]
+#[inline]
 pub fn clone_option<T>(opt: &Option<T>) -> Option<T>
 where
     T: Clone

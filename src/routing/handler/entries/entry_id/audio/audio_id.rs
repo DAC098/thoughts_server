@@ -1,21 +1,16 @@
 //! handles working with audio entries on a singular basis
 
+use std::str::FromStr;
+
 use actix_web::{web, http, HttpRequest, Responder};
 use actix_files::NamedFile;
 use serde::Deserialize;
 
-use crate::db::tables::{audio_entries, permissions};
-use crate::net::http::error;
-use crate::net::http::response;
-use crate::net::http::response::json::JsonBuilder;
+use crate::db::tables::{entries, audio_entries, permissions};
+use crate::net::http::{error, response::{self, json::JsonBuilder}};
 use crate::state;
 use crate::security::{self, InitiatorLookup, Initiator};
 use crate::routing;
-
-#[derive(Deserialize)]
-pub struct EntryIdAudioIdquery {
-    json: Option<String>
-}
 
 /// retrieves a single audio entry with the given entry and audio id
 ///
@@ -27,10 +22,8 @@ pub async fn handle_get(
     db: state::WebDbState,
     storage: state::WebStorageState,
     path: web::Path<routing::path::params::EntryAudioPath>,
-    query: web::Query<EntryIdAudioIdquery>,
 ) -> error::Result<impl Responder> {
     let path = path.into_inner();
-    let query = query.into_inner();
     let conn = db.get_conn().await?;
     let accept_html = response::try_check_if_html_req(&req);
     let lookup = InitiatorLookup::from_request(&security, &*conn, &req).await?;
@@ -44,50 +37,63 @@ pub async fn handle_get(
             Ok(response::redirect_to_login_with(redirect_to.as_str()))
         }
     }
-    
+
     let initiator = lookup.try_into()?;
-    let check_private: bool;
     let owner: i32;
-    let return_json: bool;
+    let mut is_private = None::<bool>;
 
     if let Some(user_id) = path.user_id {
-        security::assert::permission_to_read(&*conn, &initiator.user.id, &user_id).await?;
-        owner = user_id;
-        check_private = true;
-    } else {
-        owner = initiator.user.id;
-        check_private = false;
-    }
-
-    security::assert::is_owner_of_entry(&*conn, &owner, &path.entry_id).await?;
-
-    if let Some(given) = query.json {
-        return_json = given.as_str() == "1";
-    } else {
-        return_json = false;
-    }
-
-    if let Some(audio_entry) = audio_entries::find_from_id(&*conn, &path.audio_id).await? {
-        if audio_entry.entry != path.entry_id {
-            // respond audio entry not found
-            return Err(error::build::audio_entry_not_found(&path.audio_id));
-        }
-
-        if check_private && audio_entry.private {
-            // responed permission denied as audio entry is private
+        if !security::permissions::has_permission(
+            &*conn,
+            &initiator.user.id,
+            permissions::rolls::USERS_ENTRIES,
+            &[permissions::abilities::READ],
+            Some(&user_id)
+        ).await? {
             return Err(error::build::permission_denied(
-                "you do not have permission to access this audio entry"
+                "you do not have permission to read this users audio entries"
             ));
         }
 
-        if return_json {
-            JsonBuilder::new(http::StatusCode::OK)
-                .build(Some(audio_entry))
-        } else {
-            Ok(NamedFile::open(
-                storage.get_audio_file_path(&owner, &path.entry_id, &audio_entry.id, "webm")
-            )?.into_response(&req))
+        owner = user_id;
+        is_private = Some(false);
+    } else {
+        if !security::permissions::has_permission(
+            &*conn,
+            &initiator.user.id,
+            permissions::rolls::ENTRIES,
+            &[
+                permissions::abilities::READ,
+                permissions::abilities::READ_WRITE,
+            ],
+            None
+        ).await? {
+            return Err(error::build::permission_denied(
+                "you do not have permission to write audio entries"
+            ));
         }
+
+        owner = initiator.user.id;
+    }
+
+    let Some(_entry) = entries::from_user_and_id(&*conn, &owner, &path.entry_id).await? else {
+        return Err(error::build::entry_not_found(&path.entry_id));
+    };
+
+    if let Some(audio_entry) = audio_entries::find_from_id(
+        &*conn, 
+        &path.audio_id,
+        &is_private
+    ).await? {
+        let mime = {
+            let known = format!("{}/{}", audio_entry.mime_type, audio_entry.mime_subtype);
+
+            mime::Mime::from_str(&known)?
+        };
+        let file = NamedFile::open(storage.get_audio_file_path(&owner, &path.entry_id, &path.audio_id, "webm"))?
+            .set_content_type(mime);
+
+        Ok(file.into_response(&req))
     } else {
         // responed audio entry not found
         Err(error::build::audio_entry_not_found(&path.audio_id))
@@ -142,10 +148,5 @@ pub async fn handle_put(
     transaction.commit().await?;
 
     JsonBuilder::new(http::StatusCode::OK)
-        .build(Some(audio_entries::AudioEntry {
-            id: path.audio_id,
-            private: posted.private,
-            comment: posted.comment,
-            entry: path.entry_id
-        }))
+        .build(None::<()>)
 }

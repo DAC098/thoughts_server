@@ -7,5 +7,10 @@ create table audio_entries (
 
     entry integer not null,
 
+    mime_type varchar not null,
+    mime_subtype varchar not null,
+
+    file_size bigint default 0,
+
     constraint entry_fk foreign key (entry) references entries (id)
 );

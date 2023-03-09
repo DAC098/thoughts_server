@@ -196,6 +196,9 @@ generic_catch!(rand::Error);
 // argon2
 generic_catch!(argon2::Error);
 
+// mime
+generic_catch!(mime::FromStrError);
+
 // actix_web
 // generic_catch!(actix_web::error::Error);
 generic_catch!(actix_web::http::header::ToStrError);

@@ -1,5 +1,3 @@
-use std::collections::{HashMap};
-
 use tokio_postgres::{GenericClient};
 use serde::{Serialize, Deserialize};
 //use chrono::serde::{ts_seconds};
@@ -83,22 +81,3 @@ pub async fn find_from_entry(
     )
 }
 
-pub async fn find_from_entry_hashmap(
-    conn: &impl GenericClient,
-    entry: &i32
-) -> error::Result<HashMap<i32, CustomFieldEntry>> {
-    Ok(
-        find_from_entry_query(conn, entry)
-        .await?
-        .iter()
-        .fold(HashMap::new(), |mut map, row| {
-            map.insert(row.get::<usize, i32>(0), CustomFieldEntry {
-                field: row.get(0),
-                value: serde_json::from_value(row.get(1)).unwrap(),
-                comment: row.get(2),
-                entry: row.get(3)
-            });
-            map
-        })
-    )
-}
