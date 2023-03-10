@@ -103,7 +103,6 @@ pub async fn handle_get(
 #[derive(Deserialize)]
 pub struct PutAudioEntry {
     private: bool,
-    comment: Option<String>,
 }
 
 /// updates an single audio id
@@ -133,16 +132,22 @@ pub async fn handle_put(
         ));
     }
 
-    security::assert::is_owner_for_entry(&*conn, &path.entry_id, &initiator.user.id).await?;
+    let Some(_entry) = entries::from_user_and_id(&*conn, &path.entry_id, &initiator.user.id).await? else {
+        return Err(error::build::entry_not_found(&path.entry_id));
+    };
+
+    let is_private = None;
+    let Some(_audio) = audio_entries::find_from_id(&*conn, &path.audio_id, &is_private).await? else {
+        return Err(error::build::audio_entry_not_found(&path.audio_id));
+    };
 
     let transaction = conn.transaction().await?;
     transaction.execute(
         "\
         update audio_entries \
-        set private = $2, \
-            comment = $3 \
+        set private = $2 \
         where id = $1",
-        &[&path.audio_id, &posted.private, &posted.comment]
+        &[&path.audio_id, &posted.private]
     ).await?;
 
     transaction.commit().await?;
