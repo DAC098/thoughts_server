@@ -1,4 +1,0 @@
-bugs
-
-suggestions
-option to have auto save for fields and entries
