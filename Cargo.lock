@@ -752,9 +752,13 @@ name = "db"
 version = "0.1.0"
 dependencies = [
  "barrel",
+ "chrono",
  "clap",
+ "lipsum",
  "postgres",
+ "rand",
  "refinery",
+ "serde_json",
 ]
 
 [[package]]
