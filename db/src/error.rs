@@ -85,5 +85,5 @@ macro_rules! generic_catch {
 }
 
 generic_catch!(std::io::Error, "std::io::Error");
-generic_catch!(postgres::Error);
-generic_catch!(refinery::Error);
+generic_catch!(postgres::Error, "postgres::Error");
+generic_catch!(refinery::Error, "refinery::Error");
