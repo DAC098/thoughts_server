@@ -79,7 +79,6 @@ macro_rules! hmac_methods {
     };
 }
 
-hmac_methods!(make_sha1, one_off_sha1, _one_off_verify_sha1, sha1::Sha1);
 hmac_methods!(make_sha224, one_off_sha224, one_off_verify_sha224, sha3::Sha3_224);
 hmac_methods!(make_sha256, one_off_sha256, one_off_verify_sha256, sha3::Sha3_256);
 hmac_methods!(make_sha384, one_off_sha384, one_off_verify_sha384, sha3::Sha3_384);

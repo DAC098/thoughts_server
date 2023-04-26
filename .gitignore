@@ -5,6 +5,8 @@ node_modules/
 
 docker-compose.override.yml
 
+test_args.json
+
 *.config.*
 *.ignore.*
 *.swp

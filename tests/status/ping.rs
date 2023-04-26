@@ -1,18 +1,24 @@
-use reqwest::blocking::Client;
+use crate::common;
 
 #[test]
 fn ping_server() {
-    let res = Client::builder()
-        .build()
-        .expect("failed to create client request")
-        .get("http://localhost:12345/ping")
-        .send()
-        .expect("failed to send request to test server");
+    let mut url = common::get_base_url();
+    let client = common::create_client_blocking();
 
-    assert!(res.status().is_success(), "unsuccessful ping request");
+    url.set_path("/ping");
 
-    let body = res.text()
-        .expect("failed to retrieve plaintext body");
+    let res = common::result::expect_with_err(
+        client.get(url)
+            .send(),
+        "failed to send ping request"
+    );
+
+    assert!(res.status().is_success(), "failed ping request");
+
+    let body = common::result::expect_with_err(
+        res.text(),
+        "failed to retrieve plaintext body"
+    );
 
     assert_eq!(body, "pong".to_owned(), "ping response is not pong");
 }
